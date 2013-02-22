@@ -17,8 +17,8 @@ from fabric.contrib.project import rsync_project
 #from fabric.operations import run
 
 
-SVN_PATH        = "http://code.icecube.wisc.edu/svn/sandbox/dheereman/HitSpoolScripts/trunk/"
-CHECKOUT_PATH   = "/scratch/dheereman/HsInterface/trunk/"
+SVN_PATH        =  "http://code.icecube.wisc.edu/daq/projects/hitspool/trunk"
+CHECKOUT_PATH   = "/home/pdaq/HsInterface/trunk/"
 HSiface_PATH    = "/mnt/data/pdaqlocal/HsInterface/trunk/"
 
 StartWorker     = "python26 " + HSiface_PATH + "HsWorker.py"
