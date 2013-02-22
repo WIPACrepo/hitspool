@@ -56,7 +56,7 @@ def hs_checkout():
     global SVN_PATH
     global CHECKOUT_PATH
     local("svn co " + SVN_PATH + " " + CHECKOUT_PATH + " " )
-    fastprint("checked out source code from %s \nto\n %s") % (SVN_PATH, CHECKOUT_PATH)
+    fastprint("checked out source code from " + SVN_PATH + " to " + CHECKOUT_PATH)
     pass
 
 @roles('spts-expcont', "spts-hubs")    
