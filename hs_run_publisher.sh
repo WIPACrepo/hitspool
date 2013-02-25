@@ -2,7 +2,7 @@
 #Starts the HitSpool Components HsPublisher.oy on ecpxont.
 #If it ever finishes, it sends an emial to dheereman@gmail.com
 
-fab hs_start_pub:1
+fab hs_start_pub:97
 
 #if it ever stops, alert via email:
 # email subject
