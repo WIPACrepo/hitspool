@@ -82,6 +82,14 @@ def hs_start_worker():
     run(StartWorker)                          
     fastprint('HsWorker launched')
 
+
+@parallel
+@roles('sps-hubs')    
+def hs_mk_dir():
+    run("mkdir -p /mnt/data/pdaqlocal/HsInterface/trunk/")                          
+    fastprint('HsWorker dir created')
+
+
 @roles('spts-expcont') 
 def hs_stop_pub(nworker):
     run("pkill -f \"" +  StartPublisher + " %i\"" % int(nworker))
