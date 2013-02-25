@@ -77,7 +77,7 @@ def hs_start_sender():
 
 
 @parallel
-@roles('spts-ichub29')    
+@roles('sps-hubs')    
 def hs_start_worker():
     run(StartWorker)                          
     fastprint('HsWorker launched')
@@ -93,7 +93,7 @@ def hs_stop_sender():
     fastprint("pkilled HsSender")
 
 @parallel
-@roles('spts-ichub29')
+@roles('sps-hubs')
 def hs_stop_worker():
     run("pkill -f \"" + StartWorker + "\"")
     fastprint('pkilled HsWorker')
