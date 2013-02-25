@@ -88,6 +88,12 @@ def hs_start_worker():
 def hs_mk_dir():
     run("mkdir -p /mnt/data/pdaqlocal/HsInterface/trunk/")                          
     fastprint('HsWorker dir created')
+    
+@parallel
+@roles('sps-hubs')    
+def hs_rm_tmpdir():
+    run("rm -rf /mnt/data/pdaqlocal/tmp/SNALERT_20130205_075721/")                          
+    fastprint('HsWorker tmp dir deleted')    
 
 
 @roles('sps-expcont') 
