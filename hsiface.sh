@@ -26,7 +26,7 @@ elif [ "$1" == "start" ] ; then
 	./hs_run_sender.sh &
 elif [ "$1" == "stop" ] ; then
 	echo "Stopping all HsInterface components..." 
-	fab hs_stop_pub:1
+	fab hs_stop_pub:20
 	sleep 2
 	fab hs_stop_sender
 	sleep 2 
