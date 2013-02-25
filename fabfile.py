@@ -92,7 +92,7 @@ def hs_mk_dir():
 @parallel
 @roles('sps-hubs')    
 def hs_rm_tmpdir():
-    run("rm -rf /mnt/data/pdaqlocal/tmp/SNALERT_20130205_075721/")                          
+    run("nice rm -rf /mnt/data/pdaqlocal/tmp/SNALERT_20130205_075721/")                          
     fastprint('HsWorker tmp dir deleted')    
 
 
