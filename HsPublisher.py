@@ -53,7 +53,9 @@ print " HsPublisher startet with pid: %s \n"  %os.getpid()
 context = zmq.Context()
 # Socket to receive alert message
 socket = context.socket(zmq.REP)
-socket.bind("tcp://10.2.2.12:55557")   #connection = tcp, host = bond0 on spts-expcont ip , port 
+#socket.bind("tcp://10.2.2.12:55557")   #connection = tcp, host = bond0 on spts-expcont ip , port 
+socket.bind("tcp://*:55557")   #connection = tcp, host = bond0 on spts-expcont ip , port 
+
 print "bind REP socket for receiving alert messages to port 55557"
 
 
