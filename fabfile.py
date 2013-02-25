@@ -59,18 +59,18 @@ def hs_checkout():
     fastprint("checked out source code from " + SVN_PATH + " to " + CHECKOUT_PATH)
     pass
 
-@roles('spts-expcont', "spts-hubs")    
+@roles('sps-expcont', "sps-hubs")    
 def hs_deploy():
     rsync_project(HSiface_PATH , CHECKOUT_PATH, exclude=(".svn"))
     fastprint("HitSpoolScripts deployed successful\n")
     pass
     
-@roles('spts-expcont')
+@roles('sps-expcont')
 def hs_start_pub(nworker):
     run(StartPublisher + " %i" % int(nworker))
     fastprint("HsPublisher launched")
 
-@roles('spts-expcont')
+@roles('sps-expcont')
 def hs_start_sender():
     run(StartSender)                          
     fastprint('HsSender launched')        
@@ -90,12 +90,12 @@ def hs_mk_dir():
     fastprint('HsWorker dir created')
 
 
-@roles('spts-expcont') 
+@roles('sps-expcont') 
 def hs_stop_pub(nworker):
     run("pkill -f \"" +  StartPublisher + " %i\"" % int(nworker))
     fastprint("pkilled HsPublisher")
 
-@roles('spts-expcont')     
+@roles('sps-expcont')     
 def hs_stop_sender():
     run("pkill -f \"" +  StartSender + "\"")
     fastprint("pkilled HsSender")
