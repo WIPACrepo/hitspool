@@ -42,7 +42,7 @@ if len(sys.argv) < 5 :
 context = zmq.Context()
 # Socket to receive alert message
 grabber = context.socket(zmq.REQ)
-grabber.connect("tcp://10.2.2.12:55557")   #connection = tcp, host = bond0 on spts-expcont ip , port 
+grabber.connect("tcp://10.1.2.20:55557")   #connection = tcp, host = bond0 on spts-expcont ip , port 
 
 #class MyGrabber(object):
 def send_alert():
