@@ -299,7 +299,7 @@ class MyAlert(object):
 #        rsync_cmd = "nice rsync -avv --bwlimit=100000 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + ':' + hs_copydest + " >>" + logfile
         
         # use a special encryption flag for reducing the cpu usage on the hub: 
-        rsync_cmd = "nice rsync -avv -e 'ssh -c arcfour' --bwlimit=60 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + ':' + hs_copydest + " >>" + logfile
+        rsync_cmd = "nice rsync -avv -e 'ssh -c arcfour' --bwlimit=100 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + ':' + hs_copydest + " >>" + logfile
 
         
         
