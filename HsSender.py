@@ -26,12 +26,12 @@ context = zmq.Context()
 # Socket to receive messages on from Worker
 reporter = context.socket(zmq.PULL)
 reporter.bind("tcp://*:55560")
-print "bind Sink to port 55560 on spts-expcont"
+print "bind Sink to port 55560 on sps-2ndbuild"
 
 # Socket for I3Live on expcont
 i3socket = context.socket(zmq.PUSH) # former ZMQ_DOWNSTREAM is depreciated alias 
-i3socket.connect("tcp://10.2.2.12:6668") 
-print "connected to i3live socket on port 6668"
+i3socket.connect("tcp://expcont:6668") 
+print "connected to i3live socket at expcont on port 6668"
 
 
 #LEVELS = {'debug': logging.DEBUG,

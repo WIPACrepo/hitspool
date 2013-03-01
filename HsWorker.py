@@ -246,8 +246,8 @@ class MyAlert(object):
             print "sn_stops's data is included in file %s" % (sn_stop_file_str)
         
         fsummary = open(logfile, "a")
-        print >> fsummary, "start : %s \nis included in \n%s" % (ALERTSTART ,sn_start_file_str)
-        print >> fsummary, "stop : %s \nis included in \n%s" % (ALERTSTOP, sn_stop_file_str)
+        print >> fsummary, "start : %s \nis included in \n%s" % (sn_start ,sn_start_file_str)
+        print >> fsummary, "stop : %s \nis included in \n%s" % (sn_stop, sn_stop_file_str)
         fsummary.close()
 
 
@@ -299,7 +299,7 @@ class MyAlert(object):
 #        rsync_cmd = "nice rsync -avv --bwlimit=100000 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + ':' + hs_copydest + " >>" + logfile
         
         # use a special encryption flag for reducing the cpu usage on the hub: 
-        rsync_cmd = "nice rsync -avv -e 'ssh -c arcfour' --bwlimit=300 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + ':' + hs_copydest + " >>" + logfile
+        rsync_cmd = "nice rsync -avv -e 'ssh -c arcfour' --bwlimit=60 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + ':' + hs_copydest + " >>" + logfile
 
         
         
@@ -349,7 +349,7 @@ class MyAlert(object):
         report_dict = {}
         #print "the infolist contains: ", infolist
         dl_pattern = re.compile(r'total\ssize\sis\s[0-9]*', flags=re.MULTILINE)
-        sn_start_pattern = re.compile(r'start\s:\s[0-9]*', flags=re.MULTILINE) 
+        sn_start_pattern = re.compile(r'start\s:\s[0-9]*', flags=re.MULTILINE) #2013-03-01 09:47:57
         sn_stop_pattern = re.compile(r'stop\s:\s[0-9]*', flags=re.MULTILINE)
         copydest_pattern = re.compile(r'data\sis\scopied\sto\s.*(?=\sat)')
         infile = open(logfile, "r")
