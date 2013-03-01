@@ -59,7 +59,7 @@ def hs_checkout():
     fastprint("checked out source code from " + SVN_PATH + " to " + CHECKOUT_PATH)
     pass
 
-@roles('sps-expcont', "sps-hubs")    
+@roles('sps-expcont', 'sps-2ndbuild' ,'sps-hubs')    
 def hs_deploy():
     rsync_project(HSiface_PATH , CHECKOUT_PATH, exclude=(".svn"))
     fastprint("HitSpoolScripts deployed successful\n")
@@ -68,19 +68,22 @@ def hs_deploy():
 @roles('sps-expcont')
 def hs_start_pub(nworker):
     run(StartPublisher + " %i" % int(nworker))
-    fastprint("HsPublisher launched")
+    # if this ever finishes, print
+    fastprint("HsPublisher exit")
 
-@roles('sps-expcont')
+@roles('sps-2ndbuild')
 def hs_start_sender():
-    run(StartSender)                          
-    fastprint('HsSender launched')        
+    run(StartSender)
+    # if this ever finishes, print                      
+    fastprint('HsSender exit')        
 
 
 @parallel
 @roles('sps-hubs')    
 def hs_start_worker():
-    run(StartWorker)                          
-    fastprint('HsWorker launched')
+    run(StartWorker) 
+    # if this ever finishes, print                         
+    fastprint('HsWorker exit')
 
 
 @parallel
@@ -101,7 +104,7 @@ def hs_stop_pub(nworker):
     run("pkill -f \"" +  StartPublisher + " %i\"" % int(nworker))
     fastprint("pkilled HsPublisher")
 
-@roles('sps-expcont')     
+@roles('sps-2ndbuild')     
 def hs_stop_sender():
     run("pkill -f \"" +  StartSender + "\"")
     fastprint("pkilled HsSender")

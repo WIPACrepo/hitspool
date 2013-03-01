@@ -21,7 +21,7 @@ def usage():
     usage :: HsGrabber.py [options]
             -b         | begin of data "YYYY-MM-DD UTC HH:mm:ss"
             -e         | end of data "YYYY-MM-DD UTC HH:mm:ss"
-            -c         | copydir e.g. "/mnt/data/pdaqlocal/HsDataCopy/"
+            -c         | copydir e.g. "pdaq@2ndbuild:/mnt/data/pdaqlocal/HsDataCopy/"
     """
     sys.exit(1)
         
