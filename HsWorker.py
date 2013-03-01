@@ -22,8 +22,6 @@ import subprocess
 import json
 
 context = zmq.Context()
-#spts_expcont_ip = "10.2.2.12"
-spts_expcont_ip = "expcont"
 
 p = subprocess.Popen(["hostname"], stdout = subprocess.PIPE)
 out, err = p.communicate()
@@ -396,17 +394,17 @@ class MyHubserver(object):
         subscriber = context.socket(zmq.SUB)
         subscriber.setsockopt(zmq.IDENTITY, src_mchn)
         subscriber.setsockopt(zmq.SUBSCRIBE, "")
-        subscriber.connect("tcp://"+spts_expcont_ip+":55561")
-        print "SUB-Socket to receive message on:\nport:55561 from %s" % spts_expcont_ip        
+        subscriber.connect("tcp://expcont:55561")
+        print "SUB-Socket to receive message on:\nport:55561 from expcont"        
                  
         # Socket to send message to :
         sender = context.socket(zmq.PUSH)
-        sender.connect("tcp://"+spts_expcont_ip+":55560")
-        print "PUSH-Socket to send message to:\nport 55560 on %s" % spts_expcont_ip
+        sender.connect("tcp://2ndbuild:55560")
+        print "PUSH-Socket to send message to:\nport 55560 on 2ndbuild" 
         
         # Socket to synchronize the Publisher with the Workers
         syncclient = context.socket(zmq.PUSH)
-        syncclient.connect("tcp://"+spts_expcont_ip+":55562")
+        syncclient.connect("tcp://expcont:55562")
         print "connected sync PUSH socket to  port 55562"
 
         # send a synchronization request:
@@ -435,7 +433,7 @@ class MyHubserver(object):
                 report_dict_json = json.dumps(report_dict)
                 print "dump dict to json"
                 sender.send_json(report_dict_json)
-                print "HsWorker sends report JSON to HsSender on expcont..."
+                print "HsWorker sends report JSON to HsSender on 2ndbuild..."
                 print "\nHS_Worker ready for next alert\n"
             except KeyboardInterrupt:
                 print " Interruption received, shutting down..."
