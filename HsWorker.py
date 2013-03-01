@@ -46,7 +46,7 @@ class MyAlert(object):
         Parse the Alert message for starttime, stoptime,
         sn-alert-trigger-time-stamp and directory where-to the data has to be copied.
         """
-        hs_sourcedir = '/mnt/data/pdaqlocal/lastRun/'
+        hs_sourcedir = '/mnt/data/pdaqlocal/currentRun/'
         #hs_copydest_list = list() 
         fsummary = open(logfile, "a")
         packer_start = str(datetime.utcnow())
@@ -63,6 +63,7 @@ class MyAlert(object):
         start = int(alert_info[0]["start"]) # timestamp in DAQ units as a string
         stop = int(alert_info[0]['stop'])   # timestamp in DAQ units as a string
         hs_user_machinedir = alert_info[0]['copy'] # should be something like: pdaq@expcont:/mnt/data/pdaqlocal/HsDataCopy/
+        print "contains: " , start, " ", stop, " " , hs_user_machinedir
 
 
 
@@ -72,15 +73,16 @@ class MyAlert(object):
             sn_start_utc = str(datetime(2013,1,1) + timedelta(seconds=sn_start*1.0E-10))
             print "DAQ time-stamp in UTC: ", sn_start_utc
             ALERTSTART = datetime.strptime(sn_start_utc,"%Y-%m-%d %H:%M:%S")
-            print "ALERTSTART = ", ALERTSTART            
-        
+            print "ALERTSTART = ", ALERTSTART 
+            print "SN START = %d\n\
+            in UTC = %s" %(sn_start, ALERTSTART)
+            
         except (TypeError,ValueError):
             print "ERROR in json message: no start timestamp found. Abort request..."
             fsummary = open(logfile, "a")
             print >> fsummary, "No timestamps found in alert message. Aborting request... "
             fsummary.close()  
             sys.exit()
-            
         else:
             pass
         
@@ -92,7 +94,6 @@ class MyAlert(object):
             print "DAQ time-stamp in UTC: ", sn_stop_utc
             ALERTSTOP = datetime.strptime(sn_stop_utc,"%Y-%m-%d %H:%M:%S")
             print "ALERTSTOP =", ALERTSTOP
-            
         except (TypeError,ValueError):
             print "ERROR in json message: no stop timestamp found. Abort request..."
             fsummary = open(logfile, "a")
@@ -106,7 +107,6 @@ class MyAlert(object):
             hs_copydir = re.sub('\w+\@\w+:', '', hs_user_machinedir)
             print " HS COPYDIR = ", hs_copydir
             hs_ssh_access = re.sub(':/\w+/\w+/\w+/\w+/', "", hs_user_machinedir)
-            
         except (TypeError, ValueError):
             #"ERROR in json message: no copydir found. Abort request..."
             sys.exit( "ERROR in json message: no copydir found. Abort request...")
@@ -128,42 +128,65 @@ class MyAlert(object):
                 (key, val) = line.split()
                 infodict[str(key)] = int(val)
             fin.close()
-                            
-        startdata = infodict['T0']      # oldest, in hit spool buffer existing time stamp in DAQ units
-        print "startdata in nanoseconds: " , startdata
-        CURT = infodict['CURT']         # current time stamp in DAQ units
-        IVAL = infodict['IVAL']         # len of each file in integer 0.1 nanoseconds
-        IVAL_SEC = IVAL*1.0E-10         # len of each file in integer seconds
-        CURF = infodict['CURF']         # file index of currently active hit spool file
-        MAXF = infodict['MAXF']         # number of files per cycle
-        HS_LOOP = int((CURT-startdata)/(MAXF*IVAL))
+        
+        startrun = int(infodict['T0'])                   # time-stamp of first HIT at run start -> this HIT is not in buffer anymore if HS_Loop > 0 !            
+        CURT = infodict['CURT']                     # current time stamp in DAQ units
+        IVAL = infodict['IVAL']                     # len of each file in integer 0.1 nanoseconds
+        IVAL_SEC = IVAL*1.0E-10                     # len of each file in integer seconds
+        CURF = infodict['CURF']                     # file index of currently active hit spool file
+        MAXF = infodict['MAXF']                     # number of files per cycle
+#        startdata = int(CURT - ((MAXF-1)*IVAL_SEC))      # oldest, in hit spool buffer existing time stamp in DAQ units  
+        TFILE = (CURT - startrun)%IVAL              # how long already writing to current file, time in DAQ units 
+        TFILE_SEC = TFILE*1.0E-10  
+        HS_LOOP = int((CURT-startrun)/(MAXF*IVAL))
         if HS_LOOP == 0:
             OLDFILE = 0              # file index of oldest in buffer existing file
+            startdata = startrun
         else:
             OLDFILE = (CURF+1)
-         
+#            startdata = int(CURT - (((MAXF-1)*IVAL_SEC) + TFILE))    # oldest, in hit spool buffer existing time stamp in DAQ units
+            startdata = int(CURT - (MAXF-1)*IVAL - TFILE)    # oldest, in hit spool buffer existing time stamp in DAQ units         
         print "get information from %s..." % filename
 
         #converting the INFO dict's first entry into a datetime object:
+        startrun_utc = str(datetime(2013,1,1) + timedelta(seconds=startrun*1.0E-10))
+        RUNSTART = datetime.strptime(startrun_utc,"%Y-%m-%d %H:%M:%S.%f")
         startdata_utc = str(datetime(2013,1,1) + timedelta(seconds=startdata*1.0E-10))
         BUFFSTART = datetime.strptime(startdata_utc,"%Y-%m-%d %H:%M:%S.%f")
         stopdata_utc = str(datetime(2013,1,1) + timedelta(seconds=CURT*1.0E-10))
         BUFFSTOP = datetime.strptime(stopdata_utc,"%Y-%m-%d %H:%M:%S.%f")
-        print "oldest hit's time-stamp existing in buffer:\n%s" %(BUFFSTART)
-        print "currently written hit with timestamp: %d" % CURT
-        print "newest hit's time-stamp existing in buffer:\n%s" %(BUFFSTOP)
-        print "each hit spool file contains %d * E-10 seconds of data" % IVAL
-        print "duration per file in integer seconds: %d" % IVAL_SEC
-        print "hit spooling writes to %d files per cycle " % MAXF
-        print "index of oldest file: HitSpool-%d" % OLDFILE
-        print "The Hit Spooler is currently writing iteration loop: %d" % HS_LOOP
+        #outputstring1 = "first HIT ever in this Run on this String in nanoseconds: %d\noldest HIT's time-stamp existing in buffer in nanoseconds: %d\noldest HIT's time-stamp in UTC:%s\nnewest HIT's timestamp in nanoseconds: %d\nnewest HIT's time-stamp in UTC: %s\neach hit spool file contains %d * E-10 seconds of data\nduration per file in integer seconds: %d\nhit spooling writes to %d files per cycle \nHitSpooling writes to newest file: HitSpool-%d since %d DAQ units\nThe Hit Spooler is currently writing iteration loop: %d\nThe oldest file is: HitSpool-%s\n"
+        print "first HIT ever in this Run on this String in nanoseconds: %d\n\
+        oldest HIT's time-stamp existing in buffer in nanoseconds: %d\n\
+        oldest HIT's time-stamp in UTC:%s\n\
+        newest HIT's timestamp in nanoseconds: %d\n\
+        newest HIT's time-stamp in UTC: %s\n\
+        each hit spool file contains %d * E-10 seconds of data\n\
+        duration per file in integer seconds: %d\n\
+        hit spooling writes to %d files per cycle \n\
+        HitSpooling writes to newest file: HitSpool-%d since %d DAQ units\n\
+        The Hit Spooler is currently writing iteration loop: %d\n\
+        The oldest file is: HitSpool-%s" %( startrun, startdata, BUFFSTART, CURT, BUFFSTOP, IVAL, IVAL_SEC, MAXF, CURF, TFILE, HS_LOOP, OLDFILE)
+        
+        
+#        print "", startdata
+#        print "" %(BUFFSTART)
+#        print "newest HIT's timestamp in nanoseconds: %d\n" % CURT
+#        print "" %(BUFFSTOP)
+#        print "" % IVAL
+#        print "" % IVAL_SEC
+#        print "" % MAXF
+#        print "" % (CURF, TFILE)
+#        print "" % HS_LOOP
         fsummary = open(logfile, "a")
-        print >> fsummary, "From info.txt:\n BUFFSTART= %s\n BUFFSTOP=  %s\n IVAL_SEC=  %d \n OLDFILE=  HitSpool-%s\n MAXF=     %s\n HS_LOOP= %s\n" %(BUFFSTART, 
-                                                                                                                                       BUFFSTOP, 
-                                                                                                                                       IVAL_SEC, 
-                                                                                                                                       OLDFILE, 
-                                                                                                                                       MAXF, 
-                                                                                                                                       HS_LOOP)
+        print >> fsummary, "From info.txt:\n\
+        RUNSTART= %s\n\
+        BUFFSTART= %s\n\
+        BUFFSTOP=  %s\n\
+        IVAL_SEC=  %d\n\
+        CURF=  HitSpool-%s\n\
+        MAXF= %s\n\
+        HS_LOOP= %s\n" %(RUNSTART, BUFFSTART, BUFFSTOP, IVAL_SEC, CURF, MAXF, HS_LOOP)
         fsummary.close()
         
         
@@ -176,9 +199,9 @@ class MyAlert(object):
         
         if start < startdata:
             sn_start_file = OLDFILE
-            print "Sn_start doesn't exits in buffer anymore! Copy oldest possible data: HitSpool-%s" % OLDFILE
+            print "Sn_start doesn't exits in buffer anymore! Start with oldest possible data: HitSpool-%s" % OLDFILE
             fsummary = open(logfile, "a")
-            print >> fsummary, "Sn_start doesn't exits in buffer anymore! Copy oldest possible data: HitSpool-%s" % OLDFILE
+            print >> fsummary, "Sn_start doesn't exits in buffer anymore! Start with oldest possible data: HitSpool-%s" % OLDFILE
             sn_start_file_str = hs_sourcedir + "HitSpool-" + str(sn_start_file) + ".dat"   
 
         else: 
@@ -203,6 +226,8 @@ class MyAlert(object):
             print "requested data doesn't exist in HitSpool Buffer anymore! Abort request."
             fsummary = open(logfile, "a")
             print >> fsummary, "requested data doesn't exist in HitSpool Buffer anymore!. Aborting request... "
+            packer_stop = str(datetime.utcnow())
+            print >> fsummary, "Finished HitSpoolWorker at: %s\n**********************************************\n" % packer_stop
             fsummary.close() 
             return None
         elif ALERTSTOP < ALERTSTART:
@@ -223,8 +248,8 @@ class MyAlert(object):
             print "sn_stops's data is included in file %s" % (sn_stop_file_str)
         
         fsummary = open(logfile, "a")
-        print >> fsummary, "start : %s \nis included in \n%s" % ( sn_start ,sn_start_file_str)
-        print >> fsummary, "stop : %s \nis included in \n%s" % (sn_stop, sn_stop_file_str)
+        print >> fsummary, "start : %s \nis included in \n%s" % (ALERTSTART ,sn_start_file_str)
+        print >> fsummary, "stop : %s \nis included in \n%s" % (ALERTSTOP, sn_stop_file_str)
         fsummary.close()
 
 
@@ -272,7 +297,13 @@ class MyAlert(object):
         print "last relevant is:\n%s" % sn_stop_file_str
         
         # ---- Rsync the relevant files to expcont ---- #
-        rsync_cmd = "nice rsync -avv --bwlimit=30 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + ':' + hs_copydest + " >>" + logfile
+#        rsync_cmd = "nice rsync -avv --bwlimit=30 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + ':' + hs_copydest + " >>" + logfile
+#        rsync_cmd = "nice rsync -avv --bwlimit=100000 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + ':' + hs_copydest + " >>" + logfile
+        
+        # use a special encryption flag for reducing the cpu usage on the hub: 
+        rsync_cmd = "nice rsync -avv -e 'ssh -c arcfour' --bwlimit=300 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + ':' + hs_copydest + " >>" + logfile
+
+        
         
         print "rsync does:\n %s" % rsync_cmd 
         fsummary = open(logfile, "a")
