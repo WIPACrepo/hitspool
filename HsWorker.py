@@ -22,6 +22,8 @@ import subprocess
 import json
 
 context = zmq.Context()
+#spts_expcont_ip = "10.2.2.12"
+spts_expcont_ip = "expcont"
 
 p = subprocess.Popen(["hostname"], stdout = subprocess.PIPE)
 out, err = p.communicate()
@@ -44,7 +46,7 @@ class MyAlert(object):
         Parse the Alert message for starttime, stoptime,
         sn-alert-trigger-time-stamp and directory where-to the data has to be copied.
         """
-        hs_sourcedir = '/mnt/data/pdaqlocal/lastRun/'
+        hs_sourcedir = '/mnt/data/pdaqlocal/currentRun/'
         #hs_copydest_list = list() 
         fsummary = open(logfile, "a")
         packer_start = str(datetime.utcnow())
@@ -62,6 +64,7 @@ class MyAlert(object):
         stop = int(alert_info[0]['stop'])   # timestamp in DAQ units as a string
         hs_user_machinedir = alert_info[0]['copy'] # should be something like: pdaq@expcont:/mnt/data/pdaqlocal/HsDataCopy/
         print "contains: " , start, " ", stop, " " , hs_user_machinedir
+        
 
 
 
@@ -74,6 +77,9 @@ class MyAlert(object):
             print "ALERTSTART = ", ALERTSTART 
             print "SN START = %d\n\
             in UTC = %s" %(sn_start, ALERTSTART)
+            TRUETRIGGER = ALERTSTART + timedelta(0,30)          # time window around trigger is [-30,+60] -> TRUETRIGGER = ALERTSTART + 30seconds 
+            print "TRUETRIGGER = time-stamp when SN candidate trigger: %s" % TRUETRIGGER
+            
             
         except (TypeError,ValueError):
             print "ERROR in json message: no start timestamp found. Abort request..."
@@ -262,14 +268,15 @@ class MyAlert(object):
             n_rlv_files = ((sn_stop_file - sn_start_file)+ MAXF + 1) % MAXF # mod MAXF for the case that sn_start & sn_stop are in the same HS file
             print "n_rlv_files = %s " % n_rlv_files
 
-        sn_start_mod = ALERTSTART.strftime("%Y%m%d_%H%M%S") 
-        sn_start_foldername = re.sub(" ","_", str(sn_start_mod))
-        hs_copydest = hs_copydir+sn_start_foldername+"_"+src_mchn + "/"
+        truetrigger = TRUETRIGGER.strftime("%Y%m%d_%H%M%S") 
+#        sn_start_foldername = re.sub(" ","_", str(sn_start_mod))
+        truetrigger_dir = "SNALERT_" + truetrigger+"_"+src_mchn + "/"
+        hs_copydest = hs_copydir + truetrigger_dir
         print "unique naming for folder: %s " % hs_copydest
 
         #move these files aside into subdir /tmp/ to prevent from being overwritten from next hs cycle while copying:
         #make subdirectory "/tmp" . if it exists already
-        tmp_dir = "/mnt/data/pdaqlocal/tmp/SNALERT_"+sn_start_foldername + "/"
+        tmp_dir = "/mnt/data/pdaqlocal/tmp/SNALERT_"+truetrigger + "/"
         try:
             subprocess.check_call("mkdir -p " + tmp_dir, shell=True)
             print "created subdir for relevant hs files"
@@ -299,9 +306,10 @@ class MyAlert(object):
 #        rsync_cmd = "nice rsync -avv --bwlimit=100000 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + ':' + hs_copydest + " >>" + logfile
         
         # use a special encryption flag for reducing the cpu usage on the hub: 
-        rsync_cmd = "nice rsync -avv -e 'ssh -c arcfour' --bwlimit=100 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + ':' + hs_copydest + " >>" + logfile
+#        rsync_cmd = "nice rsync -avv -e 'ssh -c arcfour' --bwlimit=300 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + ':' + hs_copydest + " >>" + logfile
 
-        
+        #running rsync daemon --> "::" instead of single ':' and the module is hitspool == /mnt/data/pdaqlocal/HsDataCopy/
+        rsync_cmd = "nice rsync -avv --bwlimit=100 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + '::hitspool/' + truetrigger_dir + " >>" + logfile
         
         print "rsync does:\n %s" % rsync_cmd 
         fsummary = open(logfile, "a")
@@ -336,7 +344,7 @@ class MyAlert(object):
         except subprocess.CalledProcessError:
             print "Error while removing tmp files..."
             pass
-            
+        
     def info_report(self, logfile):
         """
         summerizes what has been done: hostname, dataload copied and timestamps of the alert
