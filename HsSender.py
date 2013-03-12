@@ -26,12 +26,21 @@ context = zmq.Context()
 # Socket to receive messages on from Worker
 reporter = context.socket(zmq.PULL)
 reporter.bind("tcp://*:55560")
-print "bind Sink to port 55560 on sps-2ndbuild"
+print "bind Sink to port 55560 on spts-2ndbuild"
 
 # Socket for I3Live on expcont
 i3socket = context.socket(zmq.PUSH) # former ZMQ_DOWNSTREAM is depreciated alias 
-i3socket.connect("tcp://expcont:6668") 
-print "connected to i3live socket at expcont on port 6668"
+i3socket.connect("tcp://10.2.2.12:6668") 
+print "connected to i3live socket on port 6668"
+
+#p = subprocess.Popen(["pwd"], stdout = subprocess.PIPE)
+#out, err = p.communicate()
+#hsinterface_dir = out.rstrip()
+
+hsinterface_dir = "/mnt/data/pdaqlocal/HsInterface/trunk/"
+
+print "Running at : ", hsinterface_dir
+
 
 
 #LEVELS = {'debug': logging.DEBUG,
@@ -87,7 +96,7 @@ class HsSender(object):
         i3live_dict2 ={}
         i3live_dict2["service"] = "HSiface"
         i3live_dict2["varname"] = infodict['hub']       
-        i3live_dict2["value"] = "hitspool files transferred to expcont"       
+        i3live_dict2["value"] = "hitspool files transferred to central storage location"       
         i3live_json2 = json.dumps(i3live_dict2)
         i3socket.send_json(i3live_json2)
         print "message to I3Live: ", i3live_json2        
@@ -102,21 +111,35 @@ class HsSender(object):
 
     def spade_pickup(self, info):
         infodict = json.loads(info)
-        print "this is for SPADE:"
+        print "Preparation for SPADE Pickup started..."
         copydir = infodict['copydir']
-        copy_basedir = re.search('[/\w+]*/(?=[0-9]{8}_[0-9]{6})', copydir)
+        copy_basedir = re.search('[/\w+]*/(?=SNALERT_[0-9]{8}_[0-9]{6})', copydir)
+        if copy_basedir:
+            data_dir = re.search('(?<=' + copy_basedir.group(0) + ').*', copydir)
+            print "Uniquely named folder for hs data is called: " , data_dir.group(0)
+        else:
+            print "Naming scheme validation failed."
+            print "Please put the data manually in the SPADE directory"
+            pass
         datastart = re.search('[0-9]{8}_[0-9]{6}', copydir)
         src_mchn = re.search('i[c,t]hub[0-9]{2}', copydir)
-        if copy_basedir and datastart and src_mchn:    
-            hs_tarname = copy_basedir.group(0) + datastart.group(0) + "_"+src_mchn.group(0) + ".tar.gz"
+        print "copy_basedir from json is: " , copy_basedir
+        if copy_basedir and datastart and src_mchn and data_dir:  
+            hs_basename = "HS_SNALERT_"  + datastart.group(0) + "_"+src_mchn.group(0)  
+            hs_tarname = hs_basename + ".dat.tar" 
+            # WATCH OUT!This is a relative directory name. Absoulte path provided by "cwd=copy_basedir.group(0)" in subprocess call 
             print " the copydir: %s goes into tarname in this way: %s " % (copydir, hs_tarname)
-            print "tarring ..."
-            subprocess.check_call("tar -cvzf " + hs_tarname + " " + copydir, shell=True)
-            hs_spade_name = "/mnt/data/HitSpool/" + "HS_" + datastart.group(0) + "_"+src_mchn.group(0) + ".dat.tar"
-            hs_spade_semfile = "/mnt/data/HitSpool/" + "HS_" + datastart.group(0) + "_"+src_mchn.group(0) + ".sem"
+            print "start tarring inside the hitspool copy dir..."
+            subprocess.check_call(['nice', 'tar', '-cvf', hs_tarname , data_dir.group(0)], cwd=copy_basedir.group(0))
+            print "tarring done"
+#            subprocess.check_call(['rm', '-rv', data_dir.group(0)], cwd=copy_basedir.group(0))
+#            print "removed untarred data"
+            hs_spade_name = "/mnt/data/HitSpool/" + hs_tarname
+            hs_spade_semfile = "/mnt/data/HitSpool/" + hs_basename + ".sem"
+            print "Finished tarball for %s" % src_mchn.group(0)
 #            try:
 #                print "move tarfolder to SPADE dir and name correctly:\n%s " % hs_spade_name
-#                mv_result = subprocess.check_call("mv " + hs_tarname + " " + hs_spade_name, shell=True)
+#                mv_result = subprocess.check_call(['mv', hs_tarname, hs_spade_name], cwd=copy_basedir.group(0))
 #                if mv_result is not None:
 #                    print "moving the data didn't succeed"
 #                else:
@@ -144,10 +167,11 @@ class Reporter(object):
         while True:
             try:         
                 infodict = x.receive_from_worker()
-                print "HsWorker report received and DONE."
+                print "HsWorker report received and DONE"
                 x.live_log(infodict)
-                print "Hssender sended to I3Live"
+                print "HsSender sended to I3Live"
                 x.spade_pickup(infodict)
+                print "Preparation for SPADE Pickup DONE"
                 
             except KeyboardInterrupt:
                 print "Interruption received, proceeding..."
