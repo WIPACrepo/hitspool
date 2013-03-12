@@ -33,14 +33,6 @@ i3socket = context.socket(zmq.PUSH) # former ZMQ_DOWNSTREAM is depreciated alias
 i3socket.connect("tcp://10.2.2.12:6668") 
 print "connected to i3live socket on port 6668"
 
-#p = subprocess.Popen(["pwd"], stdout = subprocess.PIPE)
-#out, err = p.communicate()
-#hsinterface_dir = out.rstrip()
-
-hsinterface_dir = "/mnt/data/pdaqlocal/HsInterface/trunk/"
-
-print "Running at : ", hsinterface_dir
-
 
 
 #LEVELS = {'debug': logging.DEBUG,
@@ -88,7 +80,7 @@ class HsSender(object):
         i3live_dict1["value"] = [dataload, str(start_utc), str(stop_utc), copydir]
         i3live_json1 = json.dumps(i3live_dict1)
 
-        i3socket.send_json(i3live_json1)
+        i3socket.send_json(i3live_dict1)
         print "message to I3Live: ", i3live_json1
 
 #
@@ -123,7 +115,7 @@ class HsSender(object):
             pass
         datastart = re.search('[0-9]{8}_[0-9]{6}', copydir)
         src_mchn = re.search('i[c,t]hub[0-9]{2}', copydir)
-        print "copy_basedir from json is: " , copy_basedir
+        print "copy_basedir from json is: " , copy_basedir.group(0)
         if copy_basedir and datastart and src_mchn and data_dir:  
             hs_basename = "HS_SNALERT_"  + datastart.group(0) + "_"+src_mchn.group(0)  
             hs_tarname = hs_basename + ".dat.tar" 
