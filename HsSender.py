@@ -29,11 +29,9 @@ reporter.bind("tcp://*:55560")
 print "bind Sink to port 55560 on spts-2ndbuild"
 
 # Socket for I3Live on expcont
-i3socket = context.socket(zmq.PUSH) # former ZMQ_DOWNSTREAM is depreciated alias 
-i3socket.connect("tcp://10.2.2.12:6668") 
+i3socket = context.socket(zmq.DOWNSTREAM) # former ZMQ_DOWNSTREAM is depreciated 
+i3socket.connect("tcp://expcont:6668") 
 print "connected to i3live socket on port 6668"
-
-
 
 #LEVELS = {'debug': logging.DEBUG,
 #          'info': logging.INFO,
@@ -68,30 +66,34 @@ class HsSender(object):
         copydir = infodict['copydir']
         
         start_utc = datetime(2013, 1, 1) + timedelta(seconds = start*1.0E-10)
-        stop_utc  = datetime(2013, 1, 1) + timedelta(seconds = stop*1.0E-10) 
-                    
-        print "message: \n", hubname , '\n' ,dataload , '\n', start , '\n', stop , '\n', 
-#        
-#        i3live_dict1 = {"service: HSiface, "varname: str(hubname), "value": int(dataload)}
-#        
+        stop_utc  = datetime(2013, 1, 1) + timedelta(seconds = stop*1.0E-10)
+        src_mchn = re.search('i[c,t]hub[0-9]{2}', copydir)
+        
+        
+
+        
+        # fill a new dictionary with info from infodict:
+        value_dict1 = {}
+        value_dict1["dataload"] = infodict['dataload']
+        value_dict1["start"] = str(start_utc)
+        value_dict1["stop"] = str(stop_utc)
+        value_dict1["copydir"] = infodict['copydir']
+        print "message: \n", hubname , '\n' ,dataload , '\n', start , '\n', stop , '\n', copydir    
         i3live_dict1 = {}
         i3live_dict1["service"] = "HSiface"
-        i3live_dict1["varname"] = infodict['hub']
-        i3live_dict1["value"] = [dataload, str(start_utc), str(stop_utc), copydir]
-        i3live_json1 = json.dumps(i3live_dict1)
+        i3live_dict1["varname"] = src_mchn.group(0)
+        i3live_dict1["value"] = value_dict1
 
         i3socket.send_json(i3live_dict1)
-        print "message to I3Live: ", i3live_json1
-
-#
-#        
+        
+        print "message to I3Live: ", i3live_dict1
+        
         i3live_dict2 ={}
         i3live_dict2["service"] = "HSiface"
-        i3live_dict2["varname"] = infodict['hub']       
-        i3live_dict2["value"] = "hitspool files transferred to central storage location"       
-        i3live_json2 = json.dumps(i3live_dict2)
-        i3socket.send_json(i3live_json2)
-        print "message to I3Live: ", i3live_json2        
+        i3live_dict2["varname"] = src_mchn.group(0)       
+        i3live_dict2["value"] = "data processed"       
+        i3socket.send_json(i3live_dict2)
+        print "message to I3Live: ", i3live_dict2      
 
         
 #        start_stop_delta = str(stop_utc - start_utc)
@@ -159,11 +161,11 @@ class Reporter(object):
         while True:
             try:         
                 infodict = x.receive_from_worker()
-                print "HsWorker report received and DONE"
-                x.live_log(infodict)
-                print "HsSender sended to I3Live"
+                print "HsWorker report received and DONE."
                 x.spade_pickup(infodict)
                 print "Preparation for SPADE Pickup DONE"
+                x.live_log(infodict)
+                print "HsSender sended to I3Live"
                 
             except KeyboardInterrupt:
                 print "Interruption received, proceeding..."
