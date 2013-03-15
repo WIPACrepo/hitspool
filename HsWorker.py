@@ -46,7 +46,7 @@ class MyAlert(object):
         Parse the Alert message for starttime, stoptime,
         sn-alert-trigger-time-stamp and directory where-to the data has to be copied.
         """
-        hs_sourcedir = '/mnt/data/pdaqlocal/currentRun/'
+        hs_sourcedir = '/mnt/data/pdaqlocal/lastRun/'
         #hs_copydest_list = list() 
         fsummary = open(logfile, "a")
         packer_start = str(datetime.utcnow())
