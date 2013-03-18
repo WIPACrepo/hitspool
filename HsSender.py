@@ -114,7 +114,7 @@ class HsSender(object):
         else:
             print "Naming scheme validation failed."
             print "Please put the data manually in the SPADE directory"
-            pass
+            break
         datastart = re.search('[0-9]{8}_[0-9]{6}', copydir)
         src_mchn = re.search('i[c,t]hub[0-9]{2}', copydir)
         print "copy_basedir from json is: " , copy_basedir.group(0)

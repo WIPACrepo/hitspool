@@ -46,7 +46,7 @@ class MyAlert(object):
         Parse the Alert message for starttime, stoptime,
         sn-alert-trigger-time-stamp and directory where-to the data has to be copied.
         """
-        hs_sourcedir = '/mnt/data/pdaqlocal/lastRun/'
+        hs_sourcedir = '/mnt/data/pdaqlocal/currentRun/'
         #hs_copydest_list = list() 
         fsummary = open(logfile, "a")
         packer_start = str(datetime.utcnow())
@@ -328,6 +328,13 @@ class MyAlert(object):
             packer_stop = str(datetime.utcnow())
             print >> fsummary, "Finished HitSpoolWorker at: %s\n**********************************************\n" % packer_stop
             fsummary.close()
+            try:
+                remove_tmp_files = "rm -rv " + tmp_dir + " >>" + logfile
+                rm_tmp = subprocess.check_call(remove_tmp_files, shell=True)
+            
+            except subprocess.CalledProcessError:
+                print "Error while removing tmp files..."
+                pass
                 
         except subprocess.CalledProcessError:
             print "\nError in rsync from %s to %s....\n" %(src_mchn, hs_ssh_access)
@@ -337,13 +344,7 @@ class MyAlert(object):
             print >> fsummary, "Finished HitSpoolWorker at: %s\n**********************************************\n" % packer_stop
             fsummary.close()
         
-        try:
-            remove_tmp_files = "rm -rv " + tmp_dir
-            rm_tmp = subprocess.check_call(remove_tmp_files, shell=True)
-            
-        except subprocess.CalledProcessError:
-            print "Error while removing tmp files..."
-            pass
+
         
     def info_report(self, logfile):
         """
