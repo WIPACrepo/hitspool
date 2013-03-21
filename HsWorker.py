@@ -52,7 +52,7 @@ class MyAlert(object):
         #hs_copydest_list = list() 
         fsummary = open(logfile, "a")
         packer_start = str(datetime.utcnow())
-        print >> fsummary, "\n**********************************************\nStarted HitSpoolWorker on %s at: %s" % (src_mchn, packer_start)
+        print >> fsummary, "\n**********************************************\nStarted HitSpoolWorker on\n%s\nat:\n%s" % (src_mchn, packer_start)
         fsummary.close()
         
 
@@ -87,8 +87,10 @@ class MyAlert(object):
             print "ERROR in json message parsing: no start timestamp found. Abort request..."
             fsummary = open(logfile, "a")
             print >> fsummary, "No timestamps found in alert message. Aborting request... "
+            packer_stop = str(datetime.utcnow())
+            print >> fsummary, "Finished HitSpoolWorker at:\n%s\n**********************************************\n" % packer_stop
             fsummary.close()  
-            sys.exit()
+            return None
         else:
             pass
         
@@ -103,9 +105,10 @@ class MyAlert(object):
             print "ERROR in json message: no stop timestamp found. Abort request..."
             fsummary = open(logfile, "a")
             print >> fsummary, "No timestamps found in alert message. Aborting request... "
+            packer_stop = str(datetime.utcnow())
+            print >> fsummary, "Finished HitSpoolWorker at:\n%s\n**********************************************\n" % packer_stop
             fsummary.close()
-            sys.exit()
-            
+            return None            
             
         try :
             print "HS machinedir = ", hs_user_machinedir
@@ -114,8 +117,12 @@ class MyAlert(object):
             hs_ssh_access = re.sub(':/\w+/\w+/\w+/\w+/', "", hs_user_machinedir)
         except (TypeError, ValueError):
             #"ERROR in json message: no copydir found. Abort request..."
-            sys.exit("ERROR in json message: no copydir found. Abort request...")
-
+            fsummary = open(logfile, "a")
+            print >> fsummary, "ERROR in json message: no copydir found. Abort request..."
+            packer_stop = str(datetime.utcnow())
+            print >> fsummary, "Finished HitSpoolWorker at:\n%s\n**********************************************\n" % packer_stop
+            fsummary.close()
+            
         #------Parsing hitspool info.txt to find the requested files-------:        
         # Find the right file(s) that contain the start/stoptime and the actual sn trigger time stamp=sntts
         # useful: datetime.timedelta
@@ -126,6 +133,11 @@ class MyAlert(object):
         except IOError as (errno, strerror):
             print "cannot open %s" % filename
             print "I/O error({0}): {1}".format(errno, strerror)
+            fsummary = open(logfile, "a")
+            print >> fsummary, "I/O error({0}): {1}".format(errno, strerror)
+            packer_stop = str(datetime.utcnow())
+            print >> fsummary, "Finished HitSpoolWorker at:\n%s\n**********************************************\n" % packer_stop
+            fsummary.close()
             return None
         else:
             infodict= {}
@@ -231,13 +243,15 @@ class MyAlert(object):
             fsummary = open(logfile, "a")
             print >> fsummary, "requested data doesn't exist in HitSpool Buffer anymore!. Aborting request... "
             packer_stop = str(datetime.utcnow())
-            print >> fsummary, "Finished HitSpoolWorker at: %s\n**********************************************\n" % packer_stop
+            print >> fsummary, "Finished HitSpoolWorker at:\n%s\n**********************************************\n" % packer_stop
             fsummary.close() 
             return None
         elif ALERTSTOP < ALERTSTART:
             #print "Sn_start & sn_stop time-stamps error. Abort request."
             fsummary = open(logfile, "a")
             print >> fsummary, "Sn_start & sn_stop time-stamps error. Aborting request... "
+            packer_stop = str(datetime.utcnow())
+            print >> fsummary, "Finished HitSpoolWorker at:\n%s\n**********************************************\n" % packer_stop
             fsummary.close()
             #sys.exit("Sn_start & sn_stop time-stamps error. Abort request.")
             return None
@@ -317,7 +331,7 @@ class MyAlert(object):
         
         
         
-        # ---- Rsync the relevant files to expcont ---- #
+        # ---- Rsync the relevant files to 2ndbuild ---- #
 #        rsync_cmd = "nice rsync -avv --bwlimit=30 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + ':' + hs_copydest + " >>" + logfile
 #        rsync_cmd = "nice rsync -avv --bwlimit=100000 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + ':' + hs_copydest + " >>" + logfile
         
@@ -342,7 +356,7 @@ class MyAlert(object):
             fsummary = open(logfile, "a")
             print >>fsummary, "data is copied to %s at %s " % (hs_copydest, hs_ssh_access)
             packer_stop = str(datetime.utcnow())
-            print >> fsummary, "Finished HitSpoolWorker at: %s\n**********************************************\n" % packer_stop
+            print >> fsummary, "Finished HitSpoolWorker at:\n%s\n**********************************************\n" % packer_stop
             fsummary.close()
                 
         except subprocess.CalledProcessError:
@@ -350,7 +364,7 @@ class MyAlert(object):
             fsummary = open(logfile, "a")
             print >> fsummary, "rsyncing failed !!"
             packer_stop = str(datetime.utcnow())
-            print >> fsummary, "Finished HitSpoolWorker at: %s\n**********************************************\n" % packer_stop
+            print >> fsummary, "Finished HitSpoolWorker at:\n%s\n**********************************************\n" % packer_stop
             fsummary.close()
         
         try:
