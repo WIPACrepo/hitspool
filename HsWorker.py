@@ -4,6 +4,7 @@
 #Hit Spool Worker to be run on hubs
 #author: dheereman
 #
+import time
 """
 "sico_tester"        "HsPublisher"      "HsWorker"        "HsSender"
 -----------        -----------
@@ -20,6 +21,7 @@ import re, sys
 import zmq #@UnresolvedImport
 import subprocess
 import json
+import random
 
 context = zmq.Context()
 #spts_expcont_ip = "10.2.2.12"
@@ -70,10 +72,10 @@ class MyAlert(object):
 
         try:
             sn_start = int(start)
-            print "SN START = ", sn_start
-            sn_start_utc = str(datetime(2013,1,1) + timedelta(seconds=sn_start*1.0E-10))
-            print "DAQ time-stamp in UTC: ", sn_start_utc
-            ALERTSTART = datetime.strptime(sn_start_utc,"%Y-%m-%d %H:%M:%S")
+            print "SN START [ns] = ", sn_start
+            sn_start_utc = str(datetime(2013,1,1) + timedelta(seconds=sn_start*1.0E-9))  #sndaq time units are nanoseconds
+            print "SNDAQ time-stamp in UTC: ", sn_start_utc
+            ALERTSTART = datetime.strptime(sn_start_utc,"%Y-%m-%d %H:%M:%S.%f")
             print "ALERTSTART = ", ALERTSTART 
             print "SN START = %d\n\
             in UTC = %s" %(sn_start, ALERTSTART)
@@ -82,7 +84,7 @@ class MyAlert(object):
             
             
         except (TypeError,ValueError):
-            print "ERROR in json message: no start timestamp found. Abort request..."
+            print "ERROR in json message parsing: no start timestamp found. Abort request..."
             fsummary = open(logfile, "a")
             print >> fsummary, "No timestamps found in alert message. Aborting request... "
             fsummary.close()  
@@ -90,13 +92,12 @@ class MyAlert(object):
         else:
             pass
         
-        
         try:
             sn_stop = int(stop)
-            print "SN STOP = ", sn_stop
-            sn_stop_utc = str(datetime(2013,1,1) + timedelta(seconds=sn_stop*1.0E-10))
-            print "DAQ time-stamp in UTC: ", sn_stop_utc
-            ALERTSTOP = datetime.strptime(sn_stop_utc,"%Y-%m-%d %H:%M:%S")
+            print "SN STOP [ns] = ", sn_stop
+            sn_stop_utc = str(datetime(2013,1,1) + timedelta(seconds=sn_stop*1.0E-9))  #sndaq time units are nanosecond
+            print "SNDAQ time-stamp in UTC: ", sn_stop_utc
+            ALERTSTOP = datetime.strptime(sn_stop_utc,"%Y-%m-%d %H:%M:%S.%f")
             print "ALERTSTOP =", ALERTSTOP
         except (TypeError,ValueError):
             print "ERROR in json message: no stop timestamp found. Abort request..."
@@ -113,7 +114,7 @@ class MyAlert(object):
             hs_ssh_access = re.sub(':/\w+/\w+/\w+/\w+/', "", hs_user_machinedir)
         except (TypeError, ValueError):
             #"ERROR in json message: no copydir found. Abort request..."
-            sys.exit( "ERROR in json message: no copydir found. Abort request...")
+            sys.exit("ERROR in json message: no copydir found. Abort request...")
 
         #------Parsing hitspool info.txt to find the requested files-------:        
         # Find the right file(s) that contain the start/stoptime and the actual sn trigger time stamp=sntts
@@ -153,11 +154,11 @@ class MyAlert(object):
         print "get information from %s..." % filename
 
         #converting the INFO dict's first entry into a datetime object:
-        startrun_utc = str(datetime(2013,1,1) + timedelta(seconds=startrun*1.0E-10))
+        startrun_utc = str(datetime(2013,1,1) + timedelta(seconds=startrun*1.0E-10))    #PDAQ TIME UNITS ARE 0.1 NANOSECONDS
         RUNSTART = datetime.strptime(startrun_utc,"%Y-%m-%d %H:%M:%S.%f")
-        startdata_utc = str(datetime(2013,1,1) + timedelta(seconds=startdata*1.0E-10))
+        startdata_utc = str(datetime(2013,1,1) + timedelta(seconds=startdata*1.0E-10))  #PDAQ TIME UNITS ARE 0.1 NANOSECONDS
         BUFFSTART = datetime.strptime(startdata_utc,"%Y-%m-%d %H:%M:%S.%f")
-        stopdata_utc = str(datetime(2013,1,1) + timedelta(seconds=CURT*1.0E-10))
+        stopdata_utc = str(datetime(2013,1,1) + timedelta(seconds=CURT*1.0E-10))        #PDAQ TIME UNITS ARE 0.1 NANOSECONDS
         BUFFSTOP = datetime.strptime(stopdata_utc,"%Y-%m-%d %H:%M:%S.%f")
         #outputstring1 = "first HIT ever in this Run on this String in nanoseconds: %d\noldest HIT's time-stamp existing in buffer in nanoseconds: %d\noldest HIT's time-stamp in UTC:%s\nnewest HIT's timestamp in nanoseconds: %d\nnewest HIT's time-stamp in UTC: %s\neach hit spool file contains %d * E-10 seconds of data\nduration per file in integer seconds: %d\nhit spooling writes to %d files per cycle \nHitSpooling writes to newest file: HitSpool-%d since %d DAQ units\nThe Hit Spooler is currently writing iteration loop: %d\nThe oldest file is: HitSpool-%s\n"
         print "first HIT ever in this Run on this String in nanoseconds: %d\n\
@@ -171,7 +172,6 @@ class MyAlert(object):
         HitSpooling writes to newest file: HitSpool-%d since %d DAQ units\n\
         The Hit Spooler is currently writing iteration loop: %d\n\
         The oldest file is: HitSpool-%s" %( startrun, startdata, BUFFSTART, CURT, BUFFSTOP, IVAL, IVAL_SEC, MAXF, CURF, TFILE, HS_LOOP, OLDFILE)
-        
         
 #        print "", startdata
 #        print "" %(BUFFSTART)
@@ -201,7 +201,7 @@ class MyAlert(object):
         #for this to be possible I need the time-stamp of the file that is currently recording (--> Kael's or my update)
         #take OLDFILE value to check!
         
-        if start < startdata:
+        if ALERTSTART < BUFFSTART:
             sn_start_file = OLDFILE
             print "Sn_start doesn't exits in buffer anymore! Start with oldest possible data: HitSpool-%s" % OLDFILE
             fsummary = open(logfile, "a")
@@ -253,7 +253,9 @@ class MyAlert(object):
         
         fsummary = open(logfile, "a")
         print >> fsummary, "start : %s \nis included in \n%s" % (sn_start ,sn_start_file_str)
+        print >> fsummary, "UTC start time stamp: %s" % str(ALERTSTART) 
         print >> fsummary, "stop : %s \nis included in \n%s" % (sn_stop, sn_stop_file_str)
+        print >> fsummary, "UTC stop time stamp: %s" % str(ALERTSTOP)
         fsummary.close()
 
 
@@ -301,6 +303,20 @@ class MyAlert(object):
         print "joined string of relevant files :\n %s" % copy_files_str
         print "last relevant is:\n%s" % sn_stop_file_str
         
+        #----- Add random Sleep time window ---------#
+        # necessary in order to strech time window of rsync requests. 
+        #Simultaneously rsyncing from 97 hubs caused issues in the past
+        
+        wait_time = random.uniform(1,10)
+        print "wait for %s seconds with the rsync request..." % wait_time
+        fsummary = open(logfile, "a")
+        print >> fsummary, "wait for %s seconds with the rsync request..." % wait_time
+        fsummary.close()
+        time.sleep(wait_time)
+        
+        
+        
+        
         # ---- Rsync the relevant files to expcont ---- #
 #        rsync_cmd = "nice rsync -avv --bwlimit=30 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + ':' + hs_copydest + " >>" + logfile
 #        rsync_cmd = "nice rsync -avv --bwlimit=100000 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + ':' + hs_copydest + " >>" + logfile
@@ -308,7 +324,7 @@ class MyAlert(object):
         # use a special encryption flag for reducing the cpu usage on the hub: 
 #        rsync_cmd = "nice rsync -avv -e 'ssh -c arcfour' --bwlimit=300 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + ':' + hs_copydest + " >>" + logfile
 
-        #running rsync daemon --> "::" instead of single ':' and the module is hitspool == /mnt/data/pdaqlocal/HsDataCopy/
+        #running rsync daemon --> "::" instead of single ':'
         rsync_cmd = "nice rsync -avv --bwlimit=100 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + '::hitspool/' + truetrigger_dir + " >>" + logfile
         
         print "rsync does:\n %s" % rsync_cmd 
@@ -328,13 +344,6 @@ class MyAlert(object):
             packer_stop = str(datetime.utcnow())
             print >> fsummary, "Finished HitSpoolWorker at: %s\n**********************************************\n" % packer_stop
             fsummary.close()
-            try:
-                remove_tmp_files = "rm -rv " + tmp_dir + " >>" + logfile
-                rm_tmp = subprocess.check_call(remove_tmp_files, shell=True)
-            
-            except subprocess.CalledProcessError:
-                print "Error while removing tmp files..."
-                pass
                 
         except subprocess.CalledProcessError:
             print "\nError in rsync from %s to %s....\n" %(src_mchn, hs_ssh_access)
@@ -344,8 +353,14 @@ class MyAlert(object):
             print >> fsummary, "Finished HitSpoolWorker at: %s\n**********************************************\n" % packer_stop
             fsummary.close()
         
-
-        
+        try:
+            remove_tmp_files = "rm -rv " + tmp_dir
+            rm_tmp = subprocess.check_call(remove_tmp_files, shell=True)
+            
+        except subprocess.CalledProcessError:
+            print "Error while removing tmp files..."
+            pass
+            
     def info_report(self, logfile):
         """
         summerizes what has been done: hostname, dataload copied and timestamps of the alert
@@ -358,7 +373,7 @@ class MyAlert(object):
         report_dict = {}
         #print "the infolist contains: ", infolist
         dl_pattern = re.compile(r'total\ssize\sis\s[0-9]*', flags=re.MULTILINE)
-        sn_start_pattern = re.compile(r'start\s:\s[0-9]*', flags=re.MULTILINE) #2013-03-01 09:47:57
+        sn_start_pattern = re.compile(r'start\s:\s[0-9]*', flags=re.MULTILINE) 
         sn_stop_pattern = re.compile(r'stop\s:\s[0-9]*', flags=re.MULTILINE)
         copydest_pattern = re.compile(r'data\sis\scopied\sto\s.*(?=\sat)')
         infile = open(logfile, "r")
@@ -403,17 +418,17 @@ class MyHubserver(object):
         subscriber = context.socket(zmq.SUB)
         subscriber.setsockopt(zmq.IDENTITY, src_mchn)
         subscriber.setsockopt(zmq.SUBSCRIBE, "")
-        subscriber.connect("tcp://expcont:55561")
-        print "SUB-Socket to receive message on:\nport:55561 from expcont"        
+        subscriber.connect("tcp://"+spts_expcont_ip+":55561")
+        print "SUB-Socket to receive message on:\nport:55561 from %s" % spts_expcont_ip        
                  
         # Socket to send message to :
         sender = context.socket(zmq.PUSH)
         sender.connect("tcp://2ndbuild:55560")
-        print "PUSH-Socket to send message to:\nport 55560 on 2ndbuild" 
+        print "PUSH-Socket to send message to:\nport 55560 on 2ndbuild"
         
         # Socket to synchronize the Publisher with the Workers
         syncclient = context.socket(zmq.PUSH)
-        syncclient.connect("tcp://expcont:55562")
+        syncclient.connect("tcp://"+spts_expcont_ip+":55562")
         print "connected sync PUSH socket to  port 55562"
 
         # send a synchronization request:

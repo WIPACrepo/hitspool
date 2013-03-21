@@ -65,8 +65,8 @@ class HsSender(object):
         stop = infodict['stop']
         copydir = infodict['copydir']
         
-        start_utc = datetime(2013, 1, 1) + timedelta(seconds = start*1.0E-10)
-        stop_utc  = datetime(2013, 1, 1) + timedelta(seconds = stop*1.0E-10)
+        start_utc = datetime(2013, 1, 1) + timedelta(seconds = start*1.0E-9)    # from sndaq time stanp: units in nanoseconds
+        stop_utc  = datetime(2013, 1, 1) + timedelta(seconds = stop*1.0E-9)     # from sndaq time stanp: units in nanoseconds
         src_mchn = re.search('i[c,t]hub[0-9]{2}', copydir)
         
         
@@ -114,7 +114,7 @@ class HsSender(object):
         else:
             print "Naming scheme validation failed."
             print "Please put the data manually in the SPADE directory"
-            break
+            pass
         datastart = re.search('[0-9]{8}_[0-9]{6}', copydir)
         src_mchn = re.search('i[c,t]hub[0-9]{2}', copydir)
         print "copy_basedir from json is: " , copy_basedir.group(0)
