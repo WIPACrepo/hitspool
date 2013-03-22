@@ -321,10 +321,10 @@ class MyAlert(object):
         # necessary in order to strech time window of rsync requests. 
         #Simultaneously rsyncing from 97 hubs caused issues in the past
         
-        wait_time = random.uniform(1,10)
-        print "wait for %s seconds with the rsync request..." % wait_time
+        wait_time = random.randint(1,15)
+        print "wait for %s seconds with the rsync push process..." % wait_time
         fsummary = open(logfile, "a")
-        print >> fsummary, "wait for %s seconds with the rsync request..." % wait_time
+        print >> fsummary, "wait for %s seconds with the rsync push process..." % wait_time
         fsummary.close()
         time.sleep(wait_time)
         
