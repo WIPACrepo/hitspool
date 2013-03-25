@@ -78,7 +78,7 @@ class MyPublisher(object):
     """
     def sync(self):
         """
-        REQ-REP synchronization pattern toensure that the workers are all up and running before the Publisher sends out data
+        REQ-REP synchronization pattern to ensure that the workers are all up and running before the Publisher sends out data
         """
         
         #Get synchronization signal from Workers
