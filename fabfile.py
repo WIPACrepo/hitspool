@@ -28,6 +28,11 @@ StartSender     = "python " + HSiface_PATH + "HsSender.py"
 
 
 env.parallel = True
+
+
+#2ndbuild changed host key. to step around host key verification:
+env.disable_known_hosts = True
+
  
 env.roledefs = {
                 'spts-access' : ['dheereman@access.spts.icecube.wisc.edu'],
