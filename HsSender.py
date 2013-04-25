@@ -132,34 +132,16 @@ class HsSender(object):
         print "copy_basedir from json is: " , copy_basedir.group(0)
         if copy_basedir and datastart and src_mchn and data_dir:  
             hs_basename = "HS_SNALERT_"  + datastart.group(0) + "_"+src_mchn.group(0)  
-            hs_tarname = hs_basename + ".dat.tar" 
+#            hs_tarname = hs_basename + ".dat.tar" 
             hs_bzipname = hs_basename + ".dat.tar.bz2"
-#            hs_spade_dir = "/mnt/data/HitSpool/"
             hs_spade_dir = "/mnt/data/HitSpool/"
-            
             hs_spade_semfile = hs_basename + ".sem"
-            #copy_subdir = copy_basedir.group(0) + "HS_SNALERT_" + datastart.group(0) + "_SPADE/"
+            
             # WATCH OUT!This is a relative directory name.
-            #Current working directory path provided by "cwd=copy_basedir.group(0)" in subprocess call 
+            # Current working directory path provided by "cwd=copy_basedir.group(0)" in subprocess call 
             print "the copydir: %s goes into tarname in this way: %s " % (copydir, hs_bzipname)
-            print "start compressed tarring inside the hitspool copy dir..."
             subprocess.check_call(['nice', 'tar', '-jcvf', hs_bzipname , data_dir.group(0)], cwd=copy_basedir.group(0))
-            print "tarring and zipping done: ", hs_bzipname
-#            subprocess.check_call(['rm', '-rv', data_dir.group(0)], cwd=copy_basedir.group(0))
-#            print "removed untarred data"
-#            try:
-#                print "make subdir ", copy_subdir
-#                subprocess.check_call('mkdir -p ' + copy_subdir, shell=True)
-#            except subprocess.CalledProcessError:
-#                print "Subdir already exists: " 
-#                pass
-#            print "move tarfile %s to subdir %s " %(hs_bzipname, copy_subdir)
-#            subprocess.check_call(['mv -v', hs_bzipname, copy_subdir ], cwd=copy_basedir.group(0))
-#            print "Rename file-ending for SPADE"
-#            rename_file = subprocess.check_call('mv -v ' +  hs_bzipname, hs_tarname], cwd=copy_basedir.group(0))
-#            print "create semaphore file"
-#            subprocess.check_call(['touch', hs_spade_semfile], cwd=copy_subdir)
-            print "Finished tarball for %s" % src_mchn.group(0)
+            print "Finished tarball %s for %s" % ( hs_bzipname, src_mchn.group(0))
             try:
                 print "move tarfolder to SPADE dir\n%s " % hs_spade_dir
                 print "mv -v %s %s" %(hs_bzipname, hs_spade_dir)
@@ -168,8 +150,8 @@ class HsSender(object):
                 if mv_result1 == 0:
                     print "create .sem file"
                     subprocess.check_call(["touch", hs_spade_semfile], cwd=hs_spade_dir)
-                    print "delete the not tarred hitspool data %s" %copydir
-                    subprocess.check_call("rm -rf " + copydir, shell=True)
+#                    print "delete the not tarred hitspool data %s" %copydir
+#                    subprocess.check_call("rm -rf " + copydir, shell=True)
                     print "Preparation for SPADE Pickup DONE"
                 else:
                     print "moving the tarred  data didn't succeed"
