@@ -148,8 +148,8 @@ class MyAlert(object):
                 infodict[str(key)] = int(val)
             fin.close()
         
-        startrun = int(infodict['T0'])                   # time-stamp of first HIT at run start -> this HIT is not in buffer anymore if HS_Loop > 0 !            
-        CURT = infodict['CURT']                     # current time stamp in DAQ units
+        startrun = int(infodict['T0'])              # time-stamp of first HIT at run start -> this HIT is not in buffer anymore if HS_Loop > 0 !            
+        CURT = infodict['CURT']                     # current file's first hit time stamp in DAQ units
         IVAL = infodict['IVAL']                     # len of each file in integer 0.1 nanoseconds
         IVAL_SEC = IVAL*1.0E-10                     # len of each file in integer seconds
         CURF = infodict['CURF']                     # file index of currently active hit spool file
