@@ -13,6 +13,7 @@ elif [ "$1" == "checkout" ] ; then
 	fab hs_checkout
 elif [ "$1" == "deploy" ] ; then 
 	echo "Deploy HsInterface components to the system"
+	fab hs_mk_dir
 	fab hs_deploy
 elif [ "$1" == "start" ] ; then
 	echo "Start the HsInterface components on the System: "
