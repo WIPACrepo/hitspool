@@ -29,7 +29,7 @@ reporter.bind("tcp://*:55560")
 print "bind Sink to port 55560 on spts-2ndbuild"
 
 # Socket for I3Live on expcont
-i3socket = context.socket(zmq.DOWNSTREAM) # former ZMQ_DOWNSTREAM is depreciated 
+i3socket = context.socket(zmq.DOWNSTREAM) # former ZMQ_DOWNSTREAM is depreciated , use PUSH instead
 i3socket.connect("tcp://expcont:6668") 
 print "connected to i3live socket on port 6668"
 

@@ -1,8 +1,8 @@
 #!/bin/bash
 # This script is to be used in combination with a fabfile.py to deploy, 
-# start and run the HitSpool Interface components in parallel. 
+# start and stop the HitSpool Interface components in parallel. 
 # This hack-around is needed because fabric doesn't offer a possiblity 
-# to run nultiple processes in parallel on different machines (background "&" 
+# to run Multiple processes in parallel on different machines (background "&" 
 # mode isn't working inside fabric)
 #additionally, the fabric function are inside another bash script that, if the fab function finishes, shoots me an email
 if [ "$1" == "" ] ; then 
@@ -16,15 +16,19 @@ elif [ "$1" == "deploy" ] ; then
 	fab hs_mk_dir
 	fab hs_deploy
 elif [ "$1" == "start" ] ; then
+	echo "Deploy HsInterface components to the system"
+	fab hs_mk_dir
+	fab hs_deploy
 	echo "Start the HsInterface components on the System: "
 	echo "Start HsPublisher on expcont for " $1 "HsWorkers"
 	./hs_run_publisher.sh &
 	sleep 2
-	echo "Start HsSender on expcont"
+	echo "Start " $1 "HsWorkers on the Hubs"
 	./hs_run_worker.sh &
 	sleep 2
-	echo "Start " $1 "HsWorker on the Hubs"
+	echo "Start HsSender on expcont"
 	./hs_run_sender.sh &
+	
 elif [ "$1" == "stop" ] ; then
 	echo "Stopping all HsInterface components..." 
 	fab hs_stop_pub:1
