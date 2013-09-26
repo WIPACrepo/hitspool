@@ -14,12 +14,12 @@ import zmq
 context = zmq.Context()
 # Socket to send alert message
 grabber = context.socket(zmq.REQ)
-grabber.connect("tcp://localhost:55557")   #connection = tcp, host = localhost ip , port 
-
+grabber.connect("tcp://expcont:55557")   #connection = tcp, host = localhost ip , port 
+print "connected to HsPublisher on expcont at port 55557"
 # Socket for I3Live on expcont
 i3socket = context.socket(zmq.PUSH) # former ZMQ_DOWNSTREAM is depreciated in recent releases, use PUSH instead
-i3socket.connect("tcp://localhost:6668") 
-print "connected to i3live socket on port 6668"    
+i3socket.connect("tcp://expcont:6668") 
+print "connected to i3live socket on expcont at port 6668"    
 
 #class MyGrabber(object):
 def send_alert():
@@ -103,4 +103,19 @@ if __name__=="__main__":
     if len(sys.argv) < 5 :
         print usage()
     
-    send_alert()
+    datarange = alert_end - alert_begin
+    print "requesting " , datarange , "minutes of HS data"
+    
+    maxrange = timedelta(0,100) # 100 seconds
+    
+    print "maxrange " , maxrange, " minutes"
+    
+    if datarange >  maxrange:
+        answer = raw_input("Warning: You are requesting more HS data than usual. Sure you want to proceed? [y/n] : ")
+        if answer in ["Yes", "yes", "y", "Y"]:
+            send_alert()
+        else:
+            print "HS data request stopped. Try a smaller time window."
+            pass
+        
+        
