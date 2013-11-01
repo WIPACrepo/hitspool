@@ -27,7 +27,7 @@ class MyWatcher(object):
         out,err = q.communicate()
         user = out.rstrip()
         
-        if not ".icecube." in host:
+        if not "icecube" in host:
             #print "This HsWatcher runs in your own test environment."
             SystemName = "LOCALHOST"
             
@@ -42,7 +42,7 @@ class MyWatcher(object):
             #check host
             if ".icecube.wisc.edu" in host:
                 SystemName = "SPTS"
-            elif "icecube.southpole.usap.gov" in host:
+            elif ".usap.gov" in host:
                 SystemName = "SPS"
             else:
                 logging.info( "Wrong host. Use SPTS or SPS instead.")
@@ -53,11 +53,11 @@ class MyWatcher(object):
             host_short = re.sub(".icecube.southpole.usap.gov", "", host)
             logfile = "/mnt/data/pdaqlocal/HsInterface/logs/hswatcher_" + host_short + ".log"
     
-        if SystemName == "SPTS":
+        elif SystemName == "SPTS":
             host_short = re.sub(".icecube.wisc.edu", "", host)
             logfile = "/mnt/data/pdaqlocal/HsInterface/logs/hswatcher_" + host_short + ".log"
     
-        else:
+        elif SystemName == "LOCALHOST":
             host_short = host
             logfile = "/home/david/TESTCLUSTER/testhub/logs/hswatcher_" + host_short + ".log" 
         
