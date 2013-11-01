@@ -42,7 +42,7 @@ class MyWatcher(object):
             #check host
             if ".icecube.wisc.edu" in host:
                 SystemName = "SPTS"
-            elif "sps.icecube.southpole.usap.gov" in host:
+            elif "icecube.southpole.usap.gov" in host:
                 SystemName = "SPS"
             else:
                 logging.info( "Wrong host. Use SPTS or SPS instead.")
@@ -50,7 +50,7 @@ class MyWatcher(object):
                 sys.exit(0)  
                 
         if SystemName == "SPS":
-            host_short = re.sub(".icecube.usap.gov", "", host)
+            host_short = re.sub(".icecube.southpole.usap.gov", "", host)
             logfile = "/mnt/data/pdaqlocal/HsInterface/logs/hswatcher_" + host_short + ".log"
     
         if SystemName == "SPTS":
