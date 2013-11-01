@@ -277,36 +277,37 @@ class MyWatcher(object):
         else:
             # send recover report when RUNNING follows STOPPED status
             if "RUNNING" in logtaillist[0]:
-                if "STOPPED" in logtaillist[1]:
-                    alertmsg2 = mywatch_short + "@" + host_short + " recovered by HsWatcher:\n" + str(logtaillist[1]) + "\n" + str(logtaillist[0])
-                    
-#                    alertjson = {"service"  :   "HSiface", 
-#                                "varname"   :   "alert", 
-#                                "prio"      :   1,
-#                                "value"     :   {"condition"    :   "RECOVERY HsInterface Alert: " + mywatch_short + "@" + host_short,
-#                                                 "notify"       :   "i3.hsinterface@gmail.com",
-#                                                "vars"          :   alert,
-#                                                "short_subject" :   "true",
-#                                                "quiet"         :   "true",}}
-                    
-                    alertjson2 = {"service" :   "HSiface",
-                                  "varname" :   "alert",
-#                                  "quiet"   :   "true",
-                                  "prio"    :   1,
-                                  "t"    :   str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-                                  "value"   :   {"condition"    : "RECOVERY HsInterface Alert: " + mywatch_short + "@" + host_short,
-                                                 "desc"         : "HsInterface service recovery notice",
-                                                 "notifies"     : [{"receiver"      : "i3.hsinterface@gmail.com",
-                                                                    "notifies_txt"  : alertmsg2,
-                                                                    "notifies_header" : "RECOVERY HsInterface Alert: " + mywatch_short + "@" + host_short},
-                                                                   {"receiver"      : "icecube-sn-dev@lists.uni-mainz.de",
-                                                                    "notifies_txt"  : alertmsg2,
-                                                                    "notifies_header" : "RECOVERY HsInterface Alert: " + mywatch_short + "@" + host_short}],
-                                                 "short_subject": "true"}}
-
-                    i3socket.send_json(alertjson2)
-            else:   
-                pass
+                if len(logtaillist) > 1 :
+                    if "STOPPED" in logtaillist[1]:
+                        alertmsg2 = mywatch_short + "@" + host_short + " recovered by HsWatcher:\n" + str(logtaillist[1]) + "\n" + str(logtaillist[0])
+                        
+    #                    alertjson = {"service"  :   "HSiface", 
+    #                                "varname"   :   "alert", 
+    #                                "prio"      :   1,
+    #                                "value"     :   {"condition"    :   "RECOVERY HsInterface Alert: " + mywatch_short + "@" + host_short,
+    #                                                 "notify"       :   "i3.hsinterface@gmail.com",
+    #                                                "vars"          :   alert,
+    #                                                "short_subject" :   "true",
+    #                                                "quiet"         :   "true",}}
+                        
+                        alertjson2 = {"service" :   "HSiface",
+                                      "varname" :   "alert",
+    #                                  "quiet"   :   "true",
+                                      "prio"    :   1,
+                                      "t"    :   str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                                      "value"   :   {"condition"    : "RECOVERY HsInterface Alert: " + mywatch_short + "@" + host_short,
+                                                     "desc"         : "HsInterface service recovery notice",
+                                                     "notifies"     : [{"receiver"      : "i3.hsinterface@gmail.com",
+                                                                        "notifies_txt"  : alertmsg2,
+                                                                        "notifies_header" : "RECOVERY HsInterface Alert: " + mywatch_short + "@" + host_short},
+                                                                       {"receiver"      : "icecube-sn-dev@lists.uni-mainz.de",
+                                                                        "notifies_txt"  : alertmsg2,
+                                                                        "notifies_header" : "RECOVERY HsInterface Alert: " + mywatch_short + "@" + host_short}],
+                                                     "short_subject": "true"}}
+    
+                        i3socket.send_json(alertjson2)
+                else:   
+                    pass
             
 if __name__ == "__main__":
 
