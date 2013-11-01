@@ -257,7 +257,7 @@ if __name__ == "__main__":
     hostname = out.rstrip()
     
     if ".usap.gov" in hostname:
-        src_mchn_short = re.sub(".icecube.usap.gov", "", hostname)
+        src_mchn_short = re.sub(".icecube.southpole.usap.gov", "", hostname)
         cluster = "SPS"
     elif ".wisc.edu" in hostname:
         src_mchn_short = re.sub(".icecube.wisc.edu", "", hostname)
