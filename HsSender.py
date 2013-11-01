@@ -1,18 +1,5 @@
 #!/usr/bin/python
 
-"""
-"sndaq"           "HsPublisher"      "HsWorker"           "HsSender"
------------        -----------
-| sni3daq |        | expcont |         -----------        ------------
-| REQUEST | <----->| REPLY   |         | IcHub n |        | expcont  |
------------        | PUB     | ------> | SUB    n|        | PULL     |
-                   ----------          |PUSH     | ---->  |          |
-                                        ---------          -----------
-This is the HsSender for the HS Interface. 
-It receives messages from the HsWorkers and is responsible of putting
-the HitSpool Data in the SPADE queue. 
-Furthermore, it handles logs and moni values for I3Live
-"""
 
 import sys
 import zmq 
@@ -21,93 +8,133 @@ from datetime import datetime, timedelta
 import re
 import subprocess
 from subprocess import CalledProcessError
-context = zmq.Context()
+import logging
+import signal
 
-# Socket to receive messages on from Worker
-reporter = context.socket(zmq.PULL)
-reporter.bind("tcp://*:55560")
-print "bind Sink to port 55560 on spts-2ndbuild"
 
-# Socket for I3Live on expcont
-i3socket = context.socket(zmq.DOWNSTREAM) # former ZMQ_DOWNSTREAM is depreciated , use PUSH instead
-i3socket.connect("tcp://expcont:6668") 
-print "connected to i3live socket on port 6668"
+# --- Clean exit when program is terminated from outside (via pkill) ---#
+def handler(signum, frame):
+    logging.warning("Signal Handler called with signal " + str( signum))
+    logging.warning( "Shutting down...\n")
+    i3live_dict = {}
+    i3live_dict["service"] = "HSiface"
+    i3live_dict["varname"] = "HsSender"
+    i3live_dict["value"] = "INFO: SHUT DOWN called by external signal." 
+    i3socket.send_json(i3live_dict)
+    i3live_dict2 = {}
+    i3live_dict2["service"] = "HSiface"
+    i3live_dict2["varname"] = "HsSender"
+    i3live_dict2["value"] = "STOPPED" 
+    i3socket.send_json(i3live_dict2)
+    
+    reporter.close()
+    i3socket.close()
+    context.term() 
+    sys.exit()
 
-#LEVELS = {'debug': logging.DEBUG,
-#          'info': logging.INFO,
-#          'warning':logging.WARNING,
-#          'error': logging.ERROR,
-#          'critical': logging.CRITICAL}
-
-#def sub_logger():
-#    sublogger = context.socket(zmq.SUB)
-#    sublogger.bind("tcp://*:55500")
-#    print "bin Logger SUB socket to port 55500"
-#    sublogger.setsockopt(zmq.SUBSCRIBE, "")
-#    logging.basicConfig(level=LEVELS,
-#                        format='%(asctime)s %(levelname)s %(message)s',
-#                        filename='/mnt/data/pdaqlocal/HsDataCopy/hsinterface.log',
-#                        filemode='a')
+signal.signal(signal.SIGTERM, handler)    #handler is called when SIGTERM is called (via pkill)
 
 class HsSender(object):
     def receive_from_worker(self):
-        print "HsSender waits for reports from HsWorkers..."
         msg = reporter.recv_json()
-        print "HsSender received json msg from HsWorker: " , msg
-        return msg
+        logging.info( "report received json: " + str(msg))
+        info = json.loads(msg)
+        logging.info("HsSender loaded json: " +str(info))
+        return info
         
-    def live_log(self, msg):
+    def dataload_to_i3live(self, info):
+        #hubs themselves report to i3live about the dataload now! (2013-10-01)
+        hubname = info['hubname']
+        alertid = info['alertid']
+        dataload = info['dataload']
+        datastart = info['datastart']
+        datastop = info['datastop']
+        copydir = info['copydir']
         
-        infodict = json.loads(msg)
-        hubname = infodict['hub']
-        dataload = infodict['dataload']
-        start = infodict['start']
-        stop = infodict['stop']
-        copydir = infodict['copydir']
+#            start_utc = datetime(2013, 1, 1) + timedelta(seconds = start*1.0E-9)    # from sndaq time stanp: units in nanoseconds
+#            stop_utc  = datetime(2013, 1, 1) + timedelta(seconds = stop*1.0E-9)     # from sndaq time stanp: units in nanoseconds
+#            src_mchn = re.search('i[c,t]hub[0-9]{2}', copydir)
         
-        start_utc = datetime(2013, 1, 1) + timedelta(seconds = start*1.0E-9)    # from sndaq time stanp: units in nanoseconds
-        stop_utc  = datetime(2013, 1, 1) + timedelta(seconds = stop*1.0E-9)     # from sndaq time stanp: units in nanoseconds
-        src_mchn = re.search('i[c,t]hub[0-9]{2}', copydir)
-        
-        
+        report = json.dumps({"service": "HSiface", "varname": "HsSender@" + src_mchn_short, "value": "HS request processed"})
+        i3socket.send_json(report)
+        logging.info("reported about HS data transfer by " +  str(src_mchn_short) + " to i3live")
+            
+            # fill a new dictionary with info from infodict:
+#            value_dict1 = {}
+#            value_dict1["dataload"] = infodict['dataload']
+#            value_dict1["start"] = datastart
+#            value_dict1["stop"] = datastop
+#            value_dict1["copydir"] = infodict['dataloc']
+#            logging.info( "message: \n" + str(hubname) + '\n' + str(dataload) +  '\n' + str(datastart) + '\n' +str(datastop) +  '\n' + str(copydir) )  
+#            i3live_dict1 = {}
+#            i3live_dict1["service"] = "HSiface"
+#            print "test1"
+#            i3live_dict1["varname"] = hubname
+#            i3live_dict1["value"] = value_dict1
+#            print "test2"
+#            i3live_json1 = json.dumps(i3live_dict1)
+#            print "test3"
+#            i3socket.send_json(i3live_json1)
+#            print "test4"
+#            logging.info( "message to I3Live: " + str(i3live_json1))
+#            
+#            i3live_dict2 ={}
+#            i3live_dict2["service"] = "HSiface"
+#            i3live_dict2["varname"] = src_mchn_short       
+#            i3live_dict2["value"] = "data processed"       
+#            i3socket.send_json(i3live_dict2)
+#            logging.info("message to I3Live: " + str(i3live_dict2))      
+            
+    #        start_stop_delta = str(stop_utc - start_utc)
+    #        
+    #        i3live_json2 = {"service": "HSiface", "varname": "SnAlertInterval", "value": start_stop_delta}
 
-        
-        # fill a new dictionary with info from infodict:
-        value_dict1 = {}
-        value_dict1["dataload"] = infodict['dataload']
-        value_dict1["start"] = str(start_utc)
-        value_dict1["stop"] = str(stop_utc)
-        value_dict1["copydir"] = infodict['copydir']
-        print "message: \n", hubname , '\n' ,dataload , '\n', start , '\n', stop , '\n', copydir    
-        i3live_dict1 = {}
-        i3live_dict1["service"] = "HSiface"
-        i3live_dict1["varname"] = src_mchn.group(0)
-        i3live_dict1["value"] = value_dict1
 
-        i3socket.send_json(i3live_dict1)
-        
-        print "message to I3Live: ", i3live_dict1
-        
-        i3live_dict2 ={}
-        i3live_dict2["service"] = "HSiface"
-        i3live_dict2["varname"] = src_mchn.group(0)       
-        i3live_dict2["value"] = "data processed"       
-        i3socket.send_json(i3live_dict2)
-        print "message to I3Live: ", i3live_dict2      
+    def hs_data_location_check(self, info):
+        """
+        Move the data in case its default locations differs from the user's desired one.
+        """
 
-        
-#        start_stop_delta = str(stop_utc - start_utc)
-#        
-#        i3live_json2 = {"service": "HSiface", "varname": "SnAlertInterval", "value": start_stop_delta}
-#        
-        
+        #infodict = json.loads(info)
+        if info["msgtype"] == "rsync_sum":
+            logging.info( "Checking the data location...")
+            copydir         = info['copydir']
+            copydir_user    = info["copydir_user"] 
+            
+            logging.info("HS data lcoated at: " + str(copydir))
+            logging.info("user requested it to be in: " + str(copydir_user))
+    
+                
+            copy_basedir = re.search('[/\w+]*/(?=SNALERT_[0-9]{8}_[0-9]{6})', copydir)
+            if copy_basedir:
+                hs_basedir = copy_basedir.group(0)
+                data_dir = re.search('(?<=' + hs_basedir + ').*', copydir)
+                data_dir_name = data_dir.group(0)
+                logging.info( "HS data name: " + str(data_dir_name))
+    
+                if copydir_user != hs_basedir:
+                    #move data to user required directory:
+                    subprocess.check_call(["mkdir", "-p", copydir_user + data_dir_name])
+                    logging.info("mkdir " + str(copydir_user + data_dir_name))
+                    subprocess.check_call(['mv',"-v",copydir, copydir_user + data_dir_name])
+                    logging.info("moved hs files from " +  str(hs_basedir) + str(data_dir_name) + " to " +str(copydir_user) + str(data_dir_name))
+                    hs_basedir = copydir_user
+                logging.info("HS data " + str(data_dir_name) + " is located in " + str(hs_basedir))
+                return hs_basedir, data_dir_name
+            else:
+                logging.error("Naming scheme validation failed.")
+                logging.error("Please put the data manually in the desired location: " + str(copydir_user))
+                pass
+
+        else:
+            #this json message doesnt contain information to be checked here
+            pass
+
 
 #------ Preparatin for SPADE ----#
-    
-
-    def spade_pickup(self, info):
+    def spade_pickup_data(self, info, hs_basedir, data_dir_name):
         '''
-        Create dubdir for folder related to the alert
+        Create subdir for folder related to the alert
         Move folder in subdir
         tar & bzip folder
         remove bzip ending in filename
@@ -116,75 +143,171 @@ class HsSender(object):
         '''
         
         infodict = json.loads(info)
-        print "Preparation for SPADE Pickup started..."
-        copydir = infodict['copydir']
-        copy_basedir = re.search('[/\w+]*/(?=SNALERT_[0-9]{8}_[0-9]{6})', copydir)
-        if copy_basedir:
-            data_dir = re.search('(?<=' + copy_basedir.group(0) + ').*', copydir)
-            print "Uniquely named folder for hs data is called: " , data_dir.group(0)
-        else:
-            print "Naming scheme validation failed."
-            print "Please put the data manually in the SPADE directory"
-            pass
+
+        logging.info( "Preparation for SPADE Pickup of HS datastarted...")
+        copydir         = infodict['copydir']        
+        copy_basedir    = re.search('[/\w+]*/(?=SNALERT_[0-9]{8}_[0-9]{6})', copydir)
         
+        if copy_basedir:
+            #hs_basedir = copy_basedir.group(0)
+            data_dir = re.search('(?<=' + hs_basedir + ').*', copydir)
+            logging.info( "HS data name: " + str(data_dir.group(0)))
+        else:
+            logging.error("Naming scheme validation failed.")
+            logging.error("Please put the data manually in the SPADE directory")
+            pass
+
         datastart = re.search('[0-9]{8}_[0-9]{6}', copydir)
         src_mchn = re.search('i[c,t]hub[0-9]{2}', copydir)
-        print "copy_basedir from json is: " , copy_basedir.group(0)
+        logging.info( "copy_basedir is: " + str(hs_basedir))
         if copy_basedir and datastart and src_mchn and data_dir:  
-            hs_basename = "HS_SNALERT_"  + datastart.group(0) + "_"+src_mchn.group(0)  
+            hs_basename = "HS_SNALERT_"  + datastart.group(0) + "_" + src_mchn.group(0)  
 #            hs_tarname = hs_basename + ".dat.tar" 
             hs_bzipname = hs_basename + ".dat.tar.bz2"
             hs_spade_dir = "/mnt/data/HitSpool/"
             hs_spade_semfile = hs_basename + ".sem"
+            # copy_subdir = copy_basedir.group(0) + "HS_SNALERT_" + datastart.group(0) + "_SPADE/"
             
             # WATCH OUT!This is a relative directory name.
-            # Current working directory path provided by "cwd=copy_basedir.group(0)" in subprocess call 
-            print "the copydir: %s goes into tarname in this way: %s " % (copydir, hs_bzipname)
-            subprocess.check_call(['nice', 'tar', '-jcvf', hs_bzipname , data_dir.group(0)], cwd=copy_basedir.group(0))
-            print "Finished tarball %s for %s" % ( hs_bzipname, src_mchn.group(0))
+            #Current working directory path provided by "cwd=copy_basedir.group(0)" in subprocess call 
+            #logging.info("name of bzipped data folder: " + str(hs_bzipname))
+            #logging.info( "start compressed tarring inside the hitspool copy dir...")
+            subprocess.check_call(['nice', 'tar', '-jcvf', hs_bzipname , data_dir.group(0)], cwd=hs_basedir)
+            logging.info( "tarring and zipping done: " + str(hs_bzipname) + " for " + str(src_mchn.group(0)))
+#            subprocess.check_call(['rm', '-rv', data_dir.group(0)], cwd=copy_basedir.group(0))
+#            logging.info( "removed untarred data"
+#            try:
+#                logging.info( "make subdir ", copy_subdir)
+#                subprocess.check_call('mkdir -p ' + copy_subdir, shell=True)
+#            except subprocess.CalledProcessError:
+#                logging.info( "Subdir already exists: " 
+#                pass
+#            logging.info( "move tarfile %s to subdir %s " %(hs_bzipname, copy_subdir)
+#            subprocess.check_call(['mv -v', hs_bzipname, copy_subdir ], cwd=copy_basedir.group(0))
+#            logging.info( "Rename file-ending for SPADE"
+#            rename_file = subprocess.check_call('mv -v ' +  hs_bzipname, hs_tarname], cwd=copy_basedir.group(0))
+#            logging.info( "create semaphore file"
+#            subprocess.check_call(['touch', hs_spade_semfile], cwd=copy_subdir)
+#            logging.info( "Finished tarball for" + str(src_mchn.group(0)))
             try:
-                print "move tarfolder to SPADE dir\n%s " % hs_spade_dir
-                print "mv -v %s %s" %(hs_bzipname, hs_spade_dir)
-                mv_result1 = subprocess.check_call(['mv', '-v', hs_bzipname, hs_spade_dir], cwd=copy_basedir.group(0))
+                mv_result1 = subprocess.check_call(['mv', '-v', hs_bzipname, hs_spade_dir], cwd=hs_basedir)
+                logging.info( "move tarfolder to SPADE dir\n%s " + str(hs_spade_dir))
 #                mv_result2 = subprocess.check_call(['mv -v', hs_spade_semfile, hs_spade_dir], cwd=copy_subdir)
                 if mv_result1 == 0:
-                    print "create .sem file"
                     subprocess.check_call(["touch", hs_spade_semfile], cwd=hs_spade_dir)
-#                    print "delete the not tarred hitspool data %s" %copydir
+                    logging.info("create .sem file")
 #                    subprocess.check_call("rm -rf " + copydir, shell=True)
-                    print "Preparation for SPADE Pickup DONE"
+#                    logging.info("delete the untarred hitspool data "  + str(copydir))
+                    logging.info("Preparation for SPADE Pickup of " + str(copydir) + "DONE")
+                    
                 else:
-                    print "moving the tarred  data didn't succeed"
+                    logging.error("failed moving the tarred data.")
+                    logging.error("Please put the data manually in the SPADE directory")
 
             except (IOError,OSError,subprocess.CalledProcessError):
-                print "Error: Loading data in SPADE directory failed"
-                print "Please put the data manually in the SPADE directory"
+                logging.error( "Loading data in SPADE directory failed")
+                logging.error( "Please put the data manually in the SPADE directory")
         else:
-            print "Naming scheme validation failed."
-            print "Please put the data manually in the SPADE directory"
+            logging.error("Naming scheme validation failed.")
+            logging.error("Please put the data manually in the SPADE directory")
+            pass
+        
+    def spade_pickup_log(self, info):    
+        #infodict = json.loads(info)            
+        if info["msgtype"] == "log_done":
+            logging.info("logfile " + str(info["logfile_hsworker"]) + " from " + str(info["hubname"]) + " was transmitted to " + str(info["logfiledir"]))
+            
+            org_logfilename     = info["logfile_hsworker"]
+            hs_log_basedir      = info["logfiledir"]
+            hs_log_basename     = "HS_" + info["alertid"] + "_" + info["logfile_hsworker"]
+            hs_log_spadename    =  hs_log_basename + ".dat.tar.bz2"
+            hs_log_spadedir     = "/mnt/data/HitSpool/"
+            hs_log_spade_sem    = hs_log_basename + ".sem"
+            
+            tar_log_cmd = subprocess.check_call(['nice', 'tar', '-jvcf', hs_log_spadename ,org_logfilename], cwd=hs_log_basedir)
+            logging.info("tarred the log file: " +str(hs_log_spadename))
+            mv_log_cmd = subprocess.check_call(["mv", "-v", hs_log_spadename, hs_log_spadedir], cwd= hs_log_basedir)
+            logging.info("moved the log file to: " + str(hs_log_spadedir))
+            sem_log_cmd = subprocess.check_call(["touch", hs_log_spade_sem], cwd=hs_log_spadedir)
+            logging.info("created .sem file in: " + str(hs_log_spadedir))
+        else:
+            #do nothing
             pass
 
-
-
-class Reporter(object):
+if __name__ == "__main__":
     
     
-    def report(self):
-        x = HsSender ()
+    """
+    "sndaq"           "HsPublisher"      "HsWorker"           "HsSender"
+    -----------        -----------
+    | sni3daq |        | access  |         -----------        ------------
+    | REQUEST | <----->| REPLY   |         | IcHub n |        | 2ndbuild |
+    -----------        | PUB     | ------> | SUB    n|        | PULL     |
+                       ----------          |PUSH     | ---->  |          |
+                                            ---------          -----------
+    This is the NEW HsSender for the HS Interface. 
+    It's started via hsiface.sh on access.
+    It receives messages from the HsWorkers and is responsible of putting
+    the HitSpool Data in the SPADE queue. 
+    Furthermore, it handles logs and moni values for I3Live.
+    """    
+    
+    p = subprocess.Popen(["hostname"], stdout = subprocess.PIPE)
+    out, err = p.communicate()
+    hostname = out.rstrip()
+    
+    if ".usap.gov" in hostname:
+        src_mchn_short = re.sub(".icecube.usap.gov", "", hostname)
+        cluster = "SPS"
+    elif ".wisc.edu" in hostname:
+        src_mchn_short = re.sub(".icecube.wisc.edu", "", hostname)
+        cluster = "SPTS"
+    else:
+        src_mchn_short = hostname
+        cluster = "localhost"
+        
+    if cluster == "localhost" :    
+        logfile = "/home/david/TESTCLUSTER/2ndbuild/logs/hssender_" + src_mchn_short + ".log"  
+    else:
+        logfile = "/mnt/data/pdaqlocal/HsInterface/logs/hssender_" + src_mchn_short + ".log"
 
-        while True:
-            try:         
-                infodict = x.receive_from_worker()
-                print "HsWorker report received and DONE."
-                x.spade_pickup(infodict)
-                x.live_log(infodict)
-                print "HsSender sended to I3Live"
-                
-            except KeyboardInterrupt:
-                print "Interruption received, proceeding..."
-                i3socket.close()
-                context.term()  
-                sys.exit()
+    logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', 
+                        level=logging.INFO, stream=sys.stdout, 
+                        datefmt= '%Y-%m-%d %H:%M:%S', 
+                        filename=logfile) 
+    
+    logging.info("HsSender starts on " + str(src_mchn_short))
+    
+    context = zmq.Context()
+    # Socket to receive messages on from Worker
+    reporter = context.socket(zmq.PULL)
+    reporter.bind("tcp://*:55560")
+    logging.info( "bind Sink to port 55560")
+    
+    # Socket for I3Live on expcont
+    i3socket = context.socket(zmq.PUSH) # former ZMQ_DOWNSTREAM is depreciated 
+    i3socket.connect("tcp://localhost:6668")
+    logging.info("connected to i3live socket on port 6668")
+    
+    newmsg = HsSender()
+    while True:
+        logging.info( "HsSender waits for new reports from HsWorkers...")
+        try:         
+            info = newmsg.receive_from_worker()
+            if info["msgtype"]== "rsync_sum":
+                newmsg.dataload_to_i3live(info)
+                hs_basedir, data_dir_name = newmsg.hs_data_location_check(info)
+                if cluster == "SPS":
+                    newmsg.spade_pickup_data(info, hs_basedir, data_dir_name)    
+            elif info["msgtype"] == "log_done":
+#                    newmsg.spade_pickup_log(info)
+                pass
+                        
+        except KeyboardInterrupt:
+            logging.warning( "Interruption received, shutting down...")
+ 
+            sys.exit()    
+    
 
-newdata = Reporter()
-newdata.report()            
+#    newdata = Reporter()
+#    newdata.report()            

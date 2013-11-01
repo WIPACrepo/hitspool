@@ -1,150 +1,203 @@
 #!/usr/bin/python
-"""
-"sndaq"           "HsPublisher"      "HsWorker"           "HsSender"
------------        -----------
-| sni3daq |        | expcont |         -----------        ------------
-| REQUEST | <----->| REPLY   |         | IcHub n |        | expcont  |
------------        | PUB     | ------> | SUB    n|        | PULL     |
-                   ----------          |PUSH     | ---->  |          |
-                                        ---------          -----------
-This is the Publisher for the HS Interface. 
-It contains a REPLY Socket  for the request coming from sico_testers REQUEST.
-Inspired by 0mq guide. 
 
-"""
 
 import sys
-import getopt
-import time
-import json
 import zmq
-#from zmq.log.handlers import PUBHandler
-#import logging
-import os
-
-def usage():
-    print >>sys.stderr, """
-    usage :: HS_Publisher.py [options]
-            -n         | number of Workers running
-    """
-    sys.exit(1)
-        
-##take arguments from command line and check for correct input
-opts, args = getopt.getopt(sys.argv[1:], 'hn:l:', ['help','workers=','loglevel='])
-for o, a in opts:
-    if o == '-n':
-        workers = int(a)
-        print "Number of connected workers: ", workers 
-        #print sys.argv[1]
-    elif o == '-l':
-        LEVELS = a
-        print "LogLevel set to ", LEVELS
-    elif o == '-h' or o == '--help':
-        usage()       
-if len(sys.argv) < 3 :
-    print usage()
-    
-    
-#Tell me the process ID
-print " HsPublisher startet with pid: %s \n"  %os.getpid() 
-    
-    
-# build 0MQ sockets    
-context = zmq.Context()
-# Socket to receive alert message
-socket = context.socket(zmq.REP)
-#socket.bind("tcp://10.2.2.12:55557")   #connection = tcp, host = bond0 on spts-expcont ip , port 
-socket.bind("tcp://*:55557")   #connection = tcp, host = bond0 on spts-expcont ip , port 
-
-print "bind REP socket for receiving alert messages to port 55557"
+import subprocess
+import logging
+import re
+import signal
+import time
+from datetime import datetime
 
 
-# Socket to talk to Workers
-publisher = context.socket(zmq.PUB)
-publisher.setsockopt(zmq.HWM, 50) #keep up to 50 alert messages in memory,  each alert has 205 bytes
-publisher.bind("tcp://*:55561")
-print "bind PUB socket to port 55561"
 
-# Socket to receive sync signals from Workers
-syncservice = context.socket(zmq.PULL)
-syncservice.bind("tcp://*:55562")
-print "bind sync PULL socket"
+# --- Clean exit when program is terminated from outside (via pkill) ---#
+def handler(signum, frame):
+    logging.warning("Signal Handler called with signal " + str( signum))
+    logging.warning( "Shutting down...\n")
+    i3live_dict = {}
+    i3live_dict["service"] = "HSiface"
+    i3live_dict["varname"] = "HsPublisher"
+    i3live_dict["value"] = "INFO: SHUT DOWN called by external signal." 
+    i3socket.send_json(i3live_dict)
+    i3live_dict2 = {}
+    i3live_dict2["service"] = "HSiface"
+    i3live_dict2["varname"] = "HsPublisher"
+    i3live_dict2["value"] = "STOPPED" 
+    i3socket.send_json(i3live_dict2)
+    socket.close()
+    publisher.close()
+    i3socket.close()
+    context.term()
+    sys.exit()
 
-     
-class MyPublisher(object):
-    """
-    The Forwarder creates PUB sockets and sends the alert 
-    message to the Worker hubs that are connected.
-    """
-    def sync(self):
-        """
-        REQ-REP synchronization pattern to ensure that the workers are all up and running before the Publisher sends out data
-        """
-        
-        #Get synchronization signal from Workers
-        subscribers = 0
-        print "number of workers: " , workers
-        while subscribers < workers:
-            # wait for synchronization request
-            msg = syncservice.recv()
-            print "Publisher received synchronzation request from Worker:\n%s" % msg
-            print "OK"
-            subscribers +=1
-            print "+1 subscriber"
-        
-        
-    def publish(self, data):
-        """
-        Method for publishing the alert message to the subscribed Workers
-        """
-            
-        # broadcast the alert-message:
-        try:
-            print "message to forward:\n", data , "and is of type: ", type(data) 
-#            data_json = json.dumps(data,separators=(', ', ': ')) #separators tuple: (item_separator, key_separator)
-#            print "data_json is of type: " , type(data_json)
-#            publisher.send_json(data_json) 
-#            print "Publisher published:\n %s \nfor  %i workers " % (data_json, workers)
-            print "message has to be wrapped by  [ ] to be read correctly... "
-            publisher.send("["+data+"]")
-            print "Publisher published:\n %s \nfor  %i workers " % (data, workers)
+signal.signal(signal.SIGTERM, handler)    #handler is called when SIGTERM is called (via pkill)
 
-
-        except KeyboardInterrupt:
-            print " Interruption received, proceeding..."
-#            socket.close()
-#            context.term()  
-            sys.exit()    
+#class MyPublisher(object):
+#    """
+#    Creates PUB sockets and sends the alert 
+#    message to the Worker hubs that are connected.
+#    """
+#        
+#    def publish(self, data):
+#        """
+#        Publishing the alert message to the subscribed Workers
+#        """
+#            
+#        # broadcast the alert-message:
+#        try:
+#            publisher.send("["+data+"]")
+#            logging.info("Publisher published: " + str(data))
+#
+#        except KeyboardInterrupt:
+#            logging.warning("KeyboardInterruption received, shut down...")  
+#            sys.exit()    
             
                 
 class Receiver(object):
     '''
-    Class to handle incoming request message from sndaq or any other process. 
+    Handle incoming request message from sndaq or any other process. 
     '''
     def reply_request(self):             
-        
-        print "make sure the Workers are up and running: "
-        forwarder = MyPublisher()
-        forwarder.sync()
+#        forwarder = MyPublisher()
         # We want to have a stable connection FOREVER to the client -> while True loop
         while True:
             #Wait for next request from client and make the alert global accessible:
             global alert
             try:
-                #wait for alert message:
+                #receive for alert message:
                 alert = socket.recv()
-                print "Received request:\n", alert
-
-                print "Publish the alert to the hubs..."
-                forwarder.publish(alert)
-                socket.send ("DONE\0")
-                print "Publisher sended back to Requester: DONE"
-
+                logging.info("received request:\n"+ str(alert))
                 
+                #send JSON for moni Live page:
+                i3socket.send_json({"service": "HSiface", 
+                                    "varname": "HsPublisher", 
+                                    "value": "Received request msg"})
+ 
+                #publish the request for the HsWorkers:
+                #forwarder.publish(alert)
+                publisher.send("["+alert+"]")
+                logging.info("Publisher published: " + str(alert))
+                
+                i3socket.send_json({"service": "HSiface", 
+                                    "varname": "HsPublisher", 
+                                    "value": "published alert"})
+                # send Live alert JSON for email notification:
+#                i3socket.send_json({"service": "HSiface", 
+#                                    "varname": "alert", 
+#                                    "short_subject": "true",
+#                                    "quiet": "true",
+#                                    "value": {"condition": "DATA REQUEST HsInterface Alert: received and published to HsWorkers", 
+#                                              "prio": 1,
+#                                              "notify": "i3.hsinterface@gmail.com",
+#                                              "vars": alert,}})
+                
+                alertmsg = "DATA REQUEST HsInterface Alert: HsPublisher received and published to HsWorkers at " + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + "\n the following message:\n" + str(alert)
+#                
+                alertjson = {"service" :   "HSiface",
+                                  "varname" :   "alert",
+#                                  "quiet"   :   "true",
+                                  "prio"    :   1,
+                                  "t"    :   str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                                  "value"   :   {"condition"    : "DATA REQUEST HsInterface Alert: ",
+                                                 "desc"         : "HsInterface Data Reuqest",
+                                                 "notifies"     : [{"receiver"      : "i3.hsinterface@gmail.com",
+                                                                    "notifies_txt"  : alertmsg,
+                                                                    "notifies_header" : "DATA REQUEST HsInterface Alert: "},
+                                                                   {"receiver"      : "icecube-sn-dev@lists.uni-mainz.de",
+                                                                    "notifies_txt"  : alertmsg,
+                                                                    "notifies_header" : "DATA REQUEST HsInterface Alert: "}],
+                                                 "short_subject": "true"}}
+
+                i3socket.send_json(alertjson)
+
+                #reply to requester:
+                answer = socket.send("DONE\0") # added \0 to fit C/C++ zmq message termination
+#                print answer
+                if answer is None:
+                    logging.info("send confirmation back to requester: DONE")
+                else:
+                    logging.error("failed sending confirmation to requester")
+
             except KeyboardInterrupt:
-                print "  Interrupt received, shutting down..."
+                # catch termintation signals: can be Ctrl+C (if started loacally)
+                # or another termination message from fabfile
+                logging.warning( "KeyboardInterruption received, shutting down...")
                 sys.exit()
 
-request = Receiver()
-request.reply_request()
+if __name__=='__main__':
+    
+    """
+    "sndaq"           "HsPublisher"      "HsWorker"           "HsSender"
+    -----------        -----------
+    | sni3daq |        | access  |         -----------        ------------
+    | REQUEST | <----->| REPLY   |         | IcHub n |        | 2ndbuild |
+    -----------        | PUB     | ------> | SUB    n|        | PULL     |
+                       ----------          |PUSH     | ---->  |          |
+                                            ---------          -----------
+    It receives a request from sndaq and sends log messages to I3Live.
+    It contains a REPLY Socket  for the request coming from sndaq REQUEST.
+    """    
+    
+    p = subprocess.Popen(["hostname"], stdout = subprocess.PIPE)
+    out, err = p.communicate()
+    src_mchn = out.rstrip()
+    
+    if ".usap.gov" in src_mchn:
+        src_mchn_short = re.sub(".icecube.usap.gov", "", src_mchn)
+        cluster = "SPS"
+    elif ".wisc.edu" in src_mchn:
+        src_mchn_short = re.sub(".icecube.wisc.edu", "", src_mchn)
+        cluster = "SPTS"
+    else:
+        src_mchn_short = src_mchn
+        cluster = "localhost"
+        
+    if cluster == "localhost":
+        logfile = "/home/david/TESTCLUSTER/expcont/logs/hspublisher_" + src_mchn_short + ".log"    
+    else:
+        logfile = "/mnt/data/pdaqlocal/HsInterface/logs/hspublisher_" + src_mchn_short + ".log"
+    
+    logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', 
+                        level=logging.INFO, stream=sys.stdout, 
+                        datefmt= '%Y-%m-%d %H:%M:%S', 
+                        filename=logfile)    
+        
+    logging.info("HsPublisher started on " + str(src_mchn_short))    
+    # build 0MQ sockets    
+    context = zmq.Context()
+    # Socket to receive alert message
+    socket = context.socket(zmq.REP)
+    # Socket to talk to Workers
+    publisher = context.socket(zmq.PUB)
+    # Socket to receive sync signals from Workers
+#    syncservice = context.socket(zmq.PULL)
+    # Socket for I3Live on expcont
+    i3socket = context.socket(zmq.PUSH) # former ZMQ_DOWNSTREAM is depreciated in recent releases, use PUSH instead
+
+    if cluster == "localhost":
+        socket.bind("tcp://*:55557")   
+        logging.info("bind REP socket for receiving alert messages to port 55557")
+        publisher.setsockopt(zmq.HWM, 50) #keep up to 50 alert messages in memory,  each alert has 205 bytes
+        publisher.bind("tcp://*:55561")
+        logging.info("bind PUB socket to port 55561")
+#        syncservice.bind("tcp://*:55562")
+#        logging.info("bind PULL socket to port 55562")
+        i3socket.connect("tcp://localhost:6668") 
+        logging.info("connected to i3live socket on port 6668")    
+    
+    else:
+        socket.bind("tcp://*:55557")   
+        logging.info("bind REP socket for receiving alert messages to port 55557")
+        publisher.setsockopt(zmq.HWM, 50) #keep up to 50 alert messages in memory,  each alert has 205 bytes
+        publisher.bind("tcp://*:55561")
+        logging.info("bind PUB socket to port 55561")
+#        syncservice.bind("tcp://*:55562")
+#        logging.info("bind PULL socket to port 55562")
+        i3socket.connect("tcp://expcont:6668") 
+        logging.info("connect PUSH socket to i3live on port 6668") 
+
+    request = Receiver()
+    request.reply_request()
 
