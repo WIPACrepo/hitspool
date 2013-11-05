@@ -58,37 +58,6 @@ class HsSender(object):
         report = json.dumps({"service": "HSiface", "varname": "HsSender@" + src_mchn_short, "value": "HS request processed"})
         i3socket.send_json(report)
         logging.info("reported about HS data transfer by " +  str(src_mchn_short) + " to i3live")
-            
-            # fill a new dictionary with info from infodict:
-#            value_dict1 = {}
-#            value_dict1["dataload"] = infodict['dataload']
-#            value_dict1["start"] = datastart
-#            value_dict1["stop"] = datastop
-#            value_dict1["copydir"] = infodict['dataloc']
-#            logging.info( "message: \n" + str(hubname) + '\n' + str(dataload) +  '\n' + str(datastart) + '\n' +str(datastop) +  '\n' + str(copydir) )  
-#            i3live_dict1 = {}
-#            i3live_dict1["service"] = "HSiface"
-#            print "test1"
-#            i3live_dict1["varname"] = hubname
-#            i3live_dict1["value"] = value_dict1
-#            print "test2"
-#            i3live_json1 = json.dumps(i3live_dict1)
-#            print "test3"
-#            i3socket.send_json(i3live_json1)
-#            print "test4"
-#            logging.info( "message to I3Live: " + str(i3live_json1))
-#            
-#            i3live_dict2 ={}
-#            i3live_dict2["service"] = "HSiface"
-#            i3live_dict2["varname"] = src_mchn_short       
-#            i3live_dict2["value"] = "data processed"       
-#            i3socket.send_json(i3live_dict2)
-#            logging.info("message to I3Live: " + str(i3live_dict2))      
-            
-    #        start_stop_delta = str(stop_utc - start_utc)
-    #        
-    #        i3live_json2 = {"service": "HSiface", "varname": "SnAlertInterval", "value": start_stop_delta}
-
 
     def hs_data_location_check(self, info):
         """
@@ -137,14 +106,12 @@ class HsSender(object):
         Create subdir for folder related to the alert
         Move folder in subdir
         tar & bzip folder
-        remove bzip ending in filename
         create semaphore file for folder
-        move .sem & .dat.tar file in Spade directory
+        move .sem & .dat.tar.bz2 file in SPADE directory
         '''
         
         infodict = json.loads(info)
-
-        logging.info( "Preparation for SPADE Pickup of HS datastarted...")
+        logging.info( "Preparation for SPADE Pickup of HS data started...")
         copydir         = infodict['copydir']        
         copy_basedir    = re.search('[/\w+]*/(?=SNALERT_[0-9]{8}_[0-9]{6})', copydir)
         
@@ -202,14 +169,14 @@ class HsSender(object):
                     
                 else:
                     logging.error("failed moving the tarred data.")
-                    logging.error("Please put the data manually in the SPADE directory")
+                    logging.error("Please put the data manually in the SPADE directory. Use HsSpader.py, for example.")
 
             except (IOError,OSError,subprocess.CalledProcessError):
                 logging.error( "Loading data in SPADE directory failed")
-                logging.error( "Please put the data manually in the SPADE directory")
+                logging.error( "Please put the data manually in the SPADE directory. Use HsSpader.py, for example.")
         else:
             logging.error("Naming scheme validation failed.")
-            logging.error("Please put the data manually in the SPADE directory")
+            logging.error("Please put the data manually in the SPADE directory. Use HsSpader.py, for example.")
             pass
         
     def spade_pickup_log(self, info):    
@@ -246,20 +213,19 @@ if __name__ == "__main__":
                        ----------          |PUSH     | ---->  |          |
                                             ---------          -----------
     This is the NEW HsSender for the HS Interface. 
-    It's started via hsiface.sh on access.
+    It's started via fabric on access.
     It receives messages from the HsWorkers and is responsible of putting
     the HitSpool Data in the SPADE queue. 
-    Furthermore, it handles logs and moni values for I3Live.
     """    
     
     p = subprocess.Popen(["hostname"], stdout = subprocess.PIPE)
     out, err = p.communicate()
     hostname = out.rstrip()
     
-    if ".usap.gov" in hostname:
+    if "sps" in hostname:
         src_mchn_short = re.sub(".icecube.southpole.usap.gov", "", hostname)
         cluster = "SPS"
-    elif ".wisc.edu" in hostname:
+    elif "spts" in hostname:
         src_mchn_short = re.sub(".icecube.wisc.edu", "", hostname)
         cluster = "SPTS"
     else:
@@ -300,7 +266,8 @@ if __name__ == "__main__":
                 if cluster == "SPS":
                     newmsg.spade_pickup_data(info, hs_basedir, data_dir_name)    
             elif info["msgtype"] == "log_done":
-#                    newmsg.spade_pickup_log(info)
+                    newmsg.spade_pickup_log(info)
+            else:
                 pass
                         
         except KeyboardInterrupt:

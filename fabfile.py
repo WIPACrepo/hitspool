@@ -35,10 +35,10 @@ with settings(hide('running')):
             fastprint("Wrong machine. Use access machine for SPTS or SPS instead.\n")
             sys.exit(0)
         #check host
-        if "icecube.wisc.edu" in host:
+        if "spts" in host:
             SystemName = "SPTS"
             host_short = re.sub(".icecube.wisc.edu", "", host)
-        elif "icecube.southpole.usap.gov" in host:
+        elif "sps" in host:
             SystemName = "SPS"
             host_short = re.sub(".icecube.usap.gov", "", host)
         else:
@@ -171,7 +171,7 @@ def sendMail(subj, msgline, msgtype):
     msg = MIMEText(msgline)
 #    msg["From"] = "david.heereman@ulb.ac.be"
     msg["To"] = "i3.hsinterface@gmail.com"
-    msg["Subject"] = subj + " HsInterface Alert: fabric"  
+    msg["Subject"] = subj + " HsInterface Alert: " + SystemName +" fabric"  
     p = subprocess.Popen(["/usr/sbin/sendmail", "-t"], stdin=subprocess.PIPE)
     p.communicate(msg.as_string())
     _log("Email was sent about " + msgtype + " ...")
@@ -517,7 +517,14 @@ def hs_stage():
         _log("No SVN checkout done because not running on SPS. If needed, please do that manually.")
     hs_mk_dir(do_local)
     _log("done.")
-        
+
+def hs_deploy_to_host(host):
+    with settings(host_string=host):
+        _log("Deploying (rsyncing) HSiface to " + host + "...")
+        with hide("running", "stdout"):
+            rsync_project(HSiface_PATH , CHECKOUT_PATH, exclude=(".svn"))
+        _log("done.\n")
+
 #@roles('expcont', '2ndbuild', 'hubs')    
 def hs_deploy():
     """
@@ -525,11 +532,7 @@ def hs_deploy():
     """
     _log("Deploy targets are: " + str(DEPLOY_TARGET))
     for host in DEPLOY_TARGET:
-        with settings(host_string=host):
-            _log("Deploying (rsyncing) HSiface to " + host + "...")
-            with hide("running", "stdout"):
-                rsync_project(HSiface_PATH , CHECKOUT_PATH, exclude=(".svn"))
-            _log("done.\n")
+            hs_deploy_to_host(host)
             
 def hs_install():
     """

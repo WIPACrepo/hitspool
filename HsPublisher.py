@@ -144,10 +144,10 @@ if __name__=='__main__':
     out, err = p.communicate()
     src_mchn = out.rstrip()
     
-    if ".usap.gov" in src_mchn:
+    if "sps" in src_mchn:
         src_mchn_short = re.sub(".icecube.southpole.usap.gov", "", src_mchn)
         cluster = "SPS"
-    elif ".wisc.edu" in src_mchn:
+    elif "spts" in src_mchn:
         src_mchn_short = re.sub(".icecube.wisc.edu", "", src_mchn)
         cluster = "SPTS"
     else:

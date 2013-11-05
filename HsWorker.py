@@ -184,13 +184,13 @@ class MyAlert(object):
             else:
                 alertDatamax = True
             
-            print alertParse1, alertParse2, alertParse3, alertDatamax
+#            print alertParse1, alertParse2, alertParse3, alertDatamax
     
         # continue processing request:            
         if alertParse1 and alertParse2 and alertParse3 and alertDatamax:
             
-            i3socket.send_json({"service": "HSiface", "varname": "HsWorker@" + src_mchn_short, 
-                                "value": "successfully parsed the request."})
+#            i3socket.send_json({"service": "HSiface", "varname": "HsWorker@" + src_mchn_short, 
+#                                "value": "successfully parsed the request."})
             
             alertid = TRUETRIGGER.strftime("%Y%m%d_%H%M%S")             
             sn_start_file = None
@@ -345,11 +345,11 @@ class MyAlert(object):
                 hs_sourcedir = hs_sourcedir_current
                 logging.info( "HitSpool source data is in directory: " + str(hs_sourcedir))
                 
-                i3live_dict7 = {}
-                i3live_dict7["service"] = "HSiface"
-                i3live_dict7["varname"] = "HsWorker@" + src_mchn_short
-                i3live_dict7["value"] = "Found requested data in %s." % hs_sourcedir
-                i3socket.send_json(i3live_dict7)
+#                i3live_dict7 = {}
+#                i3live_dict7["service"] = "HSiface"
+#                i3live_dict7["varname"] = "HsWorker@" + src_mchn_short
+#                i3live_dict7["value"] = "Found requested data in %s." % hs_sourcedir
+#                i3socket.send_json(i3live_dict7)
                 
                 
                 sn_start_file = OLDFILE
@@ -357,9 +357,9 @@ class MyAlert(object):
                 
                 sn_start_file_str = hs_sourcedir + "HitSpool-" + str(sn_start_file) + ".dat" 
     
-                i3socket.send_json({"service": "HSiface",
-                                    "varname": "HsWorker@" + src_mchn_short,
-                                    "value": "StartTime out of HsBuffer. Assign: sn_startfile = %s" % sn_start_file_str})
+#                i3socket.send_json({"service": "HSiface",
+#                                    "varname": "HsWorker@" + src_mchn_short,
+#                                    "value": "StartTime out of HsBuffer. Assign: sn_startfile = %s" % sn_start_file_str})
                 
                 timedelta_stop = (ALERTSTOP - BUFFSTART)
                 #timedelta_stop_seconds = int(timedelta_stop.total_seconds())
@@ -375,11 +375,11 @@ class MyAlert(object):
                 hs_sourcedir = hs_sourcedir_current
                 logging.info( "HitSpool source data is in directory: " + str(hs_sourcedir))
                 
-                i3live_dict8 = {}
-                i3live_dict8["service"] = "HSiface"
-                i3live_dict8["varname"] = "HsWorker@" + src_mchn_short
-                i3live_dict8["value"] = "Found requested data in %s." % hs_sourcedir
-                i3socket.send_json(i3live_dict8)
+#                i3live_dict8 = {}
+#                i3live_dict8["service"] = "HSiface"
+#                i3live_dict8["varname"] = "HsWorker@" + src_mchn_short
+#                i3live_dict8["value"] = "Found requested data in %s." % hs_sourcedir
+#                i3socket.send_json(i3live_dict8)
                 
                 timedelta_start = (ALERTSTART - BUFFSTART) # should be a datetime.timedelta object 
                 #time passed after data_start when sn alert started: sn_start - data_start in seconds:
@@ -416,9 +416,9 @@ class MyAlert(object):
                 hs_sourcedir = hs_sourcedir_last
                 logging.info( "requested data distributed over both HS Run directories")
                 
-                i3socket.send_json({"service": "HSiface",
-                        "varname": "HsWorker@" + src_mchn_short,
-                        "value": "requested data distributed over both HS Run directories"})
+#                i3socket.send_json({"service": "HSiface",
+#                        "varname": "HsWorker@" + src_mchn_short,
+#                        "value": "requested data distributed over both HS Run directories"})
                 
                 
                 # -- start file --#
@@ -488,11 +488,11 @@ class MyAlert(object):
                 hs_sourcedir = hs_sourcedir_last
                 logging.info( "HS source data is in directory: " + str(hs_sourcedir))  
                 
-                i3live_dict9 = {}
-                i3live_dict9["service"] = "HSiface"
-                i3live_dict9["varname"] = "HsWorker@" + src_mchn_short
-                i3live_dict9["value"] = "HS source data is in directory: %s" % hs_sourcedir
-                i3socket.send_json(i3live_dict9)
+#                i3live_dict9 = {}
+#                i3live_dict9["service"] = "HSiface"
+#                i3live_dict9["varname"] = "HsWorker@" + src_mchn_short
+#                i3live_dict9["value"] = "HS source data is in directory: %s" % hs_sourcedir
+#                i3socket.send_json(i3live_dict9)
                 
                 
                 timedelta_start = (ALERTSTART - LAST_BUFFSTART) # should be a datetime.timedelta object 
@@ -523,19 +523,19 @@ class MyAlert(object):
                 logging.info( "Data location case 6")
                 hs_sourcedir = hs_sourcedir_last
                 logging.info( "HS source data is in directory: " + str(hs_sourcedir))
-                i3live_dict10 = {}
-                i3live_dict10["service"] = "HSiface"
-                i3live_dict10["varname"] = "HsWorker@" + src_mchn_short
-                i3live_dict10["value"] = "HS source data is in directory: %s." % hs_sourcedir
-                i3socket.send_json(i3live_dict10)            
+#                i3live_dict10 = {}
+#                i3live_dict10["service"] = "HSiface"
+#                i3live_dict10["varname"] = "HsWorker@" + src_mchn_short
+#                i3live_dict10["value"] = "HS source data is in directory: %s." % hs_sourcedir
+#                i3socket.send_json(i3live_dict10)            
                 
                 sn_start_file = LAST_OLDFILE
                 logging.warning("sn_start doesn't exits in" + str( hs_sourcedir) +  "buffer anymore! Start with oldest possible data: HitSpool-"+str(LAST_OLDFILE))
                 sn_start_file_str = hs_sourcedir + "HitSpool-" + str(sn_start_file) + ".dat"               
                 
-                i3socket.send_json({"service": "HSiface",
-                        "varname": "HsWorker@" + src_mchn_short,
-                        "value": "StartTime out of HsBuffer. Assign: sn_startfile = %s" % sn_start_file_str})
+#                i3socket.send_json({"service": "HSiface",
+#                        "varname": "HsWorker@" + src_mchn_short,
+#                        "value": "StartTime out of HsBuffer. Assign: sn_startfile = %s" % sn_start_file_str})
                 
                 timedelta_stop = (ALERTSTOP - LAST_BUFFSTART)
                 #timedelta_stop_seconds = int(timedelta_stop.total_seconds())
@@ -649,12 +649,8 @@ class MyAlert(object):
                 hs_tmp_copy = subprocess.check_call("cp -l " + next_file + " " + tmp_dir, shell=True)
                 if hs_tmp_copy == 0:
                     next_tmpfile = tmp_dir + "HitSpool-" + str(sn_start_file_i) + ".dat"
-                    #logging.info( "\nnext file to copy is: %s" % next_copy
                     copy_files_list.append(next_tmpfile)
                     logging.info("linked the file: " + str(next_file) + " to tmp directory")
-#                    i3socket.send_json({"service": "HSiface",
-#                                        "varname": "HsWorker@" + src_mchn_short,
-#                                        "value": "linked %s to tmp dir: " % str(next_file)})
                 else:
                     logging.error("failed to link file " + str(sn_start_file_i) + " to tmp dir")      
                     i3socket.send_json({"service": "HSiface",
@@ -687,36 +683,18 @@ class MyAlert(object):
                 pass
              
             logging.info("list of relevant files: " + str(copy_files_list))
-            
-#            i3socket.send_json({"service": "HSiface",
-#                                        "varname": "HsWorker@" + src_mchn_short,
-#                                        "value": "list of revelvant Hs files: %s " % str(copy_files_list)})
-            
+                        
             copy_files_str = " ".join(copy_files_list) 
-#            logging.info("joined string of relevant files :\n "  + str(copy_files_str))
-#            logging.info("last relevant is:\n " + str(sn_stop_file_str))
             
             #----- Add random Sleep time window ---------#
             #necessary in order to strech time window of rsync requests
             #Simultaneously rsyncing from 97 hubs caused issues in the past
             wait_time = random.uniform(1,5)
             logging.info( "wait with the rsync request for some seconds: " + str( wait_time))
-#            i3socket.send_json({"service": "HSiface",
-#                                "varname": "HsWorker@" + src_mchn_short,
-#                                "value": "wait for %s seconds before rsyncing..." % wait_time}) 
             time.sleep(wait_time)
             
             # ---- Rsync the relevant files to 2ndbuild ---- #
             
-    #        rsync_cmd = "nice rsync -avv --bwlimit=30 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + ':' + hs_copydest + " >>" + logfile
-    #        rsync_cmd = "nice rsync -avv --bwlimit=100000 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + ':' + hs_copydest + " >>" + logfile
-            # use a special encryption flag for reducing the cpu usage on the hub: 
-    #        rsync_cmd = "nice rsync -avv -e 'ssh -c arcfour' --bwlimit=300 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + ':' + hs_copydest + " >>" + logfile
-            #running rsync daemon --> "::" instead of single ':'
-    #        rsync_cmd = "nice rsync -avv --bwlimit=300 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + '::hitspool/' + truetrigger_dir + " >>" + logfile
-            #TODO:  find a way to redirect the rsync output to json message! -> solution: use subprocess.Popen
-     
-     
             # ------- the REAL rsync command for SPS and SPTS:-----#
             # hitspool/ points internally to /mnt/data/pdaqlocal/HsDataCopy/ this is set fix on SPTS and SPS by Ralf Auer     
             if (cluster == "SPS") or (cluster == "SPTS") :  
@@ -752,19 +730,17 @@ class MyAlert(object):
                                           "datastart": str(ALERTSTART), "datastop": str(ALERTSTOP), 
                                           "copydir": hs_copydest, "copydir_user": hs_copydir, "msgtype": "rsync_sum"})
                 
-                
                 sender.send_json(report_json)
                 logging.info("sent rsync report json to HsSender: " + str(report_json))
-            
             
             # --- proceed if no error --- #
             else:
                 logging.info("rsync out:\n" +str(hs_rsync_out))
                 logging.info("successful copy of HS data from " + str(hs_sourcedir) + " at " + str(src_mchn) + " to " + str(hs_copydest) +" at " + str(hs_ssh_access))
                 #report to I3Live successful data transfer
-                i3socket.send_json({"service": "HSiface",
-                    "varname": "HsWorker@" + src_mchn_short,
-                    "value": "data transferred to %s at %s " % (hs_copydest, hs_ssh_access)})
+#                i3socket.send_json({"service": "HSiface",
+#                    "varname": "HsWorker@" + src_mchn_short,
+#                    "value": "data transferred to %s at %s " % (hs_copydest, hs_ssh_access)})
 
                 #rsync_dataload = re.sub( r'total size is ', '',re.sub(r' speedup is [0-9]*\.[0-9]*\s', '',hs_rsync_out[-1]))
                 rsync_dataload = re.search(r'(?<=total size is )[0-9]*', hs_rsync_out[-1])
@@ -773,24 +749,33 @@ class MyAlert(object):
                 else:
                     dataload_mb = "TBD"
                 
-#                report_json = json.dumps({"hubname": src_mchn_short, "alertid": alertid, "dataload": rsync_dataload.group(0), 
-#                                          "datastart": str(ALERTSTART), "datastop": str(ALERTSTOP), "copydir": hs_copydest, 
-#                                           "copydir_user": hs_copydir, "msgtype": "rsync_sum"})
-#                sender.send_json(report_json)
-                
                 #report about dataload of copied data directly to I3Live 
+#                i3socket.send_json({"service": "HSiface",
+#                                "varname": "HsWorker@" + src_mchn_short,
+#                                "value": "dataload of %s in [MB]:\n%s" % (hs_copydest, dataload_mb)})
+#                
                 i3socket.send_json({"service": "HSiface",
-                                "varname": "HsWorker@" + src_mchn_short,
-                                "value": "dataload of %s in [MB]:\n%s" % (hs_copydest, dataload_mb)})
+                                    "varname": "HsWorker@" + src_mchn_short,
+                                    "prio"    :   1,
+                                    "value": " %s [MB] HS data transferred to %s " % (dataload_mb, hs_ssh_access)})
                 logging.info(str("dataload of %s in [MB]:\n%s" % (hs_copydest, dataload_mb )))
+                
+                
+                # send msg to HsSender to make start SPADE pickup
+                report_json = json.dumps({"hubname": src_mchn_short, "alertid": alertid, "dataload": dataload_mb, 
+                                          "datastart": str(ALERTSTART), "datastop": str(ALERTSTOP), 
+                                          "copydir": hs_copydest, "copydir_user": hs_copydir, "msgtype": "rsync_sum"})
+                
+                sender.send_json(report_json)
+                logging.info("sent rsync report json to HsSender: " + str(report_json))
                     
                 # remove tmp dir:
                 try:
                     remove_tmp_files = "rm -r " + tmp_dir
                     subprocess.check_call(remove_tmp_files, shell=True)
-                    i3socket.send_json({"service": "HSiface",
-                                        "varname": "HsWorker@" + src_mchn_short,
-                                        "value": "Deleted tmp dir"})
+#                    i3socket.send_json({"service": "HSiface",
+#                                        "varname": "HsWorker@" + src_mchn_short,
+#                                        "value": "Deleted tmp dir"})
                     logging.info("tmp dir deleted.")
                     
                 except subprocess.CalledProcessError:
@@ -800,24 +785,10 @@ class MyAlert(object):
                                         "varname": "HsWorker@" + src_mchn_short,
                                         "value": "ERROR: Deleting tmp dir failed"})
                     pass
-                
-    #        except subprocess.CalledProcessError:
-    #            logging.info( "\nError in rsync from %s to %s....\n" %(src_mchn, hs_ssh_access)
-    #            
-    #            i3socket.send_json({"service": "HSiface",
-    #                            "varname": "HsWorker@" + src_mchn_short,
-    #                            "value": "ERROR: rsync to %s at %s failed" % (hs_copydest, hs_ssh_access)})
-    #            
-    #            i3socket.send_json({"service": "HSiface",
-    #                            "varname": "HsWorker@" + src_mchn_short,
-    #                            "value":  hs_rsync_out})
-    #                                      "hs_hs_rsync_err": hs_rsync_err }}) # this json ends up in the catchall.json 
-    #        else:
+
             hs_rsync.stdout.flush()
             hs_rsync.stderr.flush()
 
-        
-        
             # -- also trasmitt the log file to the HitSpool copy directory:
             if (cluster == "SPS") or (cluster == "SPTS"):
                 logfiledir = "/mnt/data/pdaqlocal/HsInterface/logs/workerlogs/"  
@@ -906,10 +877,10 @@ if __name__=='__main__':
     out, err = p.communicate()
     src_mchn = out.rstrip()
     
-    if ".usap.gov" in src_mchn:
+    if "sps" in src_mchn:
         src_mchn_short = re.sub(".icecube.southpole.usap.gov", "", src_mchn)
         cluster = "SPS"
-    elif ".wisc.edu" in src_mchn:
+    elif "spts" in src_mchn:
         src_mchn_short = re.sub(".icecube.wisc.edu", "", src_mchn)
         cluster = "SPTS"
     else:
