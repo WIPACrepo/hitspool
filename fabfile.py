@@ -94,9 +94,9 @@ elif SystemName == "SPS":
     FABLOGFILE         = FABLOGPATH +  "/" + "hs_fab.log"
 
     StartWorker     = "python26 " + HSiface_PATH + "HsWorker.py"
-    StartPublisher  = "python " + HSiface_PATH + "HsPublisher.py"
-    StartSender     = "python " + HSiface_PATH + "HsSender.py" 
-    StartWatcher    = "python " + HSiface_PATH + "HsWatcher.py"
+    StartPublisher  = "python26 " + HSiface_PATH + "HsPublisher.py"
+    StartSender     = "python26 " + HSiface_PATH + "HsSender.py" 
+    StartWatcher    = "python26 " + HSiface_PATH + "HsWatcher.py"
 #    StartController    = "python " + HSiface_PATH + "HsController.py"
           
     env.parallel = True
@@ -166,7 +166,10 @@ else:
 
 
 #--- function for Alert emails ---#
-def sendMail(subj, msgline, msgtype):
+def _sendMail(subj, msgline, msgtype):
+    """
+    Mail reports to hsinterface.
+    """
 
     msg = MIMEText(msgline)
 #    msg["From"] = "david.heereman@ulb.ac.be"
@@ -210,7 +213,10 @@ def _capture_local(cmd, pty=False):
     return local(cmd, capture=True)
         
 #@roles('access')
-def hs_checkout(SVN_PATH, CHECKOUT_PATH):    
+def hs_checkout(SVN_PATH, CHECKOUT_PATH): 
+    """
+    SVN co HS interface code.
+    """   
     with hide("running", "stdout"):
         _log("checked out source code from %s to %s..." % (SVN_PATH, CHECKOUT_PATH))
         local("svn co " + SVN_PATH + " " + CHECKOUT_PATH + " " )
@@ -221,14 +227,14 @@ def hs_checkout(SVN_PATH, CHECKOUT_PATH):
 #@roles('expcont', '2ndbuild', 'hubs')    
 def hs_mk_dir(do_local=False):
     """
-    Make HsInterface directory at destination.
+    Make HsInterface directory at destination for all.
     """
     for host in DEPLOY_TARGET:
-        _hs_mk_dir_on_host(host)
+        hs_mk_dir_on_host(host)
     
-def _hs_mk_dir_on_host(host):
+def hs_mk_dir_on_host(host):
     """
-    Make HsInterface directory at destination.
+    Make HsInterface directory at destination <host>.
     """
     if do_local:
         frun = _capture_local
@@ -261,6 +267,9 @@ def _deactivate_hsiface_cron():
         deactivate_hsiface_cron_for_host(host)
 
 def deactivate_hsiface_cron_for_host(host):
+    """
+    Deactivates the HsWatcher crnjob on <host>
+    """
     with settings(host_string=host):
         _log("Deactivating HSiface cronjobs on " + host + "...")
         with hide("running"):
@@ -505,6 +514,30 @@ def hs_stop_worker_on_host(host):
             else:
                 _log(result)
                 raise SystemExit()
+            
+def hs_stop_watcher_on_host(host):
+    """
+    Stop a hanging HsWatcher on <host>
+    """
+    if do_local:
+        frun = _capture_local
+    else:
+        frun = run       
+    with settings(host_string=host, warn_only=True):
+        with hide('running'):  
+            result = frun("pkill -f \"" +  StartWatcher + "\"") # see man page of "pkill" for exit staus details
+            if result.return_code == 0:
+                _log("Found.")
+            elif result.return_code == 1:
+                _log("No processes matched. Nothing to stop.")
+            elif result.return_code == 2:
+                _log("Syntax error in the pkill command string")
+            else:
+                _log(result)
+                raise SystemExit()
+    
+    
+    
 
 def hs_stage():
     """
@@ -543,7 +576,7 @@ def hs_install():
     
 def hs_stop():
     """
-    Stopping all HsInterface components
+    Stopping all HsInterface components.
     """
     for target in DEPLOY_TARGET:
         with settings(host_string=target):
@@ -571,11 +604,11 @@ def hs_stop():
                     hs_stop_worker_on_host(target)
                 else:
                     _log("unidentified target...")
-    sendMail("STOPPED", "HsInterface services were stopped via fabric " + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) , "stop all")
+    _sendMail("STOPPED", "HsInterface services were stopped via fabric " + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) , "stop all")
 
 def hs_start():
     """
-    (Re)Starting all HsInterface components. Email notification.
+    (Re)Starting all HsInterface components. 
     """
     #first stop all components / cronjobs that might still be running:
     _log("All remaining running components will be stopped for doing a clean start afterwards...")
@@ -595,7 +628,7 @@ def hs_start():
         else:
             _log("unidentified machine in DEPLOY_TARGET. Please Check your Cluster Settings.")
             
-    sendMail("(RE)START", "HsInterface services were (re)started via fabric at " + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) , "(re)start")
+    _sendMail("(RE)START", "HsInterface services were (re)started via fabric at " + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) , "(re)start")
     
 
 def hs_status():
