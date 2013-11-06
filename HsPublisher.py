@@ -97,7 +97,6 @@ class Receiver(object):
 #                
                 alertjson = {"service" :   "HSiface",
                                   "varname" :   "alert",
-#                                  "quiet"   :   "true",
                                   "prio"    :   1,
                                   "t"    :   str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
                                   "value"   :   {"condition"    : "DATA REQUEST HsInterface Alert: ",
@@ -108,7 +107,8 @@ class Receiver(object):
                                                                    {"receiver"      : "icecube-sn-dev@lists.uni-mainz.de",
                                                                     "notifies_txt"  : alertmsg,
                                                                     "notifies_header" : "DATA REQUEST HsInterface Alert: "}],
-                                                 "short_subject": "true"}}
+                                                 "short_subject": "true",
+                                                 "quiet"        : "true"}}
 
                 i3socket.send_json(alertjson)
 

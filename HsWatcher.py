@@ -241,7 +241,6 @@ class MyWatcher(object):
                 
                 alertjson1 = {"service" :   "HSiface",
                                   "varname" :   "alert",
-                                  "quiet"   :   "true",
                                   "prio"    :   1,
                                   "time"    :   str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
                                   "value"   :   {"condition"    : "STOPPED HsInterface Alert: " + mywatch_short + "@" + host_short,
@@ -249,7 +248,8 @@ class MyWatcher(object):
                                                  "notifies"     : [{"receiver"      : "i3.hsinterface@gmail.com",
                                                                     "notifies_txt"  : alertmsg1,
                                                                     "notifies_header" : "RECOVERY HsInterface Alert: " + mywatch_short + "@" + host_short}],
-                                                 "short_subject": "true"}}
+                                                 "short_subject": "true",
+                                                 "quiet"        : "true",}}
                                   
                 i3socket.send_json(alertjson1)
                 
@@ -261,7 +261,6 @@ class MyWatcher(object):
 
                 alertjson3 = {"service" :   "HSiface",
                                   "varname" :   "alert",
-#                                  "quiet"   :   "true",
                                   "prio"    :   1,
                                   "t"    :   str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
                                   "value"   :   {"condition"    : "STOPPED HsInterface Alert: " + mywatch_short + "@" + host_short,
@@ -269,7 +268,8 @@ class MyWatcher(object):
                                                  "notifies"     : [{"receiver"      : "i3.hsinterface@gmail.com",
                                                                     "notifies_txt"  : alertmsg3,
                                                                     "notifies_header" : "STOPPED HsInterface Alert: " + mywatch_short + "@" + host_short}],
-                                                 "short_subject": "true"}}
+                                                 "short_subject": "true",
+                                                 "quiet"        :   "true"}}
                 i3socket.send_json(alertjson3)
                 
         else:
@@ -280,7 +280,6 @@ class MyWatcher(object):
                         alertmsg2 = mywatch_short + "@" + host_short + " recovered by HsWatcher:\n" + str(logtaillist[1]) + "\n" + str(logtaillist[0])
                         alertjson2 = {"service" :   "HSiface",
                                       "varname" :   "alert",
-    #                                  "quiet"   :   "true",
                                       "prio"    :   1,
                                       "t"    :   str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
                                       "value"   :   {"condition"    : "RECOVERY HsInterface Alert: " + mywatch_short + "@" + host_short,
@@ -291,7 +290,8 @@ class MyWatcher(object):
                                                                        {"receiver"      : "icecube-sn-dev@lists.uni-mainz.de",
                                                                         "notifies_txt"  : alertmsg2,
                                                                         "notifies_header" : "RECOVERY HsInterface Alert: " + mywatch_short + "@" + host_short}],
-                                                     "short_subject": "true"}}
+                                                     "short_subject": "true",
+                                                     "quiet"        : "true"}}
     
                         i3socket.send_json(alertjson2)
                 else:   
