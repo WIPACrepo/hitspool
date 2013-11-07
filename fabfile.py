@@ -631,6 +631,43 @@ def hs_start():
     _sendMail("(RE)START", "HsInterface services were (re)started via fabric at " + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) , "(re)start")
     
 
+
+def hs_status_on_host(host):
+    """
+    Check status on individual <host>
+    """
+    with settings(host_string=host):
+        with hide("running", "stdout"):
+            if "hub" in host:
+                proc = run("ps ax")
+                # proc = number of running HsWorker instances PLUS 1 (grep command also counts) 
+                if "HsWorker" in proc:
+                    _log(str(host) + ": HsWorker active")
+                else:
+                    _log(str(host) + ": HsWorker NOT active")
+                        
+            elif "2ndbuild" in host:
+                proc = run("ps ax | grep HsSender | wc -l")
+                # proc = number of running HsSender instances PLUS 1 (grep command also counts) 
+                if "HsSender" in proc:
+                    _log(str(host) + ": HsSender active")
+                else:
+                    _log(str(host) + ": HsSender NOT active")
+
+            elif "expcont" in host:
+                proc = run("ps ax | grep HsPublisher | wc -l")
+                # proc = number of running HsPiblisher instances PLUS 1 (grep command also counts) 
+                if "HsPublisher" in proc:
+                    _log(str(host) + ": HsPublisher active")
+                else:
+                    _log(str(host) + ": HsPublisher NOT active")
+   
+            else:
+                _log("Running on wrong host")
+            
+            #return host, proc
+                
+
 def hs_status():
     """
     Summarize how many HsInterface componets are up and runnning.
@@ -662,14 +699,3 @@ def hs_status():
                     pass
     print len(ACTIVE_COMP) ," HsInterface components are active:\n" + str(ACTIVE_COMP)
     print len(INACTIVE_COMP) ," HsInterface components are NOT active:\n" + str(INACTIVE_COMP)                       
-  
-  
-#def test():
-#    if do_local:
-#        frun = _capture_local
-#    else:
-#        frun = run 
-#    
-#    with hide("running", "stdout"):
-#        comd = frun("ps ax")
-#        fastprint(comd)

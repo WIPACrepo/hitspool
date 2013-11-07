@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-#Hit Spool Grabber to be run on access
+#Hit Spool SPADE-ing to be run on access
 #author: dheereman
 #
 from datetime import datetime, timedelta
