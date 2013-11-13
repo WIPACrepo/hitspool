@@ -101,16 +101,14 @@ class HsSender(object):
 
 
 #------ Preparatin for SPADE ----#
-    def spade_pickup_data(self, info, hs_basedir, data_dir_name):
+    def spade_pickup_data(self, infodict, hs_basedir, data_dir_name):
         '''
-        Create subdir for folder related to the alert
-        Move folder in subdir
         tar & bzip folder
         create semaphore file for folder
         move .sem & .dat.tar.bz2 file in SPADE directory
         '''
         
-        infodict = json.loads(info)
+        #infodict = json.loads(info)
         logging.info( "Preparation for SPADE Pickup of HS data started...")
         copydir         = infodict['copydir']        
         copy_basedir    = re.search('[/\w+]*/(?=SNALERT_[0-9]{8}_[0-9]{6})', copydir)
