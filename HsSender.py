@@ -145,7 +145,7 @@ class HsSender(object):
     def spade_pickup_log(self, info):    
         #infodict = json.loads(info)            
         if info["msgtype"] == "log_done":
-            logging.info("logfile " + str(info["logfile_hsworker"]) + " from " + str(info["hubname"]) + " was transmitted to " + str(info["logfiledir"]))
+            logging.info("logfile " + str(info["logfile_hsworker"]) + " from " + str(info["hubname"]) + " was transmitted to " + str(nfo["logfile_hsworker"]))
             
             org_logfilename     = info["logfile_hsworker"]
             hs_log_basedir      = info["logfiledir"]
@@ -227,8 +227,8 @@ if __name__ == "__main__":
                 hs_basedir, data_dir_name = newmsg.hs_data_location_check(info)
                 if cluster == "SPS":
                     newmsg.spade_pickup_data(info, hs_basedir, data_dir_name)    
-            elif info["msgtype"] == "log_done":
-                    newmsg.spade_pickup_log(info)
+#            elif info["msgtype"] == "log_done":
+#                    newmsg.spade_pickup_log(info)
             else:
                 pass
                         
