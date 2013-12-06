@@ -34,27 +34,6 @@ def handler(signum, frame):
 
 signal.signal(signal.SIGTERM, handler)    #handler is called when SIGTERM is called (via pkill)
 
-#class MyPublisher(object):
-#    """
-#    Creates PUB sockets and sends the alert 
-#    message to the Worker hubs that are connected.
-#    """
-#        
-#    def publish(self, data):
-#        """
-#        Publishing the alert message to the subscribed Workers
-#        """
-#            
-#        # broadcast the alert-message:
-#        try:
-#            publisher.send("["+data+"]")
-#            logging.info("Publisher published: " + str(data))
-#
-#        except KeyboardInterrupt:
-#            logging.warning("KeyboardInterruption received, shut down...")  
-#            sys.exit()    
-            
-                
 class Receiver(object):
     '''
     Handle incoming request message from sndaq or any other process. 

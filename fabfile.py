@@ -35,10 +35,10 @@ with settings(hide('running')):
             fastprint("Wrong machine. Use access machine for SPTS or SPS instead.\n")
             sys.exit(0)
         #check host
-        if "spts" in host:
+        if "wisc.edu" in host:
             SystemName = "SPTS"
             host_short = re.sub(".icecube.wisc.edu", "", host)
-        elif "sps" in host:
+        elif "usap.gov" in host:
             SystemName = "SPS"
             host_short = re.sub(".icecube.usap.gov", "", host)
         else:
