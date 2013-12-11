@@ -39,9 +39,9 @@ class MyWatcher(object):
 #                logging.info( "Wrong machine. Use access machine for SPTS or SPS instead.")
 #                sys.exit(0)
             #check host
-            if "spts" in host:
+            if "wisc.edu" in host:
                 CLUSTER = "SPTS"
-            elif "sps" in host:
+            elif "usap.gov" in host:
                 CLUSTER = "SPS"
             else:
                 logging.info( "Wrong host. Use SPTS or SPS instead.")

@@ -92,8 +92,6 @@ def send_alert(timeout, alert_start_sn, alert_stop_sn, alert_begin_utc, alert_en
                 should_continue = False
                 sys.exit(1)
                 
-
-    
 if __name__=="__main__":
     '''
     For grabbing hs data from hubs independent (without sndaq providing alert).
@@ -103,11 +101,11 @@ if __name__=="__main__":
     def usage():
         print >>sys.stderr, """
         usage :: HsGrabber.py [options]
-            -b         | begin of data: "YYYY-MM-DD HH:mm:ss.us" OR SNDAQ timestamp [ns fro beginning of the year]
-            -e         | end of data "YYYY-MM-DD HH:mm:ss.us"   OR SNDAQ timestamp [ns fro beginning of the year]   
+            -b         | begin of data: "YYYY-mm-dd HH:MM:SS.[ns]" OR SNDAQ timestamp [ns from beginning of the year]
+            -e         | end of data "YYYY-mm-dd HH:MM:SS.[ns]"   OR SNDAQ timestamp [ns from beginning of the year]   
             -c         | copydir e.g. "pdaq@2ndbuild:/mnt/data/pdaqlocal/HsDataCopy/"
             
-            HsGrabber reads UTC timestamps or SNDAQ timestmaps.
+            HsGrabber reads UTC timestamps or SNDAQ timestamps.
             It sends SNDAQ timestamps to HsInterface (HsPublisher).
             """
         sys.exit(1)
@@ -137,10 +135,11 @@ if __name__=="__main__":
                 try:        
                     alert_begin_utc = datetime.strptime(str(a), "%Y-%m-%d %H:%M:%S.%f")
                 except ValueError, e:
-                    print "Problem with the time-stamp format: ", e
+                    #print "Problem with the time-stamp format: ", e
                     try:
-                        print "Try matching format without microsecond precision:"
-                        alert_begin_utc = datetime.strptime(str(a), "%Y-%m-%d %H:%M:%S")
+                        print "Try matching format without subsecond precision..."
+                        alert_begin_short = re.sub(".[0-9]{9}", '', str(a))
+                        alert_begin_utc = datetime.strptime(alert_begin_short, "%Y-%m-%d %H:%M:%S")
                         print "matched"
                     except ValueError,e:
                         print  "Problem with the time-stamp format: ", e
@@ -153,10 +152,11 @@ if __name__=="__main__":
                 try:        
                     alert_end_utc = datetime.strptime(str(a), "%Y-%m-%d %H:%M:%S.%f")
                 except ValueError, e:
-                    print "Problem with the time-stamp format: ", e
+                    #print "Problem with the time-stamp format: ", e
                     try:
-                        print "Try matching format without microsecond precision:"
-                        alert_end_utc = datetime.strptime(str(a), "%Y-%m-%d %H:%M:%S")
+                        print "Try matching format without subsecond precision..."
+                        alert_end_short = re.sub(".[0-9]{9}", '', str(a))
+                        alert_end_utc = datetime.strptime(alert_end_short, "%Y-%m-%d %H:%M:%S")
                         print "matched"
                     except ValueError,e:
                         print  "Problem with the time-stamp format: ", e

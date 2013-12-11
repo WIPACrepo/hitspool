@@ -58,6 +58,7 @@ if  SystemName ==  "SPTS" :
     DEPLOY_TARGET   = [ "2ndbuild" , "ichub21", "ichub29", "expcont"]
     CRONTAB_PATH    = HSiface_PATH + "hs_crontabs_spts.txt"
     CRONTAB_PATH_2ndbuild = HSiface_PATH + "hs_crontabs_spts_2ndbuild.txt"
+    CRONTAB_PATH_expcont = HSiface_PATH + "hs_crontabs_spts_expcont.txt"
     LOGPATH         = re.sub("trunk", "logs",HSiface_PATH)
     FABLOGPATH      = re.sub("trunk", "logs",CHECKOUT_PATH)
     FABLOGFILE      = FABLOGPATH +  "/" + "hs_fab.log"
@@ -89,6 +90,8 @@ elif SystemName == "SPS":
     DEPLOY_TARGET   = ["ichub%0.2d" %i for i in range(87)[1::]] + ["ithub%0.2d" %i for i in range(12)[1::]] + ["expcont", "2ndbuild"] 
     CRONTAB_PATH    = HSiface_PATH + "hs_crontabs_sps.txt"
     CRONTAB_PATH_2ndbuild = HSiface_PATH + "hs_crontabs_sps_2ndbuild.txt"
+    CRONTAB_PATH_expcont  = HSiface_PATH + "hs_crontabs_sps_expcont.txt"
+
     LOGPATH         = re.sub("trunk", "logs",HSiface_PATH)
     FABLOGPATH         = re.sub("trunk", "logs",CHECKOUT_PATH)
     FABLOGFILE         = FABLOGPATH +  "/" + "hs_fab.log"
@@ -133,6 +136,7 @@ elif SystemName == "LOCALHOST":
     DEPLOY_TARGET   = ["localhost"]
     CRONTAB_PATH    = HSiface_PATH + "hs_crontabs_test.txt"
     CRONTAB_PATH_2ndbuild = HSiface_PATH + "hs_crontabs_test_2ndbuild.txt"
+    CRONTAB_PATH_expcont  = HSiface_PATH + "hs_crontabs_test_expcont.txt"
     LOGPATH         = re.sub("trunk", "logs",HSiface_PATH)
     FABLOGPATH         = re.sub("trunk", "logs",CHECKOUT_PATH)
     FABLOGFILE         = FABLOGPATH +  "/" + "hs_fab.log"
@@ -167,10 +171,6 @@ else:
 
 #--- function for Alert emails ---#
 def _sendMail(subj, msgline, msgtype):
-    """
-    Mail reports to hsinterface.
-    """
-
     msg = MIMEText(msgline)
 #    msg["From"] = "david.heereman@ulb.ac.be"
     msg["To"] = "i3.hsinterface@gmail.com"
@@ -183,19 +183,11 @@ def _sendMail(subj, msgline, msgtype):
 ##returns the stdout of the command in a list
 def _local_return_stdout(command):
     with settings(hide('running','stdout')):
-#        output = subprocess.Popen(command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True)
-#        returnv = output.stdout.readlines()
-        
         p           = subprocess.Popen(["ps", "ax"], shell=True, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
         out, err    = p.communicate()
         returnout   = out.rstrip()
         returnerr   = err.rstrip()
         returnlist    = returnout.split("\n")
-        
-        
-#        if returnv[0].isdigit():
-#            _log("Return of command is: " + str(output) + ". Please try again.\n", 2)
-#            sys.exit()
     return returnlist
 
 def _log(msg):
@@ -242,15 +234,16 @@ def hs_mk_dir_on_host(host):
         frun = run
     with settings(host_string=host): 
         with hide("running", "stdout"):   
-            
             if host == "2ndbuild":
                 _log("Creating (if not there yet) the HsInterface directories on " + host +" ...")
-                frun("mkdir -p " + LOGPATH)                        
+                frun("mkdir -p " + LOGPATH) 
+                _log('LOGPATH: '+ str(LOGPATH) + ' set')                                       
                 frun("mkdir -p " + HSiface_PATH)  
-                frun("mkdir -p " + LOGPATH + "workerlogs/")                        
-                _log('HSiface_PATH: ' + str(HSiface_PATH) + ' set')
-                _log('LOGPATH: '+ str(LOGPATH) + ' set')
+                _log('HSiface_PATH: ' + str(HSiface_PATH) + ' set')                
+                frun("mkdir -p " + LOGPATH + "workerlogs/")
                 _log('WorkerLogsCopyPATH: '+ str(LOGPATH) + "workerlogs/" + ' set')
+                frun("mkdir -p /mnt/data/HitSpool/unlimited/")
+                _log("SPADE pickup directories set")   
                 
                 
             else:
@@ -293,6 +286,9 @@ def set_up_cronjobs_for_host(host):
         if "2ndbuild" in host:
             with hide("running"):
                 frun("(cat " + CRONTAB_PATH_2ndbuild + "; echo; crontab -l |grep -v HSiface |grep -v '^$') | crontab -")
+        elif "expcont" in host:
+            with hide("running"):
+                frun("(cat " + CRONTAB_PATH_expcont + "; echo; crontab -l |grep -v HSiface |grep -v '^$') | crontab -")
         else:
             with hide("running"):
                 frun("(cat " + CRONTAB_PATH + "; echo; crontab -l |grep -v HSiface |grep -v '^$') | crontab -")
