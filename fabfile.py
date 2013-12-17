@@ -253,8 +253,6 @@ def hs_mk_dir_on_host(host):
                 _log('HSiface_PATH: ' + str(HSiface_PATH) + ' set')
                 _log('LOGPATH: '+ str(LOGPATH) + ' set')
             
-                
-                
 def _deactivate_hsiface_cron():
     for host in [DEPLOY_TARGET]:
         deactivate_hsiface_cron_for_host(host)
@@ -549,6 +547,7 @@ def hs_stage():
 
 def hs_deploy_to_host(host):
     with settings(host_string=host):
+        hs_mk_dir_on_host(host)
         _log("Deploying (rsyncing) HSiface to " + host + "...")
         with hide("running", "stdout"):
             rsync_project(HSiface_PATH , CHECKOUT_PATH, exclude=(".svn"))
