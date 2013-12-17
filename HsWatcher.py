@@ -79,27 +79,25 @@ class MyWatcher(object):
         global mywatch, HSiface_PATH, StartWorker, StartPublisher, StartSender
         
         if  CLUSTER ==  "SPTS" :
-        
             HSiface_PATH    = "/mnt/data/pdaqlocal/HsInterface/trunk/"
             
-            HsWorker            = "python " + HSiface_PATH + "HsWorker.py"
-            HsWorker_short      = "HsWorker"
-            HsPublisher         = "python " + HSiface_PATH + "HsPublisher.py"
-            HsPublisher_short   = "HsPublisher"
-            HsSender            = "python " + HSiface_PATH + "HsSender.py"
-            HsSender_short      = "HsSender"
-            
+#            HsWorker            = "python " + HSiface_PATH + "HsWorker.py"
+#            HsWorker_short      = "HsWorker"
+#            HsPublisher         = "python " + HSiface_PATH + "HsPublisher.py"
+#            HsPublisher_short   = "HsPublisher"
+#            HsSender            = "python " + HSiface_PATH + "HsSender.py"
+#            HsSender_short      = "HsSender"
+#            
         elif CLUSTER == "SPS":
-        
             HSiface_PATH    = "/mnt/data/pdaqlocal/HsInterface/trunk/"
             
-            HsWorker            = "python26 " + HSiface_PATH + "HsWorker.py"
-            HsWorker_short      = "HsWorker"
-            HsPublisher         = "python26 " + HSiface_PATH + "HsPublisher.py"
-            HsPublisher_short   = "HsPublisher"
-            HsSender            = "python26 " + HSiface_PATH + "HsSender.py"   
-            HsSender_short      = "HsSender"
-            
+#            HsWorker            = "python26 " + HSiface_PATH + "HsWorker.py"
+#            HsWorker_short      = "HsWorker"
+#            HsPublisher         = "python26 " + HSiface_PATH + "HsPublisher.py"
+#            HsPublisher_short   = "HsPublisher"
+#            HsSender            = "python26 " + HSiface_PATH + "HsSender.py"   
+#            HsSender_short      = "HsSender"
+#            
         elif CLUSTER == "LOCALHOST":
             
             #This means that there is no real HitSpool cluster. 
@@ -109,18 +107,17 @@ class MyWatcher(object):
             hspath = subprocess.Popen(["locate", "HsWatcher.py"], stdout = subprocess.PIPE)
             out,err = hspath.communicate()
             hspathlist = out.splitlines()
-            
             for entry  in hspathlist:
                 if not ".svn" in entry:
                     hspathdir = re.sub("HsWatcher.py$", "", entry)                
-            
             HSiface_PATH = hspathdir# = str(raw_input("Your local path to the HitSpool Interface: "))
-            HsWorker            = "python " + HSiface_PATH + "HsWorker.py"
-            HsWorker_short       = "HsWorker"
-            HsPublisher         = "python " + HSiface_PATH + "HsPublisher.py"
-            HsPublisher_short   = "HsPublisher"
-            HsSender            = "python " + HSiface_PATH + "HsSender.py"
-            HsSender_short      = "HsSender"
+            
+        HsWorker            = "python " + HSiface_PATH + "HsWorker.py"
+        HsWorker_short       = "HsWorker"
+        HsPublisher         = "python " + HSiface_PATH + "HsPublisher.py"
+        HsPublisher_short   = "HsPublisher"
+        HsSender            = "python " + HSiface_PATH + "HsSender.py"
+        HsSender_short      = "HsSender"
             
         if "2ndbuild" in host:
             mywatch = HsSender
