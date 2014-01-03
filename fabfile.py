@@ -96,10 +96,10 @@ elif SystemName == "SPS":
     FABLOGPATH         = re.sub("trunk", "logs",CHECKOUT_PATH)
     FABLOGFILE         = FABLOGPATH +  "/" + "hs_fab.log"
 
-    StartWorker     = "python26 " + HSiface_PATH + "HsWorker.py"
-    StartPublisher  = "python26 " + HSiface_PATH + "HsPublisher.py"
-    StartSender     = "python26 " + HSiface_PATH + "HsSender.py" 
-    StartWatcher    = "python26 " + HSiface_PATH + "HsWatcher.py"
+    StartWorker     = "python " + HSiface_PATH + "HsWorker.py"
+    StartPublisher  = "python " + HSiface_PATH + "HsPublisher.py"
+    StartSender     = "python " + HSiface_PATH + "HsSender.py" 
+    StartWatcher    = "python " + HSiface_PATH + "HsWatcher.py"
 #    StartController    = "python " + HSiface_PATH + "HsController.py"
           
     env.parallel = True
@@ -552,6 +552,14 @@ def hs_deploy_to_host(host):
         with hide("running", "stdout"):
             rsync_project(HSiface_PATH , CHECKOUT_PATH, exclude=(".svn"))
         _log("done.\n")
+        
+#def hs_deploy_worker_to_host(host):
+#    with settings(host_string=host):
+#        hs_mk_dir_on_host(host)
+#        _log("Deploying (rsyncing) HsWorker to " + host + "...")
+#        with hide("running", "stdout"):
+#            rsync_project(HSiface_PATH , CHECKOUT_PATH, exlude=("HsWorker.py"))            
+#        _log("done.\n")
 
 #@roles('expcont', '2ndbuild', 'hubs')    
 def hs_deploy():
