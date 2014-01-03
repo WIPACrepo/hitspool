@@ -486,9 +486,6 @@ def hs_stop_workers():
                 _log("No processes matched. Nothing to stop.")
             elif result.return_code == 2:
                 _log("Syntax error in the pkill command string")
-            else:
-                _log(result)
-                raise SystemExit()
             
             resultold = frun("pkill -f \"" +  StartWorkerOld + "\"") # see man page of "pkill" for exit staus details
             if resultold.return_code == 0:
