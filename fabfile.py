@@ -467,36 +467,41 @@ def hs_stop_sender():
 #    with hide('everything'):
 #        frun("pkill -f \"" +  StartController + "\"")
         
-@parallel
-@roles('hubs')
-def hs_stop_workers():
-    """
-    Stop all Worker in parallel.
-    """
-    if do_local:
-        frun = _capture_local
-    else:
-        frun = run       
-    with settings(warn_only=True):
-        with hide('running', 'warnings'):  
-            result = frun("pkill -f \"" +  StartWorker + "\"") # see man page of "pkill" for exit staus details
-            if result.return_code == 0:
-                _log("Found.")
-            elif result.return_code == 1:
-                _log("No processes matched. Nothing to stop.")
-            elif result.return_code == 2:
-                _log("Syntax error in the pkill command string")
-            
-            resultold = frun("pkill -f \"" +  StartWorkerOld + "\"") # see man page of "pkill" for exit staus details
-            if resultold.return_code == 0:
-                _log("Found.")
-            elif resultold.return_code == 1:
-                _log("No processes matched. Nothing to stop.")
-            elif resultold.return_code == 2:
-                _log("Syntax error in the pkill command string")
-            else:
-                _log(resultold)
-                raise SystemExit()
+#@parallel
+#@roles('hubs')
+#def hs_stop_workers():
+#    """
+#    Stop all Worker in parallel.
+#    """
+#    if do_local:
+#        frun = _capture_local
+#    else:
+#        frun = run       
+#    with settings(warn_only=True):
+#        with hide('running', 'warnings'):  
+#            result = frun("pkill -f \"" +  StartWorker + "\"") # see man page of "pkill" for exit staus details
+#            if result.return_code == 0:
+#                _log("Found.")
+#            elif result.return_code == 1:
+#                _log("No processes matched. Nothing to stop.")
+#            elif result.return_code == 2:
+#                _log("Syntax error in the pkill command string")
+#            
+#            resultold = frun("pkill -f \"" +  StartWorkerOld + "\"") # see man page of "pkill" for exit staus details
+#            if resultold.return_code == 0:
+#                _log("Found.")
+#            elif resultold.return_code == 1:
+#                _log("No processes matched. Nothing to stop.")
+#            elif resultold.return_code == 2:
+#                _log("Syntax error in the pkill command string")
+#            else:
+#                _log(resultold)
+#                raise SystemExit()
+
+def hs_stop_all_workers():
+    for host in DEPLOY_TARGET:
+        hs_stop_worker_on_host(host)
+
 
 def hs_stop_worker_on_host(host):
     """
@@ -508,12 +513,15 @@ def hs_stop_worker_on_host(host):
         frun = run       
     with settings(host_string=host, warn_only=True):
         with hide('running'):  
+            
             result = frun("pkill -f \"" +  StartWorker + "\"") # see man page of "pkill" for exit staus details
-            if result.return_code == 0:
-                _log("Found.")
-            elif result.return_code == 1:
+            resultold = frun("pkill -f \"" +  StartWorkerOld + "\"") # see man page of "pkill" for exit staus details
+            
+            if (result.return_code == 0) or (resultold.return_code == 0):
+                _log("Found running worker on host %s and stopped it" %str(host))
+            elif (result.return_code == 1) or (resultold.return_code == 1):
                 _log("No processes matched. Nothing to stop.")
-            elif result.return_code == 2:
+            elif (result.return_code == 2) or (resultold.return_code == 2):
                 _log("Syntax error in the pkill command string")
             else:
                 _log(result)
