@@ -97,6 +97,8 @@ elif SystemName == "SPS":
     FABLOGFILE         = FABLOGPATH +  "/" + "hs_fab.log"
 
     StartWorker     = "python " + HSiface_PATH + "HsWorker.py"
+    StartWorkerOld     = "python26 " + HSiface_PATH + "HsWorker.py"
+
     StartPublisher  = "python " + HSiface_PATH + "HsPublisher.py"
     StartSender     = "python " + HSiface_PATH + "HsSender.py" 
     StartWatcher    = "python " + HSiface_PATH + "HsWatcher.py"
@@ -486,7 +488,18 @@ def hs_stop_workers():
                 _log("Syntax error in the pkill command string")
             else:
                 _log(result)
-                raise SystemExit()          
+                raise SystemExit()
+            
+            resultold = frun("pkill -f \"" +  StartWorkerOld + "\"") # see man page of "pkill" for exit staus details
+            if resultold.return_code == 0:
+                _log("Found.")
+            elif resultold.return_code == 1:
+                _log("No processes matched. Nothing to stop.")
+            elif resultold.return_code == 2:
+                _log("Syntax error in the pkill command string")
+            else:
+                _log(resultold)
+                raise SystemExit()
 
 def hs_stop_worker_on_host(host):
     """
