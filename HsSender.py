@@ -29,7 +29,7 @@ def handler(signum, frame):
     
     reporter.close()
     i3socket.close()
-    context.term() 
+#    context.term() 
     sys.exit()
 
 signal.signal(signal.SIGTERM, handler)    #handler is called when SIGTERM is called (via pkill)

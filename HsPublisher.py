@@ -9,6 +9,7 @@ import re
 import signal
 import time
 from datetime import datetime
+import ast
 
 
 
@@ -49,10 +50,22 @@ class Receiver(object):
                 alert = socket.recv()
                 logging.info("received request:\n"+ str(alert))
                 
+                
+                # alert is NOT a real JSON or dict here , because it comes from C code it is only a string:
+                # convert time-stamps to UTC with re:
+                try:
+                    alertdict = ast.literal_eval(str(alert))                
+                except ValueError, SyntaxError:
+                    sn_start_utc = "TBD"
+                    sn_stop_utc  = "TBD"
+                else:
+                    sn_start_utc = str(datetime(int(datetime.utcnow().year),1,1) + timedelta(seconds=int(alertdict['start'])*1.0E-9))  #sndaq time units are nanoseconds
+                    sn_stop_utc = str(datetime(int(datetime.utcnow().year),1,1) + timedelta(seconds=int(alertdict['stop'])*1.0E-9))  #sndaq time units are nanoseconds
+                    
                 #send JSON for moni Live page:
                 i3socket.send_json({"service": "HSiface", 
                                     "varname": "HsPublisher", 
-                                    "value": "Received request msg"})
+                                    "value": "Received data request for [%s , %s] " %(sn_start_utc, sn_stop_utc)})
  
                 #publish the request for the HsWorkers:
                 #forwarder.publish(alert)
@@ -61,7 +74,7 @@ class Receiver(object):
                 
                 i3socket.send_json({"service": "HSiface", 
                                     "varname": "HsPublisher", 
-                                    "value": "published alert"})
+                                    "value": "Published request to HsWorkers"})
                 # send Live alert JSON for email notification:
 #                i3socket.send_json({"service": "HSiface", 
 #                                    "varname": "alert", 
@@ -72,8 +85,14 @@ class Receiver(object):
 #                                              "notify": "i3.hsinterface@gmail.com",
 #                                              "vars": alert,}})
                 
-                alertmsg = "DATA REQUEST HsInterface Alert: HsPublisher received and published to HsWorkers at " + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + "\n the following message:\n" + str(alert)
-#                
+                alertmsg = """
+                DATA REQUEST HsInterface Alert: HsPublisher received and 
+                published to HsWorkers at """ + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + "\nthe following message:\n" + str(alert) + """
+                Timestamps correspond to the following UTC time window (without possible leapseconds of the current year!): 
+                start: %s 
+                stop: %s
+                """ %(sn_start_utc, sn_stop_utc) 
+
                 alertjson = {"service" :   "HSiface",
                                   "varname" :   "alert",
                                   "prio"    :   1,

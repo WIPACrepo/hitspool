@@ -39,6 +39,7 @@ def handler(signum, frame):
 
 signal.signal(signal.SIGTERM, handler)    #handler is called when SIGTERM is called (via pkill)
 
+
 class MyAlert(object):
     """
     This class
@@ -54,7 +55,7 @@ class MyAlert(object):
         sn-alert-trigger-time-stamp and directory where-to the data has to be copied.
         """
         
-        logging.info("HsInterface srunning on: " + str(cluster))
+        logging.info("HsInterface running on: " + str(cluster))
         
         if cluster == "localhost":
             hs_sourcedir_current     = '/home/david/TESTCLUSTER/testhub/currentRun/'
@@ -176,7 +177,7 @@ class MyAlert(object):
             # make limit : 550 sec maximal HS data requestable
             # in hs TFT proposal we said 500 sec data for a 10 significance sn trigger
             datarange = ALERTSTOP - ALERTSTART
-            datamax = timedelta(0,300)
+            datamax = timedelta(0,610)
             if datarange > datamax: 
                 i3socket.send_json({"service": "HSiface", "varname": "HsWorker@" + src_mchn_short, 
                                 "value": "ERROR: Request exceeds limit of allowed data time range of %s s. Abort request..." % datamax}) 
@@ -375,11 +376,6 @@ class MyAlert(object):
                 hs_sourcedir = hs_sourcedir_current
                 logging.info( "HitSpool source data is in directory: " + str(hs_sourcedir))
                 
-#                i3live_dict8 = {}
-#                i3live_dict8["service"] = "HSiface"
-#                i3live_dict8["varname"] = "HsWorker@" + src_mchn_short
-#                i3live_dict8["value"] = "Found requested data in %s." % hs_sourcedir
-#                i3socket.send_json(i3live_dict8)
                 
                 timedelta_start = (ALERTSTART - BUFFSTART) # should be a datetime.timedelta object 
                 #time passed after data_start when sn alert started: sn_start - data_start in seconds:
@@ -454,22 +450,6 @@ class MyAlert(object):
                     sn_stop_file_str3 = hs_sourcedir_current +"HitSpool-" + str(sn_stop_file3) + ".dat"
                     logging.info( "SN_STOP part3 file " + str(sn_stop_file_str3))
                     
-                                    
-#                    i3socket.send_json({"service": "HSiface",
-#                                        "varname": "HsWorker@" + src_mchn_short,
-#                                        "value": "sn_start_file pt1 = %s" % sn_start_file_str})
-#        
-#                    i3socket.send_json({"service": "HSiface",
-#                                        "varname": "HsWorker@" + src_mchn_short,
-#                                        "value": "sn_stop_file pt1 = %s" % sn_stop_file_str})
-#                    
-#                    i3socket.send_json({"service": "HSiface",
-#                                        "varname": "HsWorker@" + src_mchn_short,
-#                                        "value": "sn_start_file pt2 = %s" % sn_stop_file_str2})
-#        
-#                    i3socket.send_json({"service": "HSiface",
-#                                        "varname": "HsWorker@" + src_mchn_short,
-#                                        "value": "sn_stop_file pt2 = %s" % sn_stop_file_str3})
 #    
             
     #        elif ALERTSTOP > BUFFSTART and ALERTSTOP > ALERTSTART:   # sn_stop > BUFFEND is not possible by definition
@@ -689,7 +669,7 @@ class MyAlert(object):
             #----- Add random Sleep time window ---------#
             #necessary in order to strech time window of rsync requests
             #Simultaneously rsyncing from 97 hubs caused issues in the past
-            wait_time = random.uniform(1,5)
+            wait_time = random.uniform(1,3)
             logging.info( "wait with the rsync request for some seconds: " + str( wait_time))
             time.sleep(wait_time)
             
@@ -748,12 +728,7 @@ class MyAlert(object):
                     dataload_mb = str(float(int(rsync_dataload.group(0))/1024**2))
                 else:
                     dataload_mb = "TBD"
-                
-                #report about dataload of copied data directly to I3Live 
-#                i3socket.send_json({"service": "HSiface",
-#                                "varname": "HsWorker@" + src_mchn_short,
-#                                "value": "dataload of %s in [MB]:\n%s" % (hs_copydest, dataload_mb)})
-#                
+                                
                 i3socket.send_json({"service": "HSiface",
                                     "varname": "HsWorker@" + src_mchn_short,
                                     "prio"    :   1,
@@ -812,51 +787,6 @@ class MyAlert(object):
             
             log_rsync.stdout.flush()
             log_rsync.stderr.flush()            
-#class MyHubserver(object):
-#    """
-#    Creating the server socket on the hub and listen for messages from Publisher on access.
-#    """
-#    def worker(self):        
-#
-#        
-#        # Socket to synchronize the Publisher with the Workers becomes obsolete in the Major Upgrade July 2013
-##        syncclient = context.socket(zmq.PUSH)
-##        syncclient.connect("tcp://"+spts_expcont_ip+":55562")
-##        logging.info( "connected sync PUSH socket to  port 55562"
-#
-#        # send a synchronization request:
-##        try:
-##            syncclient.send("Hi! Hub wants to connect!")
-##            logging.info( "syncservice sended sync request"
-##        except KeyboardInterrupt:
-##            sys.exit()
-#            
-#        # while True loop to keep connection open "forever"
-#        while True:             
-#            try:
-#                logging.info("ready for new alert...")
-#                message = subscriber.recv()
-#                #logging.info( "received message")
-#                self.message = message
-#                logging.info("HsWorker got alert message:\n" +  str(message) + "\nfrom Publisher")
-#                logging.info("start processing alert...\n")
-#                newalert = MyAlert()
-#                newalert.alert_parser(message, src_mchn, src_mchn_short)
-#                
-#                # if alert_parser succesful -> returns summary info from process: dataload, stop, start etc:                
-##                sender.send_json({"hub": src_mchn, "dataload": "TBD", "start": "TBD", "stop": "TBD", "copy": "TBD" })
-##                report_dict = {"hub": src_mchn, "dataload": "TBD", "start": "TBD", "stop": "TBD", "copydir": "TBD" }
-#
-#
-#
-#
-#                report_json = json.dumps(report_dict)
-#                sender.send_json(report_json)
-#                logging.info("sent report json to HsSender: " + str(report_json))
-#                    
-#            except KeyboardInterrupt:
-#                logging.warning("interruption received, shutting down...")
-#                sys.exit()
 
 if __name__=='__main__':
 
@@ -899,8 +829,6 @@ if __name__=='__main__':
     logging.info( "this Worker runs on: " + str(src_mchn_short))
     
     context = zmq.Context()
-    #spts_expcont_ip = "10.2.2.12"
-    #spts_expcont_ip = "expcont"
     
     # Socket for I3Live on expcont
     i3socket = context.socket(zmq.PUSH) # former ZMQ_DOWNSTREAM is depreciated 
@@ -939,16 +867,8 @@ if __name__=='__main__':
             newalert = MyAlert()
             newalert.alert_parser(message, src_mchn, src_mchn_short, cluster)
             
-            # if alert_parser successful -> already sent info during alert_parsing to HsSender & i3Live 
-            # if not successful : sent report now:        
-#                sender.send_json({"hub": src_mchn, "dataload": "TBD", "start": "TBD", "stop": "TBD", "copy": "TBD" })
-#                report_dict = {"hub": src_mchn, "dataload": "TBD", "start": "TBD", "stop": "TBD", "copydir": "TBD" }
  
         except KeyboardInterrupt:
             logging.warning("interruption received, shutting down...")
-
             sys.exit()
 
-
-#    x = MyHubserver()
-#    x.worker()

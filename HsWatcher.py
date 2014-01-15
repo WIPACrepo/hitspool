@@ -34,10 +34,7 @@ class MyWatcher(object):
             if "pdaq" != user:
                 logging.info( "Sorry user " + str(user) + ", you are not pdaq. Please try again as pdaq.")
                 sys.exit(0)
-            #check machine
-#            if not "access" in host:
-#                logging.info( "Wrong machine. Use access machine for SPTS or SPS instead.")
-#                sys.exit(0)
+
             #check host
             if "wisc.edu" in host:
                 CLUSTER = "SPTS"
@@ -81,29 +78,11 @@ class MyWatcher(object):
         if  CLUSTER ==  "SPTS" :
             HSiface_PATH    = "/mnt/data/pdaqlocal/HsInterface/trunk/"
             
-#            HsWorker            = "python " + HSiface_PATH + "HsWorker.py"
-#            HsWorker_short      = "HsWorker"
-#            HsPublisher         = "python " + HSiface_PATH + "HsPublisher.py"
-#            HsPublisher_short   = "HsPublisher"
-#            HsSender            = "python " + HSiface_PATH + "HsSender.py"
-#            HsSender_short      = "HsSender"
-#            
         elif CLUSTER == "SPS":
             HSiface_PATH    = "/mnt/data/pdaqlocal/HsInterface/trunk/"
-            
-#            HsWorker            = "python26 " + HSiface_PATH + "HsWorker.py"
-#            HsWorker_short      = "HsWorker"
-#            HsPublisher         = "python26 " + HSiface_PATH + "HsPublisher.py"
-#            HsPublisher_short   = "HsPublisher"
-#            HsSender            = "python26 " + HSiface_PATH + "HsSender.py"   
-#            HsSender_short      = "HsSender"
-#            
+                        
         elif CLUSTER == "LOCALHOST":
-            
             #This means that there is no real HitSpool cluster. 
-            #So we'll assume the following:
-            #HSiface_PATH = SVN_PATH = CHECKOUT_PATH\n"                   
-            # Determine the HsInterface directory on this machine
             hspath = subprocess.Popen(["locate", "HsWatcher.py"], stdout = subprocess.PIPE)
             out,err = hspath.communicate()
             hspathlist = out.splitlines()
@@ -227,15 +206,7 @@ class MyWatcher(object):
                 last_stop = re.search(r'[0-9]{4}-[0-9]{2}-[0-9]{2}\s[0-9]{2}:[0-9]{2}:[0-9]{2}(?=\sINFO)', stophist[-1])
                 last_stop_time = str(last_stop.group(0))
                 alertmsg1 = mywatch_short + "@" + host_short + " in STOPPED state more than 1h.\nLast seen running before " + last_stop_time
-#                alertjson = {"service"  :   "HSiface", 
-#                            "varname"   :   "alert", 
-#                            "prio"      :   1,
-#                            "value"     :   {"condition"  : "STOPPED HsInterface Alert: " + mywatch_short + "@" + host_short,
-#                                            "notify"    : "i3.hsinterface@gmail.com",
-#                                            "vars"      : alert,
-#                                            "short_subject": "true",
-#                                            "quiet": "true", }}  
-                
+
                 alertjson1 = {"service" :   "HSiface",
                                   "varname" :   "alert",
                                   "prio"    :   1,
@@ -270,7 +241,7 @@ class MyWatcher(object):
                 i3socket.send_json(alertjson3)
                 
         else:
-            # send recover report when RUNNING follows STOPPED status
+            # send RECOVERY report when RUNNING follows STOPPED status
             if "RUNNING" in logtaillist[0]:
                 if len(logtaillist) > 1 :
                     if "STOPPED" in logtaillist[1]:

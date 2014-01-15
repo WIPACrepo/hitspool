@@ -48,7 +48,7 @@ def send_alert(timeout, alert_start_sn, alert_stop_sn, alert_begin_utc, alert_en
 
     if datarange > stdrange:
         if datarange > maxrange:
-            print "Requested time range is too huge: %s.\nHsWorker processes request only up to 500 sec.\nTry a smaller time window." % datarange
+            print "Requested time range is too huge: %s.\nHsWorker processes request only up to 610 sec.\nTry a smaller time window." % datarange
         else:
             answer = raw_input("Warning: You are requesting more HS data than usual (90 sec). Sure you want to proceed? [y/n] : ")
             if answer in ["Yes", "yes", "y", "Y"]:
