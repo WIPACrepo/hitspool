@@ -90,7 +90,10 @@ class MyAlert(object):
             utc_now = datetime.utcnow()
             sn_start_utc = str(datetime(int(utc_now.year),1,1) + timedelta(seconds=sn_start*1.0E-9))  #sndaq time units are nanoseconds
             logging.info( "SN START [UTC]: " + str(sn_start_utc))
-            ALERTSTART = datetime.strptime(sn_start_utc,"%Y-%m-%d %H:%M:%S.%f")
+            try:
+                ALERTSTART = datetime.strptime(sn_start_utc,"%Y-%m-%d %H:%M:%S.%f")
+            except ValueError:
+                ALERTSTART = datetime.strptime(sn_start_utc,"%Y-%m-%d %H:%M:%S")
             logging.info( "ALERTSTART = " + str(ALERTSTART))            
             TRUETRIGGER = ALERTSTART + timedelta(0,30)          # time window around trigger is [-30,+60] -> TRUETRIGGER = ALERTSTART + 30seconds 
             logging.info( "TRUETRIGGER = sndaq trigger time: " + str(TRUETRIGGER))
@@ -111,7 +114,10 @@ class MyAlert(object):
             logging.info( "SN STOP [ns] = " + str(sn_stop))
             sn_stop_utc = str(datetime(int(utc_now.year),1,1) + timedelta(seconds=sn_stop*1.0E-9))  #sndaq time units are nanosecond
             logging.info( "SN STOP [UTC]: " + str(sn_stop_utc))
-            ALERTSTOP = datetime.strptime(sn_stop_utc,"%Y-%m-%d %H:%M:%S.%f")
+            try:
+                ALERTSTOP = datetime.strptime(sn_stop_utc,"%Y-%m-%d %H:%M:%S.%f")
+            except ValueError:
+                ALERTSTOP = datetime.strptime(sn_stop_utc,"%Y-%m-%d %H:%M:%S")
             logging.info( "ALERTSTOP = " + str(ALERTSTOP))
             alertParse2 = True
         except Exception, err:
