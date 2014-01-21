@@ -50,10 +50,12 @@ class HsSender(object):
         """
         Move the data in case its default locations differs from the user's desired one.
         """
+        NoSpade = False
+        
         #infodict = json.loads(info)
         if info["msgtype"] == "rsync_sum":
             logging.info( "Checking the data location...")
-            copydir         = info['copydir']
+            copydir         = info["copydir"]
             copydir_user    = info["copydir_user"] 
             logging.info("HS data lcoated at: " + str(copydir))
             logging.info("user requested it to be in: " + str(copydir_user))
@@ -71,8 +73,13 @@ class HsSender(object):
                     subprocess.check_call(['mv',"-v",copydir, copydir_user + data_dir_name])
                     logging.info("moved hs files from " +  str(hs_basedir) + str(data_dir_name) + " to " +str(copydir_user) + str(data_dir_name))
                     hs_basedir = copydir_user
+                    
+                    #Do NOT pickup data with SPADE:
+                    NoSpade = True
+                    
                 logging.info("HS data " + str(data_dir_name) + " is located in " + str(hs_basedir))
-                return hs_basedir, data_dir_name
+                return hs_basedir, data_dir_name, NoSpade
+            
             else:
                 logging.error("Naming scheme validation failed.")
                 logging.error("Please put the data manually in the desired location: " + str(copydir_user))
@@ -224,9 +231,10 @@ if __name__ == "__main__":
         try:         
             info = newmsg.receive_from_worker()
             if info["msgtype"]== "rsync_sum":
-                hs_basedir, data_dir_name = newmsg.hs_data_location_check(info)
+                hs_basedir, data_dir_name, NoSpade = newmsg.hs_data_location_check(info)
                 if cluster == "SPS":
-                    newmsg.spade_pickup_data(info, hs_basedir, data_dir_name)    
+                    if NoSpade:
+                        newmsg.spade_pickup_data(info, hs_basedir, data_dir_name)    
 #            elif info["msgtype"] == "log_done":
 #                    newmsg.spade_pickup_log(info)
             else:
