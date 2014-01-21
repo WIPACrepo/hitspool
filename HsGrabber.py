@@ -101,8 +101,8 @@ if __name__=="__main__":
     def usage():
         print >>sys.stderr, """
         usage :: HsGrabber.py [options]
-            -b         | begin of data: "YYYY-mm-dd HH:MM:SS.[ns]" OR SNDAQ timestamp [ns from beginning of the year]
-            -e         | end of data "YYYY-mm-dd HH:MM:SS.[ns]"   OR SNDAQ timestamp [ns from beginning of the year]   
+            -b         | begin of data: "YYYY-mm-dd HH:MM:SS.[us]" OR SNDAQ timestamp [ns from beginning of the year]
+            -e         | end of data "YYYY-mm-dd HH:MM:SS.[us]"   OR SNDAQ timestamp [ns from beginning of the year]   
             -c         | copydir e.g. "pdaq@2ndbuild:/mnt/data/pdaqlocal/HsDataCopy/"
             
             HsGrabber reads UTC timestamps or SNDAQ timestamps.
