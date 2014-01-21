@@ -50,7 +50,7 @@ class HsSender(object):
         """
         Move the data in case its default locations differs from the user's desired one.
         """
-        NoSpade = False
+        
         
         #infodict = json.loads(info)
         if info["msgtype"] == "rsync_sum":
@@ -77,6 +77,9 @@ class HsSender(object):
                     #Do NOT pickup data with SPADE:
                     NoSpade = True
                     logging.info("No SPADE pickup demanded.")
+                else:
+                    #flag for SPADE pickup
+                    NoSpade = False
                     
                 logging.info("HS data " + str(data_dir_name) + " is located in " + str(hs_basedir))
                 return hs_basedir, data_dir_name, NoSpade
@@ -234,7 +237,7 @@ if __name__ == "__main__":
             if info["msgtype"]== "rsync_sum":
                 hs_basedir, data_dir_name, NoSpade = newmsg.hs_data_location_check(info)
                 if cluster == "SPS":
-                    if NoSpade:
+                    if not NoSpade:
                         newmsg.spade_pickup_data(info, hs_basedir, data_dir_name)    
 #            elif info["msgtype"] == "log_done":
 #                    newmsg.spade_pickup_log(info)
