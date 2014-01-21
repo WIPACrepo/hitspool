@@ -76,6 +76,7 @@ class HsSender(object):
                     
                     #Do NOT pickup data with SPADE:
                     NoSpade = True
+                    logging.info("No SPADE pickup demanded.")
                     
                 logging.info("HS data " + str(data_dir_name) + " is located in " + str(hs_basedir))
                 return hs_basedir, data_dir_name, NoSpade
