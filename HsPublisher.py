@@ -85,12 +85,10 @@ class Receiver(object):
 #                                              "notify": "i3.hsinterface@gmail.com",
 #                                              "vars": alert,}})
                 
-                alertmsg = """
-                DATA REQUEST HsInterface Alert: HsPublisher received and 
+                alertmsg = """HsPublisher received and 
                 published to HsWorkers at """ + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + "\nthe following message:\n" + str(alert) + """
-                Timestamps correspond to the following UTC time window (without possible leapseconds of the current year!): 
-                start: %s 
-                stop: %s
+                start in UTC : %s (no leapseconds)
+                stop  in UTC : %s (no leapseconds)
                 """ %(sn_start_utc, sn_stop_utc) 
 
                 alertjson = {"service" :   "HSiface",
