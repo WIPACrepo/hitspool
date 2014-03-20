@@ -41,7 +41,7 @@ with settings(hide('running')):
             fastprint("Sorry user " + user + ", you are not pdaq. Please try again as pdaq.\n")
             sys.exit(0)
         #check machine
-        if not "access" in host:
+        if not "access" and not "expcont" in host:
             fastprint("Wrong machine. Use access machine for SPTS or SPS instead.\n")
             sys.exit(0)
         #check host
@@ -65,7 +65,9 @@ if  SystemName ==  "SPTS" :
     SVN_PATH        = "http://code.icecube.wisc.edu/svn/sandbox/dheereman/HitSpoolScripts/trunk"
     CHECKOUT_PATH   = "/scratch/dheereman/HsInterface/trunk/"
     HSiface_PATH    = "/mnt/data/pdaqlocal/HsInterface/trunk/"
-    DEPLOY_TARGET   = [ "2ndbuild" , "ichub21", "ichub29", "expcont"]
+    DEPLOY_TARGET   = [ "2ndbuild" , "ichub21", "expcont"]
+#    DEPLOY_TARGET   = [ "2ndbuild" , "ichub21", "ichub29", "expcont"]
+
     CRONTAB_PATH    = HSiface_PATH + "hs_crontabs_spts.txt"
     CRONTAB_PATH_2ndbuild = HSiface_PATH + "hs_crontabs_spts_2ndbuild.txt"
     CRONTAB_PATH_expcont = HSiface_PATH + "hs_crontabs_spts_expcont.txt"
@@ -85,7 +87,9 @@ if  SystemName ==  "SPTS" :
             'access' : ['pdaq@access'],
             '2ndbuild' : ['pdaq@2ndbuild'],
             'expcont' : ['pdaq@expcont'],
-            'hubs' : ['pdaq@ichub21', 'pdaq@ichub29'],
+#            'hubs' : ['pdaq@ichub21', 'pdaq@ichub29'],
+            'hubs' : ['pdaq@ichub21'],
+
                     }
     
     do_local = False
