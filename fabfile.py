@@ -13,6 +13,16 @@ import sys
 import re
 from datetime import  datetime
 from email.mime.text import MIMEText
+import zmq
+
+
+###
+### define zmq socket for I3Live JSON sending
+###
+context = zmq.Context()
+i3socket = context.socket(zmq.PUSH) # former ZMQ_DOWNSTREAM is depreciated 
+i3socket.connect("tcp://expcont:6668") 
+
 
 ###
 ### detect the system this fab is running on 
@@ -718,5 +728,14 @@ def hs_status():
                 else:
                     #wrong host
                     pass
+    i3socket.send_json({"service": "HSiface",
+                "varname": "state",
+                "value": "RUNNING: " + str(len(ACTIVE_COMP)) + " components", "prio": 1})
+    if len(INACTIVE_COMP) > 0:
+        i3socket.send_json({"service": "HSiface",
+                    "varname": "state",
+                    "value": "NOT RUNNING: " + str(INACTIVE_COMP), "prio": 1})
+
+    
     print len(ACTIVE_COMP) ," HsInterface components are active:\n" + str(ACTIVE_COMP)
     print len(INACTIVE_COMP) ," HsInterface components are NOT active:\n" + str(INACTIVE_COMP)                       
