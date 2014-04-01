@@ -42,7 +42,7 @@ with settings(hide('running')):
             sys.exit(0)
         #check machine
         if not "access" and not "expcont" in host:
-            fastprint("Wrong machine. Use access machine for SPTS or SPS instead.\n")
+            fastprint("Wrong machine. Use access or expcont machine for SPTS or SPS instead.\n")
             sys.exit(0)
         #check host
         if "wisc.edu" in host:
@@ -732,14 +732,15 @@ def hs_status():
                 else:
                     #wrong host
                     pass
-    i3socket.send_json({"service": "HSiface",
-                "varname": "state",
-                "value": "RUNNING: " + str(len(ACTIVE_COMP)) + " components", "prio": 1})
+
     if len(INACTIVE_COMP) > 0:
         i3socket.send_json({"service": "HSiface",
                     "varname": "state",
-                    "value": "NOT RUNNING: " + str(INACTIVE_COMP), "prio": 1})
-
+                    "value": str(len(INACTIVE_COMP)) + " of 99 components NOT RUNNING: " + str(INACTIVE_COMP), "prio": 1})
+    else: 
+        i3socket.send_json({"service": "HSiface",
+                    "varname": "state",
+                    "value": "99 of 99 components RUNNING", "prio": 1})
     
     print len(ACTIVE_COMP) ," HsInterface components are active:\n" + str(ACTIVE_COMP)
     print len(INACTIVE_COMP) ," HsInterface components are NOT active:\n" + str(INACTIVE_COMP)                       

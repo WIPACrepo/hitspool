@@ -175,7 +175,7 @@ if __name__=='__main__':
     if cluster == "localhost":
         socket.bind("tcp://*:55557")   
         logging.info("bind REP socket for receiving alert messages to port 55557")
-        publisher.setsockopt(zmq.HWM, 50) #keep up to 50 alert messages in memory,  each alert has 205 bytes
+#        publisher.setsockopt(zmq.HWM, 50) #keep up to 50 alert messages in memory,  each alert has 205 bytes
         publisher.bind("tcp://*:55561")
         logging.info("bind PUB socket to port 55561")
 #        syncservice.bind("tcp://*:55562")
@@ -186,7 +186,7 @@ if __name__=='__main__':
     else:
         socket.bind("tcp://*:55557")   
         logging.info("bind REP socket for receiving alert messages to port 55557")
-        publisher.setsockopt(zmq.HWM, 50) #keep up to 50 alert messages in memory,  each alert has 205 bytes
+#        publisher.setsockopt(zmq.HWM, 50) #keep up to 50 alert messages in memory,  each alert has 205 bytes
         publisher.bind("tcp://*:55561")
         logging.info("bind PUB socket to port 55561")
 #        syncservice.bind("tcp://*:55562")

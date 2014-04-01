@@ -77,8 +77,19 @@ def send_alert(timeout, alert_start_sn, alert_stop_sn, alert_begin_utc, alert_en
         count += 1
         print "."
         if count > timeout:
-            print "didn't receive answer within %s seconds. shutting down..." % timeout
-            break
+            print "didn't receive answer within %s seconds." % timeout
+            print """
+            possible fixes: 
+            1. check receiver HsPublisher.py on expcont for errors in it's logfile:
+                /mnt/data/pdaqlocal/HsInterface/trunk/hspublisher_stdout_stderr.log
+                
+            2. restart HsPublisher.py via fabric on access:
+                
+            """
+            
+            print "Exiting HSGrabber now ..."
+            sys.exit(1)
+            #break
         
         socks = dict(poller.poll(timeout * 100)) # poller takes msec argument
         if grabber in socks and socks[grabber] == zmq.POLLIN:
@@ -94,7 +105,7 @@ def send_alert(timeout, alert_start_sn, alert_stop_sn, alert_begin_utc, alert_en
                 
 if __name__=="__main__":
     '''
-    For grabbing hs data from hubs independent (without sndaq providing alert).
+    For grabbing hs data from hubs independently (without sndaq providing alert).
     HsGrabber sends json to HsPublisher to grab hs data from hubs.
     Uses the Hs Interface infrastructure.
     '''
