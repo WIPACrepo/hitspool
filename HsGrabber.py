@@ -88,8 +88,12 @@ def send_alert(timeout, alert_start_sn, alert_stop_sn, alert_begin_utc, alert_en
                fab -f /home/pdaq/HsInterface/trunk/ fabfile.py hs_start_pub_bkg
             """
             
-            print "Exiting HSGrabber now ..."
-            sys.exit(1)
+            print "Exiting HsGrabber now ..."
+            grabber.close()
+            i3socket.close()
+            context.term()
+            sys.exit(0)
+            
             #break
         
         socks = dict(poller.poll(timeout * 100)) # poller takes msec argument
