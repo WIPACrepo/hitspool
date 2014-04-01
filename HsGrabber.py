@@ -84,7 +84,8 @@ def send_alert(timeout, alert_start_sn, alert_stop_sn, alert_begin_utc, alert_en
                 /mnt/data/pdaqlocal/HsInterface/trunk/hspublisher_stdout_stderr.log
                 
             2. restart HsPublisher.py via fabric on access:
-                
+               fab -f /home/pdaq/HsInterface/trunk/ fabfile.py hs_stop_pub
+               fab -f /home/pdaq/HsInterface/trunk/ fabfile.py hs_start_pub_bkg
             """
             
             print "Exiting HSGrabber now ..."
