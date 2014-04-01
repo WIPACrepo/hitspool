@@ -89,10 +89,11 @@ def send_alert(timeout, alert_start_sn, alert_stop_sn, alert_begin_utc, alert_en
             """
             
             print "Exiting HsGrabber now ..."
-            grabber.close()
-            i3socket.close()
-            context.term()
-            sys.exit(0)
+            #grabber.close()
+            #i3socket.close()
+            #context.term()
+            sys.exit()
+            sys.exit()
             
             #break
         
