@@ -736,11 +736,11 @@ def hs_status():
     if len(INACTIVE_COMP) > 0:
         i3socket.send_json({"service": "HSiface",
                     "varname": "state",
-                    "value": str(len(INACTIVE_COMP)) + " of 99 components NOT RUNNING: " + str(INACTIVE_COMP), "prio": 1})
+                    "value":  "%s of %s components NOT RUNNING: %s" %( len(INACTIVE_COMP), len(DEPLOY_TARGET), INACTIVE_COMP), "prio": 1})
     else: 
         i3socket.send_json({"service": "HSiface",
                     "varname": "state",
-                    "value": "99 of 99 components RUNNING", "prio": 1})
+                    "value": "%s of %s components RUNNING "% (len(DEPLOY_TARGET)), "prio": 1})
     
     print len(ACTIVE_COMP) ," HsInterface components are active:\n" + str(ACTIVE_COMP)
     print len(INACTIVE_COMP) ," HsInterface components are NOT active:\n" + str(INACTIVE_COMP)                       
