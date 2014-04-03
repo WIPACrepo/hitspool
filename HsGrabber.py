@@ -31,10 +31,10 @@ def send_alert(timeout, alert_start_sn, alert_stop_sn, alert_begin_utc, alert_en
         alert_end_utc = datetime.strptime(str(datetime(daqyear, 1, 1) + timedelta(seconds = alert_stop_sn*1.0E-9)), "%Y-%m-%d %H:%M:%S.%f")
         
 
-    print "ALERT BEGIN UTC time: ", alert_begin_utc
-    print "ALERT END UTC time: ", alert_end_utc
-    print "ALERT BEGIN SNDAQ time: ", alert_start_sn    
-    print "ALERT END SNDAQ time: ", alert_stop_sn
+    print "HS DATA BEGIN UTC time: ", alert_begin_utc
+    print "HS DATA END UTC time: ", alert_end_utc
+    print "HS DATA BEGIN SNDAQ time: ", alert_start_sn    
+    print "HS DATA END SNDAQ time: ", alert_stop_sn
     
     # -- checking data range ---#
     datarange = alert_end_utc - alert_begin_utc
@@ -53,7 +53,7 @@ def send_alert(timeout, alert_start_sn, alert_stop_sn, alert_begin_utc, alert_en
             answer = raw_input("Warning: You are requesting more HS data than usual (90 sec). Sure you want to proceed? [y/n] : ")
             if answer in ["Yes", "yes", "y", "Y"]:
                     alert_msg = "{\"start\": " + str(alert_start_sn) + " , \"stop\": " + str(alert_stop_sn) + " , \"copy\": \"" + copydir + "\"}"
-                    print "alert_dict to string looks like: " , alert_msg
+                    #print "alert_dict to string looks like: " , alert_msg
                     grabber.send(alert_msg)
                     print "HsGrabber sent his Request"
                     should_continue = True
@@ -65,39 +65,35 @@ def send_alert(timeout, alert_start_sn, alert_stop_sn, alert_begin_utc, alert_en
 
     else: # datarange in range:
         alert_msg = "{\"start\": " + str(alert_start_sn) + " , \"stop\": " + str(alert_stop_sn) + " , \"copy\": \"" + copydir + "\"}"
-        print "alert_dict to string looks like: " , alert_msg
+        #print "alert_dict to string looks like: " , alert_msg
         grabber.send(alert_msg)
-        print "HsGrabber sent his Request"
+        print "HsGrabber sent his request"
         should_continue = True
 
     
     #--- waiting for answer from Publisher ---#
     count = 0
     while should_continue:
+        socks = dict(poller.poll(timeout * 100)) # poller takes msec argument
         count += 1
         print "."
         if count > timeout:
-            print "didn't receive answer within %s seconds." % timeout
-            print """
-            possible fixes: 
-            1. check receiver HsPublisher.py on expcont for errors in it's logfile:
+            print "no connection to expcont's HsPublisher within %s seconds.\nAbort request." % timeout
+            print "Debugging hints:"
+            print """ 
+            1. check HsPublisher's logfile on expcont:
                 /mnt/data/pdaqlocal/HsInterface/trunk/hspublisher_stdout_stderr.log
+                and
+                /mnt/data/pdaqlocal/HsInterface/logs/hspublisher_expcont.log
                 
             2. restart HsPublisher.py via fabric on access:
-               fab -f /home/pdaq/HsInterface/trunk/ fabfile.py hs_stop_pub
-               fab -f /home/pdaq/HsInterface/trunk/ fabfile.py hs_start_pub_bkg
+               fab -f /home/pdaq/HsInterface/trunk/fabfile.py hs_stop_pub
+               fab -f /home/pdaq/HsInterface/trunk/fabfile.py hs_start_pub_bkg
             """
             
-            print "Exiting HsGrabber now ..."
-            #grabber.close()
-            #i3socket.close()
-            #context.term()
-            sys.exit()
+            print ">>>>>> Hit CTRL + C for exiting HsGrabber now ..."
             sys.exit()
             
-            #break
-        
-        socks = dict(poller.poll(timeout * 100)) # poller takes msec argument
         if grabber in socks and socks[grabber] == zmq.POLLIN:
             message = grabber.recv()
             print "received control command: %s" % message
@@ -154,10 +150,10 @@ if __name__=="__main__":
                 except ValueError, e:
                     #print "Problem with the time-stamp format: ", e
                     try:
-                        print "Try matching format without subsecond precision..."
+                        #print "Try matching format without subsecond precision..."
                         alert_begin_short = re.sub(".[0-9]{9}", '', str(a))
                         alert_begin_utc = datetime.strptime(alert_begin_short, "%Y-%m-%d %H:%M:%S")
-                        print "matched"
+                        #print "matched"
                     except ValueError,e:
                         print  "Problem with the time-stamp format: ", e
             else:
@@ -171,10 +167,10 @@ if __name__=="__main__":
                 except ValueError, e:
                     #print "Problem with the time-stamp format: ", e
                     try:
-                        print "Try matching format without subsecond precision..."
+                        #print "Try matching format without subsecond precision..."
                         alert_end_short = re.sub(".[0-9]{9}", '', str(a))
                         alert_end_utc = datetime.strptime(alert_end_short, "%Y-%m-%d %H:%M:%S")
-                        print "matched"
+                        #print "matched"
                     except ValueError,e:
                         print  "Problem with the time-stamp format: ", e
 #                alert_end_utc = datetime.strptime(str(a), "%Y-%m-%d %H:%M:%S.%f")
@@ -201,18 +197,18 @@ if __name__=="__main__":
     if cluster == "localhost":
         # Socket to send alert message to HsPublisher
         grabber.connect("tcp://localhost:55557")   #connection = tcp, host = localhost ip , port 
-        print "connected to HsPublicher on localhost at port 55557"
+        #print "connected to HsPublicher on localhost at port 55557"
         # Socket for I3Live on expcont
         i3socket.connect("tcp://localhost:6668") 
-        print "connected to i3live socket on localhost at port 6668"      
+        #print "connected to i3live socket on localhost at port 6668"      
 
     else:
         # Socket to send alert message to HsPublisher
         grabber.connect("tcp://expcont:55557")   #connection = tcp, host = localhost ip , port 
-        print "connected to HsPublicher on expcont at port 55557"
+        #print "connected to HsPublicher on expcont at port 55557"
         # Socket for I3Live on expcont
         i3socket.connect("tcp://expcont:6668") 
-        print "connected to i3live socket on expcont at port 6668" 
+        #print "connected to i3live socket on expcont at port 6668" 
     
     
     send_alert(timeout, alert_start_sn, alert_stop_sn, alert_begin_utc, alert_end_utc)
