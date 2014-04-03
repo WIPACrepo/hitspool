@@ -77,6 +77,9 @@ if  SystemName ==  "SPTS" :
     
     
     StartWorker     = "python " + HSiface_PATH + "HsWorker.py"
+    StartWorkerOld  = "python26 " + HSiface_PATH + "HsWorker.py"
+
+
     StartPublisher  = "python " + HSiface_PATH + "HsPublisher.py"
     StartSender     = "python " + HSiface_PATH + "HsSender.py"
     StartWatcher    = "python " + HSiface_PATH + "HsWatcher.py"
