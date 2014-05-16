@@ -81,12 +81,12 @@ def send_alert(timeout, alert_start_sn, alert_stop_sn, alert_begin_utc, alert_en
             print "no connection to expcont's HsPublisher within %s seconds.\nAbort request." % timeout
             print "Debugging hints:"
             print """ 
-            1. check HsPublisher's logfile on expcont:
+            1. check HsPublisher's logfile on EXPCONT:
                 /mnt/data/pdaqlocal/HsInterface/trunk/hspublisher_stdout_stderr.log
                 and
                 /mnt/data/pdaqlocal/HsInterface/logs/hspublisher_expcont.log
                 
-            2. restart HsPublisher.py via fabric on access:
+            2. restart HsPublisher.py via fabric on ACCESS:
                fab -f /home/pdaq/HsInterface/trunk/fabfile.py hs_stop_pub
                fab -f /home/pdaq/HsInterface/trunk/fabfile.py hs_start_pub_bkg
             """

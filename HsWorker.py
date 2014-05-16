@@ -4,7 +4,8 @@
 """
 #Hit Spool Worker to be run on hubs
 #author: dheereman i3.hsinterface@gmail.com
-#check out the icecube wiki page for instructions: https://wiki.icecube.wisc.edu/index.php/HitSpool_Interface
+#check out the icecube wiki page for instructions: 
+https://wiki.icecube.wisc.edu/index.php/HitSpool_Interface_Operation_Manual
 """
 import time
 from datetime import datetime, timedelta
@@ -40,6 +41,9 @@ def handler(signum, frame):
 signal.signal(signal.SIGTERM, handler)    #handler is called when SIGTERM is called (via pkill)
 
 
+
+
+
 class MyAlert(object):
     """
     This class
@@ -48,7 +52,7 @@ class MyAlert(object):
     3. copies them over to the requested directory specified in the message.
     4. writes a short report about was has been done.
     """
-    
+
     def alert_parser(self, alert, src_mchn, src_mchn_short, cluster):
         """
         Parse the Alert message for starttime, stoptime,
@@ -171,14 +175,14 @@ class MyAlert(object):
         else: 
             pass
         
-        # stop here if parsing failed at any stage:
+        # ---------------------stop here if parsing failed at any stage-------------#
         if (alertParse1 != True) or (alertParse2 != True) or (alertParse3 != True):
             i3socket.send_json({"service": "HSiface", "varname": "HsWorker@" + src_mchn_short, 
                                 "value": "ERROR: Request could not be parsed correctly. Abort request..."}) 
             
             logging.error("Request could not be parsed correctly. Abort request...")
             
-        # after correcting parsing, check for data range alertDatamax:
+        # -----after correcting parsing, check for data range alertDatamax ------------#
         if alertParse1 and alertParse2 and alertParse3:
             # make limit : 550 sec maximal HS data requestable
             # in hs TFT proposal we said 500 sec data for a 10 significance sn trigger
@@ -192,9 +196,87 @@ class MyAlert(object):
                 alertDatamax = True
             
 #            print alertParse1, alertParse2, alertParse3, alertDatamax
-    
-        # continue processing request:            
-        if alertParse1 and alertParse2 and alertParse3 and alertDatamax:
+
+        #----------- parse info.txt files--------------#
+        infoParseLast = False
+        infoParseCurrent = False
+        # try max 10 times to parse info.txt to dictionary:
+        retries_max = 10
+        
+        # for currentRun:
+        retries = 0
+        for i in range(1, retries_max):
+            retries +=1    
+            try:
+                filename = hs_sourcedir_current + 'info.txt'
+                fin = open(filename, "r")
+                logging.info("read " + str(filename))
+            except IOError:
+                #print "couldn't open file, Retry in 4 seconds."
+                time.sleep(4)        
+            else:
+                infodict = {}
+                for line in fin:
+                    (key, val) = line.split()
+                    infodict[str(key)] = int(val)
+                fin.close()        
+                try:
+                    startrun = int(infodict['T0'])              
+                    CURT = infodict['CURT']                     
+                    IVAL = infodict['IVAL']                     
+                    IVAL_SEC = IVAL*1.0E-10                     
+                    CURF = infodict['CURF']                     
+                    MAXF = infodict['MAXF']                     
+                    infoParseCurrent = True
+                    break
+                except KeyError:
+                    #print "Mapping info.txt to dictionary failed. Retrying in 4 seconds"
+                    time.sleep(4)
+                    
+        if not infoParseCurrent:
+            i3socket.send_json({"service": "HSiface", "varname": "HsWorker@" + src_mchn_short, 
+                                "value": "ERROR: Current Run info.txt reading/parsing failed"}) 
+            logging.error("CurrentRun info.txt reading/parsing failed")
+            
+        # for lastRun:
+        retries = 0
+        for i in range(1, retries_max):
+            retries +=1    
+            try:
+                filename = hs_sourcedir_last + 'info.txt'
+                fin = open(filename, "r")
+                logging.info("open " + str(filename))
+            except IOError:
+                #print "couldn't open file, Retry in 4 seconds."
+                time.sleep(4)        
+            else:
+                infodict2 = {}
+                for line in fin:
+                    (key, val) = line.split()
+                    infodict2[str(key)] = int(val)
+                fin.close()        
+                try:
+                    last_startrun = int(infodict2['T0'])                # time-stamp of first HIT at run start -> this HIT is not in buffer anymore if HS_Loop > 0 !            
+                    LAST_CURT = infodict2['CURT']                       # current time stamp in DAQ units
+                    LAST_IVAL = infodict2['IVAL']                       # len of each file in integer 0.1 nanoseconds
+                    LAST_IVAL_SEC = IVAL*1.0E-10                        # len of each file in integer seconds
+                    LAST_CURF = infodict2['CURF']                       # file index of currently active hit spool file
+                    LAST_MAXF = infodict2['MAXF']                       # number of files per cycle                     
+                    infoParseLast = True
+                    break
+                except KeyError:
+                    #print "Mapping info.txt to dictionary failed. Retrying in 4 seconds"
+                    time.sleep(4)
+                    
+        if not infoParseLast:
+            i3socket.send_json({"service": "HSiface", "varname": "HsWorker@" + src_mchn_short, 
+                                "value": "ERROR: LastRun info.txt reading/parsing failed"}) 
+            logging.error("LastRun info.txt reading/parsing failed")
+        
+        ###########################################################################    
+        # -----continue processing request only if all boundary conditions are met            
+        ###########################################################################
+        if alertParse1 and alertParse2 and alertParse3 and alertDatamax and infoParseLast and infoParseCurrent:
             
 #            i3socket.send_json({"service": "HSiface", "varname": "HsWorker@" + src_mchn_short, 
 #                                "value": "successfully parsed the request."})
@@ -207,33 +289,37 @@ class MyAlert(object):
             # Find the right file(s) that contain the start/stoptime and the actual sn trigger time stamp=sntts
             # useful: datetime.timedelta 
                        
-            try:
-                filename = hs_sourcedir_current + 'info.txt'
-                fin = open (filename)
-                logging.info("open " + str(filename))
-            except IOError as (errno, strerror):
-                i3live_dict5 = {}
-                i3live_dict5["service"] = "HSiface"
-                i3live_dict5["varname"] = "HsWorker@" + src_mchn_short
-                i3live_dict5["value"] = "ERROR: Cannot open %s file. I/O error({0}): {1}".format(errno, strerror)  % filename
-                i3socket.send_json(i3live_dict5)
-                logging.error("cannot open " + str(filename))
-                logging.error(str("I/O error({0}): {1}".format(errno, strerror)))
-                return None
-            
-            else:
-                infodict= {}
-                for line in open(filename):
-                    (key, val) = line.split()
-                    infodict[str(key)] = int(val)
-                fin.close()
-            
-            startrun = int(infodict['T0'])              # time-stamp of first HIT at run start -> this HIT is not in buffer anymore if HS_Loop > 0 !            
-            CURT = infodict['CURT']                     # current time stamp in DAQ units
-            IVAL = infodict['IVAL']                     # len of each file in integer 0.1 nanoseconds
-            IVAL_SEC = IVAL*1.0E-10                     # len of each file in integer seconds
-            CURF = infodict['CURF']                     # file index of currently active hit spool file
-            MAXF = infodict['MAXF']                     # number of files per cycle
+#            try:
+#                filename = hs_sourcedir_current + 'info.txt'
+#                fin = open(filename, "r")
+#                logging.info("open " + str(filename))
+#            except IOError as (errno, strerror):
+#                i3live_dict5 = {}
+#                i3live_dict5["service"] = "HSiface"
+#                i3live_dict5["varname"] = "HsWorker@" + src_mchn_short
+#                i3live_dict5["value"] = "ERROR: Cannot open %s file. I/O error({0}): {1}".format(errno, strerror)  % filename
+#                i3socket.send_json(i3live_dict5)
+#                logging.error("cannot open " + str(filename))
+#                logging.error(str("I/O error({0}): {1}".format(errno, strerror)))
+#                return None
+#            
+#            else:
+#                infodict= {}
+#                for line in fin:
+#                    (key, val) = line.split()
+#                    infodict[str(key)] = int(val)
+#                fin.close()
+#            
+#
+#            startrun = int(infodict['T0'])              # time-stamp of first HIT at run start -> this HIT is not in buffer anymore if HS_Loop > 0 !            
+#            CURT = infodict['CURT']                     # current time stamp in DAQ units
+#            IVAL = infodict['IVAL']                     # len of each file in integer 0.1 nanoseconds
+#            IVAL_SEC = IVAL*1.0E-10                     # len of each file in integer seconds
+#            CURF = infodict['CURF']                     # file index of currently active hit spool file
+#            MAXF = infodict['MAXF']                     # number of files per cycle
+
+                    
+
     #        startdata = int(CURT - ((MAXF-1)*IVAL_SEC))      # oldest, in hit spool buffer existing time stamp in DAQ units  
             TFILE = (CURT - startrun)%IVAL              # how long already writing to current file, time in DAQ units 
             TFILE_SEC = TFILE*1.0E-10  
@@ -270,32 +356,33 @@ class MyAlert(object):
             #------Parsing hitspool info.txt from lastRun to find the requested files-------:        
             # Find the right file(s) that contain the start/stoptime and the actual sn trigger time stamp=sntts
             # useful: datetime.timedelta
-            try:
-                filename = hs_sourcedir_last+'info.txt'
-                #logging.info( filename)
-                fin = open (filename)
-            except IOError as (errno, strerror):
-                i3live_dict6 = {}
-                i3live_dict6["service"] = "HSiface"
-                i3live_dict6["varname"] = "HsWorker@" + src_mchn_short
-                i3live_dict6["value"] = "ERROR: Cannot open %s file. I/O error({0}): {1}".format(errno, strerror)  % filename
-                i3socket.send_json(i3live_dict6)   
-                logging.info( "cannot open " + str(filename))
-                logging.info( str("I/O error({0}): {1}".format(errno, strerror)))
-                return None
-            else:
-                infodict2= {}
-                for line in open(filename):
-                    (key, val) = line.split()
-                    infodict2[str(key)] = int(val)
-                fin.close()
-            
-            last_startrun = int(infodict2['T0'])                # time-stamp of first HIT at run start -> this HIT is not in buffer anymore if HS_Loop > 0 !            
-            LAST_CURT = infodict2['CURT']                       # current time stamp in DAQ units
-            LAST_IVAL = infodict2['IVAL']                       # len of each file in integer 0.1 nanoseconds
-            LAST_IVAL_SEC = IVAL*1.0E-10                        # len of each file in integer seconds
-            LAST_CURF = infodict2['CURF']                       # file index of currently active hit spool file
-            LAST_MAXF = infodict2['MAXF']                       # number of files per cycle
+#            try:
+#                filename = hs_sourcedir_last+'info.txt'
+#                fin = open(filename, "r")
+#                logging.info("open " + str(filename))
+#            except IOError as (errno, strerror):
+#                i3live_dict6 = {}
+#                i3live_dict6["service"] = "HSiface"
+#                i3live_dict6["varname"] = "HsWorker@" + src_mchn_short
+#                i3live_dict6["value"] = "ERROR: Cannot open %s file. I/O error({0}): {1}".format(errno, strerror)  % filename
+#                i3socket.send_json(i3live_dict6)   
+#                logging.info( "cannot open " + str(filename))
+#                logging.info( str("I/O error({0}): {1}".format(errno, strerror)))
+#                return None
+#            else:
+#                infodict2= {}
+#                for line in fin:
+#                    (key, val) = line.split()
+#                    infodict2[str(key)] = int(val)
+#                fin.close()
+#
+#            last_startrun = int(infodict2['T0'])                # time-stamp of first HIT at run start -> this HIT is not in buffer anymore if HS_Loop > 0 !            
+#            LAST_CURT = infodict2['CURT']                       # current time stamp in DAQ units
+#            LAST_IVAL = infodict2['IVAL']                       # len of each file in integer 0.1 nanoseconds
+#            LAST_IVAL_SEC = IVAL*1.0E-10                        # len of each file in integer seconds
+#            LAST_CURF = infodict2['CURF']                       # file index of currently active hit spool file
+#            LAST_MAXF = infodict2['MAXF']                       # number of files per cycle                
+                
     #        startdata = int(CURT - ((MAXF-1)*IVAL_SEC))        # oldest, in hit spool buffer existing time stamp in DAQ units  
             LAST_TFILE = (CURT - startrun)%IVAL                 # how long already writing to current file, time in DAQ units 
             LAST_TFILE_SEC = TFILE*1.0E-10  
