@@ -715,7 +715,7 @@ def hs_status():
     
     for host in DEPLOY_TARGET:
         with settings(host_string=host):
-            with hide("running", "stdout"):
+            with hide("running", "stdout", "status"):
                 processes = run("ps ax")
                 if "hub" in host:
                     if "HsWorker" in processes:
@@ -745,5 +745,5 @@ def hs_status():
                     "varname": "state",
                     "value": "%s of %s components RUNNING "% (len(DEPLOY_TARGET), len(DEPLOY_TARGET)), "prio": 1})
     
-    print len(ACTIVE_COMP) ," HsInterface components are active:\n" + str(ACTIVE_COMP)
-    print len(INACTIVE_COMP) ," HsInterface components are NOT active:\n" + str(INACTIVE_COMP)                       
+    #print len(ACTIVE_COMP) ," HsInterface components are active:\n" + str(ACTIVE_COMP)
+    #print len(INACTIVE_COMP) ," HsInterface components are NOT active:\n" + str(INACTIVE_COMP)                       
