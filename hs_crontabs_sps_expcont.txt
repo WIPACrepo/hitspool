@@ -1,5 +1,5 @@
 ###HSiface Jobs -- Please contact David Heereman: i3.hsinterface@gmail.com for questions 
 HSifacePATH=/mnt/data/pdaqlocal/HsInterface/trunk
 15 * * * * 	python $HSifacePATH/HsWatcher.py 						#HSiface
-20 * * * *  fab -f $HSifacePATH/fabfile.py hs_status >> /mnt/data/pdaqlocal/HsInterface/logs/fabfile_expcont.sps.log 2>&1  #HSiface
+20 * * * *  fab -f /mnt/data/pdaqlocal/HsInterface/trunk/fabfile.py hs_status >> /mnt/data/pdaqlocal/HsInterface/logs/fabfile_expcont.sps.log 2>&1  #HSiface
 @reboot 	python $HSifacePATH/HsWatcher.py 						#HSiface
