@@ -172,21 +172,22 @@ class MyWatcher(object):
     
         if mywatch_short in procstring_update:
             status_update = True
-            #update (March 2014 ): 
-            #dont report single components anymore: 
-            #fabfile on acces is reporting sum of RUNNING components
+            #update (March & July 2014 ): 
+            #dont report single components anymore to I3Live: 
+            #fabfile on expcont is reporting SUM of running components
             
-            i3socket.send_json({"service": "HSiface",
-                            "varname": mywatch_short + "@" + host_short,
-                            "value": "RUNNING", "prio": 3})
+            #i3socket.send_json({"service": "HSiface",
+            #                "varname": mywatch_short + "@" + host_short,
+            #                "value": "RUNNING", "prio": 3})
             
             logging.info("RUNNING")
         else:
 #            logging.info( str(mywatch) + " not in processes list")
             status_update = False
-            i3socket.send_json({"service": "HSiface",
-                            "varname": mywatch_short + "@" + host_short,
-                            "value": "STOPPED", "prio": 3})
+            #i3socket.send_json({"service": "HSiface",
+            #                "varname": mywatch_short + "@" + host_short,
+            #                "value": "STOPPED", "prio": 3})
+            
             logging.info("STOPPED")
         return status_update
             
