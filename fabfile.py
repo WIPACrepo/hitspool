@@ -52,10 +52,10 @@ with settings(hide('running')):
             SystemName = "SPS"
             host_short = re.sub(".icecube.usap.gov", "", host)
         else:
-            fastprint("Wrong host. Use SPTS or SPS instead.\n")
+            fastprint("Wrong cluster. Use SPTS or SPS instead.\n")
             sys.exit(0)    
             
-    fastprint("User " + user + " at " + host + " is running this fab on " + SystemName +"\n")
+    #fastprint("User " + user + " at " + host + " is running this fab on " + SystemName +"\n")
 
 ###
 ### Set the environment variables according to the cluster:
@@ -406,28 +406,7 @@ def hs_start_worker_bkg(host):
             frun("source " + HSiface_PATH + "run_worker_bkg.sh " + HSiface_PATH, shell=True, pty=False)
             _log("done.")
     
-#def hs_run_watcher_host(host):
-#    """
-#    Run HsWatcher once on host to see status of service.
-#    """
-##    if do_local:
-##        frun = _capture_local
-##    else:
-##        frun = run
-#    with settings(host_string=host):
-#        with hide("running"):
-#            _log("run HsWatcher on " + host + " ...")
-#            run(StartWatcher)   
-#            _log("done.\n")
-#
-#def hs_run_watcher_once_all():
-#    """
-#    Run the HsWatcher service once on all machines.
-#    The corresponding HsInterface service will be started on the machine if not running. 
-#    """
-#    for target in DEPLOY_TARGET:
-#        hs_run_watcher_host(target)
-                
+ 
 @roles('expcont') 
 def hs_stop_pub():
     """
@@ -471,49 +450,6 @@ def hs_stop_sender():
             else:
                 _log(result)
                 raise SystemExit()
-        
-#@roles('2ndbuild')     
-#def hs_stop_controller():
-#    """
-#    Stop the Sender.
-#    """
-#    if do_local:
-#        frun = _capture_local
-#    else:
-#        frun = run    
-#    with hide('everything'):
-#        frun("pkill -f \"" +  StartController + "\"")
-        
-#@parallel
-#@roles('hubs')
-#def hs_stop_workers():
-#    """
-#    Stop all Worker in parallel.
-#    """
-#    if do_local:
-#        frun = _capture_local
-#    else:
-#        frun = run       
-#    with settings(warn_only=True):
-#        with hide('running', 'warnings'):  
-#            result = frun("pkill -f \"" +  StartWorker + "\"") # see man page of "pkill" for exit staus details
-#            if result.return_code == 0:
-#                _log("Found.")
-#            elif result.return_code == 1:
-#                _log("No processes matched. Nothing to stop.")
-#            elif result.return_code == 2:
-#                _log("Syntax error in the pkill command string")
-#            
-#            resultold = frun("pkill -f \"" +  StartWorkerOld + "\"") # see man page of "pkill" for exit staus details
-#            if resultold.return_code == 0:
-#                _log("Found.")
-#            elif resultold.return_code == 1:
-#                _log("No processes matched. Nothing to stop.")
-#            elif resultold.return_code == 2:
-#                _log("Syntax error in the pkill command string")
-#            else:
-#                _log(resultold)
-#                raise SystemExit()
 
 def hs_stop_all_workers():
     for host in DEPLOY_TARGET:
@@ -588,15 +524,7 @@ def hs_deploy_to_host(host):
             rsync_project(HSiface_PATH , CHECKOUT_PATH, exclude=(".svn"))
         _log("done.\n")
         
-#def hs_deploy_worker_to_host(host):
-#    with settings(host_string=host):
-#        hs_mk_dir_on_host(host)
-#        _log("Deploying (rsyncing) HsWorker to " + host + "...")
-#        with hide("running", "stdout"):
-#            rsync_project(HSiface_PATH , CHECKOUT_PATH, exlude=("HsWorker.py"))            
-#        _log("done.\n")
-
-#@roles('expcont', '2ndbuild', 'hubs')    
+ 
 def hs_deploy():
     """
     Deploy (rsync) HitSpool interface components
@@ -712,26 +640,28 @@ def hs_status():
     """
     ACTIVE_COMP     = [] #list vor active hs services
     INACTIVE_COMP   = [] #list vor active hs services
-    
-    for host in DEPLOY_TARGET:
-        with settings(host_string=host):
+    mylocalhost = local("hostname -f", capture=True).stdout
+    for targethost in DEPLOY_TARGET:
+        with settings(host_string=targethost):
             with hide("running", "stdout", "status"):
                 processes = run("ps ax")
-                if "hub" in host:
+                if "hub" in targethost:
                     if "HsWorker" in processes:
-                        ACTIVE_COMP.append(host)
+                        ACTIVE_COMP.append(targethost)
                     else:
-                        INACTIVE_COMP.append(host)
-                elif host == "2ndbuild":
+                        INACTIVE_COMP.append(targethost)
+                elif targethost == "2ndbuild":
                     if "HsSender" in processes:
-                        ACTIVE_COMP.append(host)
+                        ACTIVE_COMP.append(targethost)
                     else:
-                        INACTIVE_COMP.append(host)
-                elif host == "expcont":
+                        INACTIVE_COMP.append(targethost)
+                elif targethost == "expcont":
+                    if 'expcont' in mylocalhost: # check if this fabfile is running on expcont
+                        processes = local('ps ax', capture=True).stdout
                     if "HsPublisher" in processes:
-                        ACTIVE_COMP.append(host)
+                        ACTIVE_COMP.append(targethost)
                     else:
-                        INACTIVE_COMP.append(host) 
+                        INACTIVE_COMP.append(targethost) 
                 else:
                     #wrong host
                     pass
@@ -745,5 +675,5 @@ def hs_status():
                     "varname": "state",
                     "value": "%s of %s components RUNNING "% (len(DEPLOY_TARGET), len(DEPLOY_TARGET)), "prio": 1})
     
-    #print len(ACTIVE_COMP) ," HsInterface components are active:\n" + str(ACTIVE_COMP)
-    #print len(INACTIVE_COMP) ," HsInterface components are NOT active:\n" + str(INACTIVE_COMP)                       
+    print len(ACTIVE_COMP) ," HsInterface components are active:\n" + str(ACTIVE_COMP)
+    print len(INACTIVE_COMP) ," HsInterface components are NOT active:\n" + str(INACTIVE_COMP)                       
