@@ -9,24 +9,15 @@ import time
 from fabric.api import *
 
 
-#----- fabric functionxs ----#
 def fabmkdir_copydest(host, cluster, hs_copydir, truetrigger_dir):
     totdir = hs_copydir + '/' + truetrigger_dir
     fabcmd = 'mkdir -p %s' %totdir
     with settings(host_string=host):
-        if cluster == 'localhost':        
-            local(fabcmd)
-        else:
-            run(fabcmd)
-
-def fabmkdir_tmpdir(host, cluster, tmp_dir):
-    fabcmd = 'mkdir -p %s' tmp_dir
-    with settings(host_string=host):
-        if cluster == 'localhost':        
-            local(fabcmd)
-        else:
-            run(fabcmd)
-
+        with hide("running", "stdout"): 
+            if cluster == 'localhost':        
+                local(fabcmd)
+            else:
+                run(fabcmd)
     
 
 def request_parser(request_begin_utc, request_end_utc, request_start, request_stop, copydir, src_mchn, src_mchn_short, cluster):
@@ -413,9 +404,8 @@ def request_parser(request_begin_utc, request_end_utc, request_start, request_st
         else:
             tmp_dir = "/mnt/data/pdaqlocal/tmp/HsRequest_" + truetrigger + "/"
         try:
-#            subprocess.check_call("mkdir -p " + tmp_dir, shell=True)
-#            logging.info( "created subdir for relevant hs files")
-            fabmkdir_tmpdir()        
+            subprocess.check_call("mkdir -p " + tmp_dir, shell=True)
+            logging.info( "created tmp dir for relevant hs files")
         
         except subprocess.CalledProcessError:
 #            logging.info( "Subdir in /mnt/data/padqlocal/tmp/ already exists") 
@@ -429,7 +419,7 @@ def request_parser(request_begin_utc, request_end_utc, request_start, request_st
             if hs_tmp_copy == 0:
                 next_tmpfile = tmp_dir + "HitSpool-" + str(sn_start_file_i) + ".dat"
                 copy_files_list.append(next_tmpfile)
-                logging.info("linked the file: " + str(next_file) + " to tmp directory")
+                #logging.info("linked the file: " + str(next_file) + " to tmp directory")
             else:
                 logging.error("failed to link file " + str(sn_start_file_i) + " to tmp dir")      
                 
@@ -438,7 +428,7 @@ def request_parser(request_begin_utc, request_end_utc, request_start, request_st
             for i in range(n_rlv_files_extra):
                 sn_stop_file_i = (sn_stop_file2+i)%MAXF
                 next_file2 = re.sub("HitSpool-" + str(sn_stop_file2), "HitSpool-" + str(sn_stop_file_i), sn_stop_file_str2)
-                logging.info( "next relevant file: " + str(next_file2))
+                #logging.info( "next relevant file: " + str(next_file2))
                 #move these files aside to prevent from being overwritten from next hs cycle while copying:
                 #do a hardlink here instead of real copy! "cp -a" ---> "cp -l"   
                 hs_tmp_copy = subprocess.check_call("cp -l " + next_file2 + " " + tmp_dir, shell=True)
@@ -446,7 +436,7 @@ def request_parser(request_begin_utc, request_end_utc, request_start, request_st
                     next_tmpfile2 = tmp_dir + "HitSpool-" + str(sn_stop_file_i) + ".dat"
                     #logging.info( "\nnext file to copy is: %s" % next_copy
                     copy_files_list.append(next_tmpfile2)
-                    logging.info("linked the file: " + str(next_file) + " to tmp directory")
+                    #logging.info("linked the file: " + str(next_file) + " to tmp directory")
                   
                 else:
                     logging.error("failed to link hitspool file " + str(sn_stop_file_i) + " to tmp dir")         
@@ -484,14 +474,14 @@ def request_parser(request_begin_utc, request_end_utc, request_start, request_st
                         
         # --- proceed if no error --- #
         else:
-            logging.info("rsync out:\n" +str(hs_rsync_out))
+            #logging.info("rsync out:\n" +str(hs_rsync_out))
             logging.info("successful copy of HS data from " + str(hs_sourcedir) + " at " + str(src_mchn) + " to " + str(hs_copydest) +" at " + str(hs_ssh_access))
             rsync_dataload = re.search(r'(?<=total size is )[0-9]*', hs_rsync_out[-1])
             if rsync_dataload is not None:
                 dataload_mb = str(float(int(rsync_dataload.group(0))/1024**2))
             else:
                 dataload_mb = "TBD"
-            logging.info(str("dataload of %s in [MB]:\n%s" % (hs_copydest, dataload_mb )))
+            logging.info(str("dataload of %s in [MB]:\t%s" % (hs_copydest, dataload_mb )))
             
             # remove tmp dir:
             try:
@@ -514,12 +504,13 @@ if __name__=="__main__":
     '''
     def usage():
         print >>sys.stderr, """
-        usage :: HsGrabberSingleHub.py [options]
+        usage :: hsrsync.py [options]
             -b         | begin of data: "YYYY-mm-dd HH:MM:SS.[us]" OR DAQ timestamp [0.1 ns from beginning of the year]
             -e         | end of data "YYYY-mm-dd HH:MM:SS.[us]"   OR DAQ timestamp [0.1 ns from beginning of the year]   
             -c         | copydir e.g. "pdaq@2ndbuild:/mnt/data/pdaqlocal/HsDataCopy/"
             
-            HsGrabberSingleHub reads UTC timestamps or DAQ timestamps, calculates the requested hitspool file indexes and ships the data to copydir.
+            Rsync-wrapper for transferring Hitspool data to destination based on requested time range.
+            TO BE RUN ON DATA SOURCE MACHINE.
             """
         sys.exit(1)
 
@@ -530,24 +521,21 @@ if __name__=="__main__":
     if ".usap.gov" in src_mchn:
         src_mchn_short = re.sub(".icecube.usap.gov", "", src_mchn)
         cluster = "SPS"
+        logfile = "/mnt/data/pdaqlocal/HsInterface/logs/hsrsync_" + src_mchn_short + ".log"
     elif ".wisc.edu" in src_mchn:
         src_mchn_short = re.sub(".icecube.wisc.edu", "", src_mchn)
         cluster = "SPTS"
+        logfile = "/mnt/data/pdaqlocal/HsInterface/logs/hsrsync_" + src_mchn_short + ".log"
     else:
         src_mchn_short = src_mchn    
-        cluster = "localhost"        
-    print "This HsGrabberSingleHub runs on: " , src_mchn
-
-    if cluster == "localhost":
-        logfile = "/home/david/TESTCLUSTER/testhub/logs/HsGrabberSingleHub_" + src_mchn_short + ".log" 
-    else:
-        logfile = "/mnt/data/pdaqlocal/HsInterface/logs/HsGrabberSingleHub_" + src_mchn_short + ".log"
+        cluster = "localhost"            
+        logfile = "/home/david/TESTCLUSTER/testhub/logs/hsrsync_" + src_mchn_short + ".log" 
 
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', 
                         level=logging.INFO, stream=sys.stdout, 
                         datefmt= '%Y-%m-%d %H:%M:%S', 
                         filename=logfile)
-    logging.info("this Grabber runs on: " + str(src_mchn_short))
+    logging.info("This HitSpool Data Grabbing Service runs on: " + str(src_mchn_short))
     ##take arguments from command line and check for correct input
     opts, args = getopt.getopt(sys.argv[1:], 'hb:e:c:', ['help','request='])
     for o, a in opts:
@@ -594,6 +582,7 @@ if __name__=="__main__":
     if len(sys.argv) < 5 :
         print usage()
 
+    print 'Log file: ' , logfile
 
     # convert to UTC or DAQ whatever direction is needed:
     if (request_start == 0) and (request_stop == 0) :
@@ -608,8 +597,11 @@ if __name__=="__main__":
         request_begin_utc = datetime.strptime(str(datetime(daqyear, 1, 1) + timedelta(seconds = request_start*1.0E-10)), "%Y-%m-%d %H:%M:%S.%f")
         request_end_utc = datetime.strptime(str(datetime(daqyear, 1, 1) + timedelta(seconds = request_stop*1.0E-10)), "%Y-%m-%d %H:%M:%S.%f")
     
-    logging.info("\n NEW REQUEST \n")    
-    logging.info( "HS REQUEST DATA BEGIN UTC time: " + str(request_begin_utc))
+    logging.info('')
+    logging.info("NEW  HS REQUEST ")
+    logging.info('')
+    logging.info("REQUESTED STRING: " + str(src_mchn))  
+    logging.info("HS REQUEST DATA BEGIN UTC time: " + str(request_begin_utc))
     logging.info("HS REQUEST DATA END UTC time: " + str(request_end_utc))
     logging.info("HS REQUEST DATA BEGIN DAQ time: "+ str( request_start))
     logging.info("HS REQUEST DATA END DAQ time: "+ str( request_stop))
