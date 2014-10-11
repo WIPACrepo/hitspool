@@ -6,19 +6,7 @@ import re, sys
 import getopt
 import logging
 import time
-from fabric.api import *
 
-
-def fabmkdir_copydest(host, cluster, hs_copydir, truetrigger_dir):
-    totdir = hs_copydir + '/' + truetrigger_dir
-    fabcmd = 'mkdir -p %s' %totdir
-    with settings(host_string=host):
-        with hide("running", "stdout"): 
-            if cluster == 'localhost':        
-                local(fabcmd)
-            else:
-                run(fabcmd)
-    
 
 def request_parser(request_begin_utc, request_end_utc, request_start, request_stop, copydir, src_mchn, src_mchn_short, cluster):
     
@@ -449,7 +437,7 @@ def request_parser(request_begin_utc, request_end_utc, request_start, request_st
         # ---- Rsync the relevant files to DESTINATION ---- #
                 
         # mkdir destination copydir
-        fabmkdir_copydest(hs_dest_mchn, cluster, hs_copydir, truetrigger_dir)    
+        #subprocess.check_call('')    
         
         # ------- the REAL rsync command for SPS and SPTS:-----#
         # there is a rsync deamon: hitspool/ points internally to /mnt/data/pdaqlocal/HsDataCopy/ this is set fix on SPTS and SPS by Ralf Auer     
