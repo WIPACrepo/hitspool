@@ -437,7 +437,21 @@ def request_parser(request_begin_utc, request_end_utc, request_start, request_st
         # ---- Rsync the relevant files to DESTINATION ---- #
                 
         # mkdir destination copydir
-        #subprocess.check_call('')    
+        #mkdir_dest_cmd = 'ssh ' + hs_dest_mchn + ' && mkdir -p ' + hs_copydir
+        HOST=hs_dest_mchn
+        # Ports are handled in ~/.ssh/config since we use OpenSSH
+        COMMAND='mkdir -p ' + hs_copydir
+        ssh = subprocess.Popen(["ssh", "%s" % HOST, COMMAND],
+                                shell=False,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
+        result = ssh.stdout.readlines()
+        if result == []:
+            error = ssh.stderr.readlines()
+            logging.error(error)
+        else:
+            logging.info( result)
+        
         
         # ------- the REAL rsync command for SPS and SPTS:-----#
         # there is a rsync deamon: hitspool/ points internally to /mnt/data/pdaqlocal/HsDataCopy/ this is set fix on SPTS and SPS by Ralf Auer     
