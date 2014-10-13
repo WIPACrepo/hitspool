@@ -252,21 +252,21 @@ def request_parser(request_begin_utc, request_end_utc, request_start, request_st
                 
             # if sn_stop is available from currentRun:
             # define 3 sn_stop files indices to have two data sets: sn_start-sn_stop1 & sn_stop2-sn_top3    
-        if BUFFSTART < ALERTSTOP:
-            logging.info( "SN_START & SN_STOP distributed over lastRun and currentRun")
-            logging.info( "add relevant files from currentRun directory...")
-            #in currentRun:
-            sn_stop_file2 = OLDFILE
-            sn_stop_file_str2 = hs_sourcedir_current +"HitSpool-" + str(sn_stop_file2) + ".dat"
-            logging.info( "SN_STOP part2 file %s" + str(sn_stop_file_str2))              
-            timedelta_stop3 = (ALERTSTOP - BUFFSTART)
-            #timedelta_stop_seconds = int(timedelta_stop.total_seconds())
-            timedelta_stop_seconds3 =  (timedelta_stop3.seconds + timedelta_stop3.days * 24 * 3600)      
-            logging.info( "time diff from hit spool buffer start to sn_stop in seconds: " + str(timedelta_stop_seconds3))
-            sn_stop_file3 = int(((timedelta_stop_seconds3/IVAL_SEC) + OLDFILE) % MAXF)        
-            #sn_stop_cycle = int(timedelta_stop_seconds / (IVAL_SEC*MAXF))
-            sn_stop_file_str3 = hs_sourcedir_current +"HitSpool-" + str(sn_stop_file3) + ".dat"
-            logging.info( "SN_STOP part3 file " + str(sn_stop_file_str3))
+            if BUFFSTART < ALERTSTOP:
+                logging.info( "SN_START & SN_STOP distributed over lastRun and currentRun")
+                logging.info( "add relevant files from currentRun directory...")
+                #in currentRun:
+                sn_stop_file2 = OLDFILE
+                sn_stop_file_str2 = hs_sourcedir_current +"HitSpool-" + str(sn_stop_file2) + ".dat"
+                logging.info( "SN_STOP part2 file %s" + str(sn_stop_file_str2))              
+                timedelta_stop3 = (ALERTSTOP - BUFFSTART)
+                #timedelta_stop_seconds = int(timedelta_stop.total_seconds())
+                timedelta_stop_seconds3 =  (timedelta_stop3.seconds + timedelta_stop3.days * 24 * 3600)      
+                logging.info( "time diff from hit spool buffer start to sn_stop in seconds: " + str(timedelta_stop_seconds3))
+                sn_stop_file3 = int(((timedelta_stop_seconds3/IVAL_SEC) + OLDFILE) % MAXF)        
+                #sn_stop_cycle = int(timedelta_stop_seconds / (IVAL_SEC*MAXF))
+                sn_stop_file_str3 = hs_sourcedir_current +"HitSpool-" + str(sn_stop_file3) + ".dat"
+                logging.info( "SN_STOP part3 file " + str(sn_stop_file_str3))
 
         elif LAST_BUFFSTART < ALERTSTART < ALERTSTOP < LAST_BUFFSTOP:
             logging.info( "Data location case 5")          
