@@ -139,9 +139,8 @@ class MyAlert(object):
             logging.info( "HS machinedir = " + str(hs_user_machinedir))
 
             if (cluster == "SPS") or (cluster == "SPTS"):
-            #for the REAL interface
-                hs_ssh_access = re.sub(':/\w+/\w+/\w+/\w+/', "", hs_user_machinedir)
-                                
+            	#for the REAL interface
+                hs_ssh_access = re.sub(':/\w+/\w+/\w+/\w+/', "", hs_user_machinedir)                  
             else:
                 hs_ssh_access = re.sub(':/[\w+/]*', "", hs_user_machinedir)
             
@@ -356,34 +355,7 @@ class MyAlert(object):
             #------Parsing hitspool info.txt from lastRun to find the requested files-------:        
             # Find the right file(s) that contain the start/stoptime and the actual sn trigger time stamp=sntts
             # useful: datetime.timedelta
-#            try:
-#                filename = hs_sourcedir_last+'info.txt'
-#                fin = open(filename, "r")
-#                logging.info("open " + str(filename))
-#            except IOError as (errno, strerror):
-#                i3live_dict6 = {}
-#                i3live_dict6["service"] = "HSiface"
-#                i3live_dict6["varname"] = "HsWorker@" + src_mchn_short
-#                i3live_dict6["value"] = "ERROR: Cannot open %s file. I/O error({0}): {1}".format(errno, strerror)  % filename
-#                i3socket.send_json(i3live_dict6)   
-#                logging.info( "cannot open " + str(filename))
-#                logging.info( str("I/O error({0}): {1}".format(errno, strerror)))
-#                return None
-#            else:
-#                infodict2= {}
-#                for line in fin:
-#                    (key, val) = line.split()
-#                    infodict2[str(key)] = int(val)
-#                fin.close()
-#
-#            last_startrun = int(infodict2['T0'])                # time-stamp of first HIT at run start -> this HIT is not in buffer anymore if HS_Loop > 0 !            
-#            LAST_CURT = infodict2['CURT']                       # current time stamp in DAQ units
-#            LAST_IVAL = infodict2['IVAL']                       # len of each file in integer 0.1 nanoseconds
-#            LAST_IVAL_SEC = IVAL*1.0E-10                        # len of each file in integer seconds
-#            LAST_CURF = infodict2['CURF']                       # file index of currently active hit spool file
-#            LAST_MAXF = infodict2['MAXF']                       # number of files per cycle                
-                
-    #        startdata = int(CURT - ((MAXF-1)*IVAL_SEC))        # oldest, in hit spool buffer existing time stamp in DAQ units  
+ 
             LAST_TFILE = (CURT - startrun)%IVAL                 # how long already writing to current file, time in DAQ units 
             LAST_TFILE_SEC = TFILE*1.0E-10  
             LAST_HS_LOOP = int((CURT-startrun)/(MAXF*IVAL))
