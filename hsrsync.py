@@ -19,7 +19,7 @@ def request_parser(request_begin_utc, request_end_utc, request_start, request_st
     hs_user_machinedir = copydir
     if (cluster == "SPS") or (cluster == "SPTS"):
         #for the REAL interface
-        hs_ssh_access = re.sub(':/\w+/\w+/\w+/\w+/', "", hs_user_machinedir)
+        hs_ssh_access = re.sub(':/[\w+/]*', "", hs_user_machinedir)
     else:
         hs_ssh_access = re.sub(':/[\w+/]*', "", hs_user_machinedir)         
     logging.info("HS COPY SSH ACCESS: " + str(hs_ssh_access))
@@ -380,7 +380,7 @@ def request_parser(request_begin_utc, request_end_utc, request_start, request_st
 
         # -- building tmp directory for relevant hs data copy -- # 
         truetrigger = ALERTSTART.strftime("%Y%m%d_%H%M%S") 
-        truetrigger_dir = "HitSpoolData_" + truetrigger + "_" + src_mchn + "/"
+        truetrigger_dir = "/HitSpoolData_" + truetrigger + "_" + src_mchn + "/"
         hs_copydest = hs_copydir + truetrigger_dir
         logging.info( "unique naming for folder: " + str(hs_copydest))
 
@@ -450,7 +450,9 @@ def request_parser(request_begin_utc, request_end_utc, request_start, request_st
         # there is a rsync deamon: hitspool/ points internally to /mnt/data/pdaqlocal/HsDataCopy/ this is set fix on SPTS and SPS by Ralf Auer     
         # is useful when syncing from more than 50 hubs at the same time
         if (cluster == "SPS") or (cluster == "SPTS") :  
-            rsync_cmd = "nice rsync -avv --bwlimit=300 --log-format=%i%n%L " + copy_files_str + " " + hs_copydir + truetrigger_dir        
+            #rsync_cmd = "nice rsync -avv --bwlimit=300 --log-format=%i%n%L " + copy_files_str + " " + hs_copydir + truetrigger_dir      
+            #rsync_cmd = "nice rsync -avv --bwlimit=300 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + '::hitspool/' + truetrigger_dir   
+            rsync_cmd = "nice rsync -avv --bwlimit=300 --log-format=%i%n%L " + copy_files_str + " " + hs_user_machinedir + truetrigger_dir
             logging.info( "rsync does:\n " + str(rsync_cmd)) 
         
         #------ the localhost rsync command -----#           
@@ -470,7 +472,7 @@ def request_parser(request_begin_utc, request_end_utc, request_start, request_st
         # --- proceed if no error --- #
         else:
             #logging.info("rsync out:\n" +str(hs_rsync_out))
-            logging.info("successful copy of HS data from " + str(hs_sourcedir) + " at " + str(src_mchn) + " to " + str(hs_copydest) +" at " + str(hs_ssh_access))
+            logging.info("successful copy of HS data from " + str(hs_sourcedir) + " at " + str(src_mchn) + " to " + str(hs_copydest) +" at " + str(hs_dest_mchn))
             rsync_dataload = re.search(r'(?<=total size is )[0-9]*', hs_rsync_out[-1])
             if rsync_dataload is not None:
                 dataload_mb = str(float(int(rsync_dataload.group(0))/1024**2))
