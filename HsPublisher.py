@@ -39,7 +39,7 @@ class Receiver(object):
     '''
     Handle incoming request message from sndaq or any other process. 
     '''
-    def reply_request(self):             
+    def reply_request(self, cluster):             
 #        forwarder = MyPublisher()
         # We want to have a stable connection FOREVER to the client -> while True loop
         while True:
@@ -95,14 +95,14 @@ class Receiver(object):
                                   "varname" :   "alert",
                                   "prio"    :   1,
                                   "t"    :   str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-                                  "value"   :   {"condition"    : "DATA REQUEST HsInterface Alert: ",
+                                  "value"   :   {"condition"    : "DATA REQUEST HsInterface Alert: " + cluster,
                                                  "desc"         : "HsInterface Data Reuqest",
                                                  "notifies"     : [{"receiver"      : "i3.hsinterface@gmail.com",
                                                                     "notifies_txt"  : alertmsg,
-                                                                    "notifies_header" : "DATA REQUEST HsInterface Alert: "},
+                                                                    "notifies_header" : "DATA REQUEST HsInterface Alert: "+ cluster},
                                                                    {"receiver"      : "icecube-sn-dev@lists.uni-mainz.de",
                                                                     "notifies_txt"  : alertmsg,
-                                                                    "notifies_header" : "DATA REQUEST HsInterface Alert: "}],
+                                                                    "notifies_header" : "DATA REQUEST HsInterface Alert: "+ cluster}],
                                                  "short_subject": "true",
                                                  "quiet"        : "true"}}
 
@@ -195,5 +195,5 @@ if __name__=='__main__':
         logging.info("connect PUSH socket to i3live on port 6668") 
 
     request = Receiver()
-    request.reply_request()
+    request.reply_request(cluster)
 
