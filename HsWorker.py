@@ -139,8 +139,9 @@ class MyAlert(object):
             logging.info( "HS machinedir = " + str(hs_user_machinedir))
 
             if (cluster == "SPS") or (cluster == "SPTS"):
-            	#for the REAL interface
-                hs_ssh_access = re.sub(':/\w+/\w+/\w+/\w+/', "", hs_user_machinedir)                  
+            #for the REAL interface
+                hs_ssh_access = re.sub(':/\w+/\w+/\w+/\w+/', "", hs_user_machinedir)
+                                
             else:
                 hs_ssh_access = re.sub(':/[\w+/]*', "", hs_user_machinedir)
             
@@ -194,7 +195,6 @@ class MyAlert(object):
             else:
                 alertDatamax = True
             
-#            print alertParse1, alertParse2, alertParse3, alertDatamax
 
         #----------- parse info.txt files--------------#
         infoParseLast = False
@@ -276,50 +276,15 @@ class MyAlert(object):
         # -----continue processing request only if all boundary conditions are met            
         ###########################################################################
         if alertParse1 and alertParse2 and alertParse3 and alertDatamax and infoParseLast and infoParseCurrent:
-            
-#            i3socket.send_json({"service": "HSiface", "varname": "HsWorker@" + src_mchn_short, 
-#                                "value": "successfully parsed the request."})
-            
+                        
             alertid = TRUETRIGGER.strftime("%Y%m%d_%H%M%S")             
             sn_start_file = None
             sn_stop_file = None
             
             #------Parsing hitspool info.txt from currentRun to find the requested files-------:        
             # Find the right file(s) that contain the start/stoptime and the actual sn trigger time stamp=sntts
-            # useful: datetime.timedelta 
-                       
-#            try:
-#                filename = hs_sourcedir_current + 'info.txt'
-#                fin = open(filename, "r")
-#                logging.info("open " + str(filename))
-#            except IOError as (errno, strerror):
-#                i3live_dict5 = {}
-#                i3live_dict5["service"] = "HSiface"
-#                i3live_dict5["varname"] = "HsWorker@" + src_mchn_short
-#                i3live_dict5["value"] = "ERROR: Cannot open %s file. I/O error({0}): {1}".format(errno, strerror)  % filename
-#                i3socket.send_json(i3live_dict5)
-#                logging.error("cannot open " + str(filename))
-#                logging.error(str("I/O error({0}): {1}".format(errno, strerror)))
-#                return None
-#            
-#            else:
-#                infodict= {}
-#                for line in fin:
-#                    (key, val) = line.split()
-#                    infodict[str(key)] = int(val)
-#                fin.close()
-#            
-#
-#            startrun = int(infodict['T0'])              # time-stamp of first HIT at run start -> this HIT is not in buffer anymore if HS_Loop > 0 !            
-#            CURT = infodict['CURT']                     # current time stamp in DAQ units
-#            IVAL = infodict['IVAL']                     # len of each file in integer 0.1 nanoseconds
-#            IVAL_SEC = IVAL*1.0E-10                     # len of each file in integer seconds
-#            CURF = infodict['CURF']                     # file index of currently active hit spool file
-#            MAXF = infodict['MAXF']                     # number of files per cycle
 
                     
-
-    #        startdata = int(CURT - ((MAXF-1)*IVAL_SEC))      # oldest, in hit spool buffer existing time stamp in DAQ units  
             TFILE = (CURT - startrun)%IVAL              # how long already writing to current file, time in DAQ units 
             TFILE_SEC = TFILE*1.0E-10  
             HS_LOOP = int((CURT-startrun)/(MAXF*IVAL))
@@ -328,7 +293,6 @@ class MyAlert(object):
                 startdata = startrun
             else:
                 OLDFILE = (CURF+1)
-    #            startdata = int(CURT - (((MAXF-1)*IVAL_SEC) + TFILE))    # oldest, in hit spool buffer existing time stamp in DAQ units
                 startdata = int(CURT - (MAXF-1)*IVAL - TFILE)    # oldest, in hit spool buffer existing time stamp in DAQ units         
     
             #converting the INFO dict's first entry into a datetime object:
@@ -354,8 +318,6 @@ class MyAlert(object):
            
             #------Parsing hitspool info.txt from lastRun to find the requested files-------:        
             # Find the right file(s) that contain the start/stoptime and the actual sn trigger time stamp=sntts
-            # useful: datetime.timedelta
- 
             LAST_TFILE = (CURT - startrun)%IVAL                 # how long already writing to current file, time in DAQ units 
             LAST_TFILE_SEC = TFILE*1.0E-10  
             LAST_HS_LOOP = int((CURT-startrun)/(MAXF*IVAL))
@@ -364,9 +326,7 @@ class MyAlert(object):
                 last_startdata = last_startrun
             else:
                 LAST_OLDFILE = (LAST_CURF+1)
-    #            startdata = int(CURT - (((MAXF-1)*IVAL_SEC) + TFILE))    # oldest, in hit spool buffer existing time stamp in DAQ units
                 last_startdata = int(LAST_CURT - (LAST_MAXF-1)*LAST_IVAL - LAST_TFILE)    # oldest, in hit spool buffer existing time stamp in DAQ units         
-    #        logging.info( "get information from %s..." % filename
     
             #converting the INFO dict's first entry into a datetime object:
             last_startrun_utc = str(datetime(int(utc_now.year),1,1) + timedelta(seconds=last_startrun*1.0E-10))    #PDAQ TIME UNITS ARE 0.1 NANOSECONDS
@@ -409,23 +369,12 @@ class MyAlert(object):
             if LAST_BUFFSTOP < ALERTSTART < BUFFSTART < ALERTSTOP:
                 logging.info( "Data location case 1")          
                 hs_sourcedir = hs_sourcedir_current
-                logging.info( "HitSpool source data is in directory: " + str(hs_sourcedir))
-                
-#                i3live_dict7 = {}
-#                i3live_dict7["service"] = "HSiface"
-#                i3live_dict7["varname"] = "HsWorker@" + src_mchn_short
-#                i3live_dict7["value"] = "Found requested data in %s." % hs_sourcedir
-#                i3socket.send_json(i3live_dict7)
-                
+                logging.info( "HitSpool source data is in directory: " + str(hs_sourcedir))                
                 
                 sn_start_file = OLDFILE
                 logging.warning( "Sn_start doesn't exits in " + str(hs_sourcedir) + " buffer anymore! Start with oldest possible data: HitSpool-" + str(OLDFILE))
                 
                 sn_start_file_str = hs_sourcedir + "HitSpool-" + str(sn_start_file) + ".dat" 
-    
-#                i3socket.send_json({"service": "HSiface",
-#                                    "varname": "HsWorker@" + src_mchn_short,
-#                                    "value": "StartTime out of HsBuffer. Assign: sn_startfile = %s" % sn_start_file_str})
                 
                 timedelta_stop = (ALERTSTOP - BUFFSTART)
                 #timedelta_stop_seconds = int(timedelta_stop.total_seconds())
@@ -477,11 +426,6 @@ class MyAlert(object):
                 hs_sourcedir = hs_sourcedir_last
                 logging.info( "requested data distributed over both HS Run directories")
                 
-#                i3socket.send_json({"service": "HSiface",
-#                        "varname": "HsWorker@" + src_mchn_short,
-#                        "value": "requested data distributed over both HS Run directories"})
-                
-                
                 # -- start file --#
                 timedelta_start = (ALERTSTART - LAST_BUFFSTART) # should be a datetime.timedelta object 
                 #time passed after data_start when sn alert started: sn_start - data_start in seconds:
@@ -514,31 +458,11 @@ class MyAlert(object):
                     #sn_stop_cycle = int(timedelta_stop_seconds / (IVAL_SEC*MAXF))
                     sn_stop_file_str3 = hs_sourcedir_current +"HitSpool-" + str(sn_stop_file3) + ".dat"
                     logging.info( "SN_STOP part3 file " + str(sn_stop_file_str3))
-                    
-#    
-            
-    #        elif ALERTSTOP > BUFFSTART and ALERTSTOP > ALERTSTART:   # sn_stop > BUFFEND is not possible by definition
-    #            timedelta_stop = (ALERTSTOP - BUFFSTART)
-    #            #timedelta_stop_seconds = int(timedelta_stop.total_seconds())
-    #            timedelta_stop_seconds =  (timedelta_stop.seconds + timedelta_stop.days * 24 * 3600)      
-    #            logging.info( "time diff from hit spool buffer start to sn_stop in seconds: %s" % timedelta_stop_seconds
-    #            sn_stop_file = int(((timedelta_stop_seconds/IVAL_SEC) + OLDFILE) % MAXF)        
-    #            #sn_stop_cycle = int(timedelta_stop_seconds / (IVAL_SEC*MAXF))
-    #            sn_stop_file_str = hs_sourcedir +"HitSpool-" + str(sn_stop_file) + ".dat"
-    #            logging.info( "sn_stops's data is included in file %s" % (sn_stop_file_str)
-                
                 
             elif LAST_BUFFSTART < ALERTSTART < ALERTSTOP < LAST_BUFFSTOP:
                 logging.info( "Data location case 5")          
                 hs_sourcedir = hs_sourcedir_last
                 logging.info( "HS source data is in directory: " + str(hs_sourcedir))  
-                
-#                i3live_dict9 = {}
-#                i3live_dict9["service"] = "HSiface"
-#                i3live_dict9["varname"] = "HsWorker@" + src_mchn_short
-#                i3live_dict9["value"] = "HS source data is in directory: %s" % hs_sourcedir
-#                i3socket.send_json(i3live_dict9)
-                
                 
                 timedelta_start = (ALERTSTART - LAST_BUFFSTART) # should be a datetime.timedelta object 
                 #time passed after data_start when sn alert started: sn_start - data_start in seconds:
@@ -556,32 +480,15 @@ class MyAlert(object):
                 #sn_stop_cycle = int(timedelta_stop_seconds / (IVAL_SEC*MAXF))
                 sn_stop_file_str = hs_sourcedir +"HitSpool-" + str(sn_stop_file) + ".dat"
                 logging.info( "sn_stop's data is included in file " + str(sn_stop_file_str))   
-#                i3socket.send_json({"service": "HSiface",
-#                                    "varname": "HsWorker@" + src_mchn_short,
-#                                    "value": "sn_start_file = %s" % sn_start_file_str})
-#    
-#                i3socket.send_json({"service": "HSiface",
-#                                    "varname": "HsWorker@" + src_mchn_short,
-#                                    "value": "sn_stop_file = %s" % sn_stop_file_str})
-#                
             elif ALERTSTART < LAST_BUFFSTART < ALERTSTOP < LAST_BUFFSTOP:
                 logging.info( "Data location case 6")
                 hs_sourcedir = hs_sourcedir_last
                 logging.info( "HS source data is in directory: " + str(hs_sourcedir))
-#                i3live_dict10 = {}
-#                i3live_dict10["service"] = "HSiface"
-#                i3live_dict10["varname"] = "HsWorker@" + src_mchn_short
-#                i3live_dict10["value"] = "HS source data is in directory: %s." % hs_sourcedir
-#                i3socket.send_json(i3live_dict10)            
                 
                 sn_start_file = LAST_OLDFILE
                 logging.warning("sn_start doesn't exits in" + str( hs_sourcedir) +  "buffer anymore! Start with oldest possible data: HitSpool-"+str(LAST_OLDFILE))
                 sn_start_file_str = hs_sourcedir + "HitSpool-" + str(sn_start_file) + ".dat"               
-                
-#                i3socket.send_json({"service": "HSiface",
-#                        "varname": "HsWorker@" + src_mchn_short,
-#                        "value": "StartTime out of HsBuffer. Assign: sn_startfile = %s" % sn_start_file_str})
-                
+                                
                 timedelta_stop = (ALERTSTOP - LAST_BUFFSTART)
                 #timedelta_stop_seconds = int(timedelta_stop.total_seconds())
                 timedelta_stop_seconds =  (timedelta_stop.seconds + timedelta_stop.days * 24 * 3600)      
@@ -591,9 +498,6 @@ class MyAlert(object):
                 sn_stop_file_str = hs_sourcedir +"HitSpool-" + str(sn_stop_file) + ".dat"
                 logging.info( "sn_stops's data is included in file " + str(sn_stop_file_str))
                 
-#                i3socket.send_json({"service": "HSiface",
-#                        "varname": "HsWorker@" + src_mchn_short,
-#                        "value": "sn_stop_file = %s" % sn_stop_file_str})
                 
             elif ALERTSTART < ALERTSTOP < LAST_BUFFSTART:
                 logging.info( "Data location case 7")
@@ -746,6 +650,8 @@ class MyAlert(object):
                 logging.info("default rsync destination is (rsync deamon): " + str(copydir_dft) + "on 2ndbuild")
                 
                 rsync_cmd = "nice rsync -avv --bwlimit=300 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + '::hitspool/' + truetrigger_dir        
+#               new hubs dont need a bwlimit anymore: 
+#                rsync_cmd = "nice rsync -avv  --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + '::hitspool/' + truetrigger_dir        
                 
                 logging.info( "rsync does:\n " + str(rsync_cmd)) 
             
@@ -782,12 +688,6 @@ class MyAlert(object):
             else:
                 logging.info("rsync out:\n" +str(hs_rsync_out))
                 logging.info("successful copy of HS data from " + str(hs_sourcedir) + " at " + str(src_mchn) + " to " + str(hs_copydest) +" at " + str(hs_ssh_access))
-                #report to I3Live successful data transfer
-#                i3socket.send_json({"service": "HSiface",
-#                    "varname": "HsWorker@" + src_mchn_short,
-#                    "value": "data transferred to %s at %s " % (hs_copydest, hs_ssh_access)})
-
-                #rsync_dataload = re.sub( r'total size is ', '',re.sub(r' speedup is [0-9]*\.[0-9]*\s', '',hs_rsync_out[-1]))
                 rsync_dataload = re.search(r'(?<=total size is )[0-9]*', hs_rsync_out[-1])
                 if rsync_dataload is not None:
                     dataload_mb = str(float(int(rsync_dataload.group(0))/1024**2))
@@ -936,4 +836,3 @@ if __name__=='__main__':
         except KeyboardInterrupt:
             logging.warning("interruption received, shutting down...")
             sys.exit()
-

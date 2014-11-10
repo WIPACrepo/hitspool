@@ -137,20 +137,7 @@ def request_parser(request_begin_utc, request_end_utc, request_start, request_st
         BUFFSTART = datetime.strptime(startdata_utc,"%Y-%m-%d %H:%M:%S.%f")
         stopdata_utc = str(datetime(int(utc_now.year),1,1) + timedelta(seconds=CURT*1.0E-10))        #PDAQ TIME UNITS ARE 0.1 NANOSECONDS
         BUFFSTOP = datetime.strptime(stopdata_utc,"%Y-%m-%d %H:%M:%S.%f")
-
-#        logging.info( "first HIT ever in current Run on this String in nanoseconds: " + str(startrun) + "\n" +
-#        "oldest HIT's time-stamp existing in buffer in nanoseconds: " + str(startdata) +"\n" + 
-#        "oldest HIT's time-stamp in UTC: " + str(BUFFSTART) + "\n" +
-#        "newest HIT's timestamp in nanoseconds: " + str(CURT) + "\n" +
-#        "newest HIT's time-stamp in UTC: " + str(BUFFSTOP) + "\n" +
-#        "each hit spool file contains " + str(IVAL) + " * E-10 seconds of data\n" +
-#        "duration per file in integer seconds: " + str(IVAL_SEC) + "\n" +
-#        "hit spooling writes to " + str(MAXF) + " files per cycle \n" +
-#        "HitSpooling writes to newest file: HitSpool-" + str(CURF) + " since " + str(TFILE) + " DAQ units\n" +
-#        "HitSpooling is currently writing iteration loop: " + str(HS_LOOP) + "\n" +
-#        "The oldest file is: HitSpool-" + str(OLDFILE))        
-
-
+     
         # from last Run: 
         LAST_TFILE = (CURT - startrun)%IVAL                 # how long already writing to current file, time in DAQ units 
         LAST_TFILE_SEC = TFILE*1.0E-10  
@@ -169,19 +156,6 @@ def request_parser(request_begin_utc, request_end_utc, request_start, request_st
         LAST_BUFFSTART = datetime.strptime(last_startdata_utc,"%Y-%m-%d %H:%M:%S.%f")
         last_stopdata_utc = str(datetime(int(utc_now.year),1,1) + timedelta(seconds=LAST_CURT*1.0E-10))        #PDAQ TIME UNITS ARE 0.1 NANOSECONDS
         LAST_BUFFSTOP = datetime.strptime(last_stopdata_utc,"%Y-%m-%d %H:%M:%S.%f")
-
-#        logging.info( "first HIT ever in last Run on this String in nanoseconds: " + str(last_startrun) + "\n" +
-#        "oldest HIT's time-stamp existing in buffer in nanoseconds: " + str(last_startdata) +"\n" + 
-#        "oldest HIT's time-stamp in UTC: " + str(LAST_BUFFSTART) + "\n" +
-#        "newest HIT's timestamp in nanoseconds: " + str(LAST_CURT) + "\n" +
-#        "newest HIT's time-stamp in UTC: " + str(LAST_BUFFSTOP) + "\n" +
-#        "each hit spool file contains " + str(LAST_IVAL) + " * E-10 seconds of data\n" +
-#        "duration per file in integer seconds: " + str(LAST_IVAL_SEC) + "\n" +
-#        "hit spooling writes to " + str(LAST_MAXF) + " files per cycle \n" +
-#        "HitSpooling writes to newest file: HitSpool-" + str(LAST_CURF) + " since " + str(LAST_TFILE) + " DAQ units\n" +
-#        "HitSpooling is currently writing iteration loop: " + str(LAST_HS_LOOP) + "\n" +
-#        "The oldest file is: HitSpool-" + str(LAST_OLDFILE)) 
-        
 
         #------ CHECK ALERT DATA LOCATION  -----#
         
@@ -452,7 +426,7 @@ def request_parser(request_begin_utc, request_end_utc, request_start, request_st
         if (cluster == "SPS") or (cluster == "SPTS") :  
             #rsync_cmd = "nice rsync -avv --bwlimit=300 --log-format=%i%n%L " + copy_files_str + " " + hs_copydir + truetrigger_dir      
             #rsync_cmd = "nice rsync -avv --bwlimit=300 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + '::hitspool/' + truetrigger_dir   
-            rsync_cmd = "nice rsync -avv --bwlimit=300 --log-format=%i%n%L " + copy_files_str + " " + hs_user_machinedir + truetrigger_dir
+            rsync_cmd = "nice rsync -avv --bwlimit=1000 --log-format=%i%n%L " + copy_files_str + " " + hs_user_machinedir + truetrigger_dir
             logging.info( "rsync does:\n " + str(rsync_cmd)) 
         
         #------ the localhost rsync command -----#           
