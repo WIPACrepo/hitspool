@@ -649,9 +649,9 @@ class MyAlert(object):
             if (cluster == "SPS") or (cluster == "SPTS") :  
                 logging.info("default rsync destination is (rsync deamon): " + str(copydir_dft) + "on 2ndbuild")
                 
-                rsync_cmd = "nice rsync -avv --bwlimit=300 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + '::hitspool/' + truetrigger_dir        
+#                rsync_cmd = "nice rsync -avv --bwlimit=300 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + '::hitspool/' + truetrigger_dir        
 #               new hubs dont need a bwlimit anymore: 
-#                rsync_cmd = "nice rsync -avv  --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + '::hitspool/' + truetrigger_dir        
+                rsync_cmd = "nice rsync -avv --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + '::hitspool/' + truetrigger_dir        
                 
                 logging.info( "rsync does:\n " + str(rsync_cmd)) 
             
