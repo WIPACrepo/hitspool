@@ -140,8 +140,10 @@ class MyAlert(object):
 
             if (cluster == "SPS") or (cluster == "SPTS"):
             #for the REAL interface
-                hs_ssh_access = re.sub(':/\w+/\w+/\w+/\w+/', "", hs_user_machinedir)
-                                
+            # data goes ALWAYS to 2ndbuild with user pdaq:
+                #hs_ssh_access = re.sub(':/\w+/\w+/\w+/\w+/', "", hs_user_machinedir)
+                hs_ssh_access = 'pdaq@2ndbuild'
+                #hs_ssh_access = re.sub(':/[\w+/]*', "", hs_user_machinedir)                
             else:
                 hs_ssh_access = re.sub(':/[\w+/]*', "", hs_user_machinedir)
             
@@ -160,7 +162,7 @@ class MyAlert(object):
             if copydir_dft != hs_copydir:
                 logging.warning("requested HS data copy destination differs from default!")
                 logging.warning("data will be sent to default destination: " + str(copydir_dft))
-                logging.info("HsSender will redirect it later on to: " +str(hs_copydir) + "on 2ndbuild")
+                logging.info("HsSender will redirect it later on to: " +str(hs_copydir) + " on 2ndbuild")
             
             logging.info("HS COPYDIR = " + str(hs_copydir))
             alertParse3 = True
@@ -565,18 +567,27 @@ class MyAlert(object):
                 pass
     
             # -- building tmp directory for relevant hs data copy -- # 
-            truetrigger = TRUETRIGGER.strftime("%Y%m%d_%H%M%S") 
-            truetrigger_dir = "SNALERT_" + truetrigger + "_" + src_mchn + "/"
-            hs_copydest = copydir_dft + truetrigger_dir
+            if hs_copydir == copydir_dft:
+                #this is a SNDAQ request -> SNALERT tag
+                timetag = TRUETRIGGER.strftime("%Y%m%d_%H%M%S") 
+                timetag_dir = "SNALERT_" + timetag + "_" + src_mchn + "/"
+            elif 'hese' in hs_copydir:
+                #this is a HESE request -> HESE tag
+                timetag = ALERTSTART.strftime("%Y%m%d_%H%M%S") 
+                timetag_dir = "HESE_" + timetag + "_" + src_mchn + "/"
+            else:
+                timetag = ALERTSTART.strftime("%Y%m%d_%H%M%S") 
+                timetag_dir = "ANON_" + timetag + "_" + src_mchn + "/"
+            hs_copydest = copydir_dft + timetag_dir
             logging.info( "unique naming for folder: " + str(hs_copydest))
     
             #move these files aside into subdir /tmp/ to prevent from being overwritten from next hs cycle while copying:
             #make subdirectory "/tmp" . if it exist doesn't already
     
             if cluster == "localhost":         
-                tmp_dir = "/home/david/TESTCLUSTER/testhub/tmp/" + truetrigger + "/"
+                tmp_dir = "/home/david/TESTCLUSTER/testhub/tmp/" + timetag + "/"
             else:
-                tmp_dir = "/mnt/data/pdaqlocal/tmp/SNALERT_" + truetrigger + "/"
+                tmp_dir = "/mnt/data/pdaqlocal/tmp/SNALERT_" + timetag + "/"
             try:
                 subprocess.check_call("mkdir -p " + tmp_dir, shell=True)
                 logging.info( "created subdir for relevant hs files")
@@ -647,17 +658,17 @@ class MyAlert(object):
             # ------- the REAL rsync command for SPS and SPTS:-----#
             # hitspool/ points internally to /mnt/data/pdaqlocal/HsDataCopy/ this is set fix on SPTS and SPS by Ralf Auer     
             if (cluster == "SPS") or (cluster == "SPTS") :  
-                logging.info("default rsync destination is (rsync deamon): " + str(copydir_dft) + "on 2ndbuild")
+                logging.info("default rsync destination is (rsync deamon): " + str(copydir_dft) + " on 2ndbuild")
                 
-#                rsync_cmd = "nice rsync -avv --bwlimit=300 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + '::hitspool/' + truetrigger_dir        
+#                rsync_cmd = "nice rsync -avv --bwlimit=300 --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + '::hitspool/' + timetag_dir        
 #               new hubs dont need a bwlimit anymore: 
-                rsync_cmd = "nice rsync -avv --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + '::hitspool/' + truetrigger_dir        
+                rsync_cmd = "nice rsync -avv --log-format=%i%n%L " + copy_files_str + " " + hs_ssh_access + '::hitspool/' + timetag_dir        
                 
                 logging.info( "rsync does:\n " + str(rsync_cmd)) 
             
             #------ the localhost rsync command -----#           
             else:   
-                rsync_cmd = "nice rsync -avv --bwlimit=300 --log-format=%i%n%L " + copy_files_str + " " + copydir_dft + truetrigger_dir
+                rsync_cmd = "nice rsync -avv --bwlimit=300 --log-format=%i%n%L " + copy_files_str + " " + copydir_dft + timetag_dir
                 
                 logging.info("rsync command: " + str(rsync_cmd))             
                 
@@ -746,7 +757,7 @@ class MyAlert(object):
                 
             else:
                 logging.info("logfile transmitted to copydir: " + str(log_rsync_out))
-                log_json = json.dumps({"hubname": src_mchn_short, "alertid": truetrigger, "logfiledir": logfiledir, "logfile_hsworker": logfile, "msgtype": "log_done"})
+                log_json = json.dumps({"hubname": src_mchn_short, "alertid": timetag, "logfiledir": logfiledir, "logfile_hsworker": logfile, "msgtype": "log_done"})
                 sender.send_json(log_json)
                 logging.info("sent json to HsSender: " + str(log_json))
             
