@@ -15,7 +15,7 @@ import re
   
 
 #class MyGrabber(object):
-def send_alert(timeout, alert_start_sn, alert_stop_sn, alert_begin_utc, alert_end_utc):
+def send_alert(timeout, alert_start_sn, alert_stop_sn, alert_begin_utc, alert_end_utc, copydir):
     should_continue = False
 
     if (alert_start_sn == 0) and (alert_stop_sn == 0) :
@@ -114,9 +114,9 @@ if __name__=="__main__":
     def usage():
         print >>sys.stderr, """
         usage :: HsGrabber.py [options]
-            -b         | begin of data: "YYYY-mm-dd HH:MM:SS.[us]" OR SNDAQ timestamp [ns from beginning of the year]
-            -e         | end of data "YYYY-mm-dd HH:MM:SS.[us]"   OR SNDAQ timestamp [ns from beginning of the year]   
-            -c         | copydir e.g. "pdaq@2ndbuild:/mnt/data/pdaqlocal/HsDataCopy/"
+            -b         | [b]egin of data: "YYYY-mm-dd HH:MM:SS.[us]" OR SNDAQ timestamp [ns from beginning of the year]
+            -e         | [e]nd of data "YYYY-mm-dd HH:MM:SS.[us]"   OR SNDAQ timestamp [ns from beginning of the year]   
+            -c         | [c]opydir on 2NDBUILD as user PDAQ. Default is "pdaq@2ndbuild:/mnt/data/pdaqlocal/HsDataCopy/"
             
             HsGrabber reads UTC timestamps or SNDAQ timestamps.
             It sends SNDAQ timestamps to HsInterface (HsPublisher).
@@ -177,6 +177,8 @@ if __name__=="__main__":
             else:
                 alert_stop_sn = int(a)
                 alert_end_utc = 0
+                
+        copydir = "pdaq@2ndbuild:/mnt/data/pdaqlocal/HsDataCopy/"
         if o == '-c':
             copydir = str(a)
         elif o == '-h' or o == '--help':
@@ -211,7 +213,7 @@ if __name__=="__main__":
         #print "connected to i3live socket on expcont at port 6668" 
     
     
-    send_alert(timeout, alert_start_sn, alert_stop_sn, alert_begin_utc, alert_end_utc)
+    send_alert(timeout, alert_start_sn, alert_stop_sn, alert_begin_utc, alert_end_utc, copydir)
 
         
         
