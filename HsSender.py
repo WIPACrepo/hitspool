@@ -41,7 +41,7 @@ class HsSender(object):
     """
     def receive_from_worker(self):
         msg = reporter.recv_json()
-        logging.info( "report received json: " + str(msg))
+        logging.info("HsSender received json: " + str(msg))
         info = json.loads(msg)
         logging.info("HsSender loaded json: " +str(info))
         return info
@@ -57,9 +57,14 @@ class HsSender(object):
             logging.info( "Checking the data location...")
             copydir         = info["copydir"]
             copydir_user    = info["copydir_user"] 
-            logging.info("HS data lcoated at: " + str(copydir))
+            logging.info("HS data located at: " + str(copydir))
             logging.info("user requested it to be in: " + str(copydir_user))
-            copy_basedir = re.search('[/\w+]*/(?=SNALERT_[0-9]{8}_[0-9]{6})', copydir)
+            if 'SNALERT' in copydir:
+                copy_basedir = re.search('[/\w+]*/(?=SNALERT_[0-9]{8}_[0-9]{6})', copydir)
+            elif 'HESE' in copydir:
+                copy_basedir = re.search('[/\w+]*/(?=HESE_[0-9]{8}_[0-9]{6})', copydir)
+            else:
+                copy_basedir = re.search('[/\w+]*/(?=ANON_[0-9]{8}_[0-9]{6})', copydir)
             if copy_basedir:
                 hs_basedir = copy_basedir.group(0)
                 data_dir = re.search('(?<=' + hs_basedir + ').*', copydir)
@@ -93,7 +98,7 @@ class HsSender(object):
             #this json message doesnt contain information to be checked here
             pass
 
-    #------ Preparatin for SPADE ----#
+    #------ Preparation for SPADE ----#
     def spade_pickup_data(self, infodict, hs_basedir, data_dir_name):
         '''
         tar & bzip folder
@@ -156,7 +161,7 @@ class HsSender(object):
     def spade_pickup_log(self, info):    
         #infodict = json.loads(info)            
         if info["msgtype"] == "log_done":
-            logging.info("logfile " + str(info["logfile_hsworker"]) + " from " + str(info["hubname"]) + " was transmitted to " + str(nfo["logfile_hsworker"]))
+            logging.info("logfile " + str(info["logfile_hsworker"]) + " from " + str(info["hubname"]) + " was transmitted to " + str(info["logfile_hsworker"]))
             
             org_logfilename     = info["logfile_hsworker"]
             hs_log_basedir      = info["logfiledir"]
