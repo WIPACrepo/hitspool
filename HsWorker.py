@@ -587,7 +587,7 @@ class MyAlert(object):
             if cluster == "localhost":         
                 tmp_dir = "/home/david/TESTCLUSTER/testhub/tmp/" + timetag + "/"
             else:
-                tmp_dir = "/mnt/data/pdaqlocal/tmp/SNALERT_" + timetag + "/"
+                tmp_dir = "/mnt/data/pdaqlocal/tmp/" + timetag_dir + "/"
             try:
                 subprocess.check_call("mkdir -p " + tmp_dir, shell=True)
                 logging.info( "created subdir for relevant hs files")
