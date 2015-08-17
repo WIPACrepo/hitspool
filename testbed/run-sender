@@ -1,4 +1,4 @@
 #!/bin/sh
 
-source test/create_test_env.sh &&
+source testbed/create_test_env.sh &&
 python HsSender.py -l /tmp/sender.log $*

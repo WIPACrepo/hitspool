@@ -1,6 +1,6 @@
 #!/bin/sh
 
-source test/create_test_env.sh &&
+source testbed/create_test_env.sh &&
 python HsWorker.py \
     -l /tmp/worker.log \
     -H "$hubroot/" \

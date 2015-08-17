@@ -16,8 +16,8 @@ def build_hs(hubdir):
 
     # create table
     cursor.execute("create table if not exists hitspool("
-              "filename text primary key not null," +
-              "timestamp integer)")
+                   "filename text primary key not null," +
+                   "start_tick integer, stop_tick integer)")
     conn.commit()
 
     # link all files to hitspool dir and add DB entries
@@ -38,8 +38,8 @@ def link_dir(cursor, rundir, hsdir, nextnum):
                 print "Ignoring %s" % hitfile
             continue
 
-        # get first hit time
-        timestamp = get_first_time(hitfile)
+        # get first and last hit times
+        (start_tick, stop_tick) = get_times(hitfile)
 
         # create file name inside unified directory
         newname = "HitSpool-%d.dat" % nextnum
@@ -50,17 +50,22 @@ def link_dir(cursor, rundir, hsdir, nextnum):
         os.link(hitfile, newfile)
 
         # add DB entry for new file
-        sql = "insert or replace into hitspool(timestamp, filename)" \
-              " values (?, ?)"
-        cursor.execute(sql, (timestamp, newname))
+        sql = "insert or replace into hitspool(filename, start_tick," \
+              " stop_tick) values (?,?,?)"
+        cursor.execute(sql, (newname, start_tick, stop_tick))
 
     return nextnum
 
 
-def get_first_time(hitfile):
+def get_times(hitfile):
+    first = None
+    last = None
     with open(hitfile) as fin:
         for payload in read_payloads(fin):
-            return payload.utime
+            if first is None:
+                first = payload.utime
+            last = payload.utime
+    return (first, last)
 
 
 if __name__ == "__main__":

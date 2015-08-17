@@ -149,6 +149,10 @@ class HsSender(HsBase.HsBase):
         the user's desired one.
         """
 
+        if not os.path.isdir(copydir):
+            logging.error("Source directory \"%s\" does not exist" % copydir)
+            return None, True
+
         logging.info("Checking the data location...")
         logging.info("HS data located at: %s", copydir)
         logging.info("user requested it to be in: %s", copydir_user)

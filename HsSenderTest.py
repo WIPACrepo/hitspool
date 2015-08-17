@@ -164,8 +164,8 @@ class HsSenderTest(LoggingTestCase):
         # create fake directory paths
         hsdir = self.__create_hitspool_copy("XXX", "12345678_987654", "ichub01",
                                             firstnum, numfiles,
-                                            real_stuff=False)
-        copydir = self.__create_copydir(real_stuff=False)
+                                            real_stuff=True)
+        copydir = self.__create_copydir(real_stuff=True)
         usrdir = os.path.join(copydir, "UserCopy")
 
         # don't check DEBUG/INFO log messages
@@ -196,7 +196,7 @@ class HsSenderTest(LoggingTestCase):
         # create fake directory paths
         hsdir = self.__create_hitspool_copy("ANON", "12345678_987654",
                                             "ichub01", firstnum, numfiles,
-                                            real_stuff=False)
+                                            real_stuff=True)
         if hsdir.endswith('/'):
             usrdir = os.path.dirname(hsdir[:-1])
         else:
@@ -225,8 +225,8 @@ class HsSenderTest(LoggingTestCase):
         # create fake directory paths
         hsdir = self.__create_hitspool_copy("HESE", "12345678_987654",
                                             "ichub01", firstnum, numfiles,
-                                            real_stuff=False)
-        copydir = self.__create_copydir(real_stuff=False)
+                                            real_stuff=True)
+        copydir = self.__create_copydir(real_stuff=True)
         usrdir = os.path.join(copydir, "UserCopy")
 
         # don't check DEBUG/INFO log messages

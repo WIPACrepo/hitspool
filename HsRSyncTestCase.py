@@ -469,6 +469,9 @@ class HsRSyncTestCase(LoggingTestCase):
         tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
                                   self.INTERVAL, use_db=use_db)
 
+        # add all expected log messages
+        self.expectLogMessage("No relevant files found")
+
         tstrun.run(start_ticks, stop_ticks)
 
     def test_partial_last_front_old(self):
@@ -695,6 +698,7 @@ class HsRSyncTestCase(LoggingTestCase):
         for num in xrange(firstfile, firstfile + numfiles):
             self.expectLogMessage("failed to link HitSpool-%d.dat to tmp dir:"
                                   " Fake Hardlink Error" % num)
+        self.expectLogMessage("No relevant files found")
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -730,6 +734,7 @@ class HsRSyncTestCase(LoggingTestCase):
                               " Fake Hardlink Error")
         self.expectLogMessage("failed to link HitSpool-579.dat to tmp dir:"
                               " Fake Hardlink Error")
+        self.expectLogMessage("No relevant files found")
 
         # add all expected files being transferred
         tstrun.add_expected_files(start_ticks, stop_ticks, last_start,
@@ -799,6 +804,9 @@ class HsRSyncTestCase(LoggingTestCase):
                                   last_stop, self.INTERVAL, use_db=use_db)
         tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
                                   self.INTERVAL, use_db=use_db)
+
+        # add all expected log messages
+        self.expectLogMessage("No relevant files found")
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -896,6 +904,7 @@ class HsRSyncTestCase(LoggingTestCase):
         for num in xrange(firstfile, firstfile + numfiles):
             self.expectLogMessage("failed to link HitSpool-%d.dat to tmp dir:"
                                   " Fake Hardlink Error" % num)
+        self.expectLogMessage("No relevant files found")
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -932,6 +941,7 @@ class HsRSyncTestCase(LoggingTestCase):
         for num in xrange(firstfile, firstfile + numfiles):
             self.expectLogMessage("failed to link HitSpool-%d.dat to tmp dir:"
                                   " Fake Hardlink Error" % num)
+        self.expectLogMessage("No relevant files found")
 
         # add all expected files being transferred
         tstrun.add_expected_files(start_ticks, stop_ticks, last_start,
@@ -1000,6 +1010,9 @@ class HsRSyncTestCase(LoggingTestCase):
                                   last_stop, self.INTERVAL, use_db=use_db)
         tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
                                   self.INTERVAL, use_db=use_db)
+
+        # add all expected log messages
+        self.expectLogMessage("No relevant files found")
 
         tstrun.run(start_ticks, stop_ticks)
 

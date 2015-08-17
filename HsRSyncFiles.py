@@ -641,11 +641,15 @@ class HsRSyncFiles(HsBase.HsBase):
                 logging.info("created tmp dir for relevant hs files")
             except StandardError, err:
                 logging.error("Couldn't create %s: %s", tmp_dir, err)
+                return None
 
         # -- link files to tmp directory -- #
         copy_files_list = self.__link_files(src_tuples_list, tmp_dir)
-        logging.info("list of relevant files: %s", copy_files_list)
+        if len(copy_files_list) == 0:
+            logging.error("No relevant files found")
+            return None
 
+        logging.info("list of relevant files: %s", copy_files_list)
         return self.__rsync_files(alert_start, alert_stop, copy_files_list,
                                   sleep_secs, hs_dest_mchn, hs_copydir,
                                   hs_user_machinedir, hs_ssh_access, sender,
@@ -658,7 +662,16 @@ class HsRSyncFiles(HsBase.HsBase):
                  else " --log-format=\"%s\"" % log_format
         relstr = "" if relative else " --no-relative"
 
-        rsync_cmd = "nice rsync -avv %s%s%s %s %s" % \
+        if source == "":
+            logging.error("No source specified")
+            return None
+        elif target == "":
+            logging.error("No target specified")
+            return None
+        elif target[-1] != "/":
+            target += "/"
+
+        rsync_cmd = "nice rsync -avv %s%s%s %s \"%s\"" % \
                     (bwstr, logstr, relstr, source, target)
 
         logging.info("rsync command: %s", rsync_cmd)
