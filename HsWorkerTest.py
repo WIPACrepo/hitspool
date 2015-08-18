@@ -1216,6 +1216,7 @@ class HsWorkerTest(LoggingTestCase):
         for num in xrange(firstfile, firstfile + numfiles):
             self.expectLogMessage("failed to link HitSpool-%d.dat to tmp dir:"
                                   " Fake Hardlink Error" % num)
+        self.expectLogMessage("No relevant files found")
 
         # add all expected I3Live messages
         re_val = re.compile(r"received request at \S+ \S+")
@@ -1448,6 +1449,7 @@ class HsWorkerTest(LoggingTestCase):
         for num in xrange(firstfile, firstfile + numfiles):
             self.expectLogMessage("failed to link HitSpool-%d.dat to tmp dir:"
                                   " Fake Hardlink Error" % num)
+        self.expectLogMessage("No relevant files found")
 
         # add all expected I3Live messages
         re_val = re.compile(r"received request at \S+ \S+")
