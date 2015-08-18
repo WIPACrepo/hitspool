@@ -669,6 +669,7 @@ class HsRSyncFiles(HsBase.HsBase):
             logging.error("No target specified")
             return None
         elif target[-1] != "/":
+            # make sure `rsync` knows the target should be a directory
             target += "/"
 
         rsync_cmd = "nice rsync -avv %s%s%s %s \"%s\"" % \
