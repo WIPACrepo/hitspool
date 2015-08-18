@@ -21,10 +21,9 @@ as expected:
 * `sender.log` should note that it received the `rsync_sum` message and moved
   the associated files, and that it received and ignored to `log_done` message
 
-### SNDAQ verification
-There is an sndaq executable which we use to test the connection to the
-interface. It is called `sicoTesterWithHitSpooling`. It creates a fake sn
+### SnDAQ verification
+SnDAQ's control program (`access:~pdaq/sndaq/sndaq_current_build/bin/sni3ctl`)
+includes a `create_test_alert` command which can be used to verify that SnDAQ
+can still talk to the HitSpool code.  The `create_test_alert` command fakes an
 alert and triggers sndaq's alert chain thereby raising an hs request as well
-as sending all the usual alert emails to the `sn-dev` list. You can find it in
-the current sndaq install directory on spts. Corresponding sources are in the
-svn under `sndaq/trunk/src/offline`.
+as sending all the usual alert emails to the `sn-dev` list.
