@@ -59,6 +59,11 @@ class HsBase(object):
         return self.__src_mchn
 
     def init_logging(self, logfile=None, level=logging.INFO, both=False):
+        if len(logging.getLogger().handlers) > 0:
+            # any logging done before this point creates a StreamHandler
+            # which causes basicConfig() to be ignored in Python 2.6
+            logging.getLogger().handlers = []
+
         if logfile is None:
             logging.basicConfig(format='%(message)s',
                                 level=level,
