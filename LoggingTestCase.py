@@ -53,3 +53,8 @@ class LoggingTestCase(TestCasePlus):
     def setLogLevel(self, level):
         mylog = logging.getLogger()
         mylog.setLevel(level)
+
+    # pylint: disable=invalid-name
+    # match other test methods
+    def setVerbose(self, value=True):
+        self._my_log_handler.setVerbose(value)

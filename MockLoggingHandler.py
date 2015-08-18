@@ -11,6 +11,8 @@ class MockLoggingHandler(logging.Handler):
 
     def __init__(self, *args, **kwargs):
         self.__expected = []
+        self.__verbose = False
+
         try:
             super(MockLoggingHandler, self).__init__(*args, **kwargs)
         except TypeError:
@@ -21,6 +23,9 @@ class MockLoggingHandler(logging.Handler):
             recmsg = str(record.msg)
         else:
             recmsg = str(record.msg) % record.args
+
+        if self.__verbose:
+            print "LOG>> %s" % recmsg
 
         if len(self.__expected) == 0:
             raise Exception("Unexpected log message: %s[%s]%s" %
@@ -61,6 +66,11 @@ class MockLoggingHandler(logging.Handler):
             self.__expected[:] = []
         finally:
             self.release()
+
+    # pylint: disable=invalid-name
+    # match other test methods
+    def setVerbose(self, value=True):
+        self.__verbose = value
 
     def validate(self):
         if len(self.__expected) > 0:
