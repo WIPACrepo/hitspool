@@ -118,6 +118,8 @@ class HsWorkerTest(LoggingTestCase):
 
     JAN1 = None
 
+    RCV_REQ_PAT = re.compile(r"received request at \S+ \S+")
+
     def __create_copydir(self, hsr):
         if self.COPY_DIR is None:
             # create temporary copy directory and set in HsWorker
@@ -415,8 +417,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("CurrentRun info.txt reading/parsing failed")
 
         # add all expected I3Live messages
-        re_val = re.compile(r"received request at \S+ \S+")
-        hsr.i3socket().addExpectedValue(re_val)
+        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
         hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
                                          'UTCSTART': str(utcstart),
                                          'STOP': int(stop_ticks / 10),
@@ -471,8 +472,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("LastRun info.txt reading/parsing failed")
 
         # add all expected I3Live messages
-        re_val = re.compile(r"received request at \S+ \S+")
-        hsr.i3socket().addExpectedValue(re_val)
+        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
         hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
                                          'UTCSTART': str(utcstart),
                                          'STOP': int(stop_ticks / 10),
@@ -528,8 +528,7 @@ class HsWorkerTest(LoggingTestCase):
 
 
         # add all expected I3Live messages
-        re_val = re.compile(r"received request at \S+ \S+")
-        hsr.i3socket().addExpectedValue(re_val)
+        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
         hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
                                          'UTCSTART': str(utcstart),
                                          'STOP': int(stop_ticks / 10),
@@ -586,8 +585,7 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # add all expected I3Live messages
-        re_val = re.compile(r"received request at \S+ \S+")
-        hsr.i3socket().addExpectedValue(re_val)
+        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
         hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
                                          'UTCSTART': str(utcstart),
                                          'STOP': int(stop_ticks / 10),
@@ -671,8 +669,7 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # add all expected I3Live messages
-        re_val = re.compile(r"received request at \S+ \S+")
-        hsr.i3socket().addExpectedValue(re_val)
+        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
         hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
                                          'UTCSTART': str(utcstart),
                                          'STOP': int(stop_ticks / 10),
@@ -753,8 +750,7 @@ class HsWorkerTest(LoggingTestCase):
                               " Abort request.")
 
         # add all expected I3Live messages
-        re_val = re.compile(r"received request at \S+ \S+")
-        hsr.i3socket().addExpectedValue(re_val)
+        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
         hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
                                          'UTCSTART': str(utcstart),
                                          'STOP': int(stop_ticks / 10),
@@ -810,8 +806,7 @@ class HsWorkerTest(LoggingTestCase):
                               "HitSpool-0")
 
         # add all expected I3Live messages
-        re_val = re.compile(r"received request at \S+ \S+")
-        hsr.i3socket().addExpectedValue(re_val)
+        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
         hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
                                          'UTCSTART': str(utcstart),
                                          'STOP': int(stop_ticks / 10),
@@ -896,8 +891,7 @@ class HsWorkerTest(LoggingTestCase):
                               " Buffer anymore! Abort request.")
 
         # add all expected I3Live messages
-        re_val = re.compile(r"received request at \S+ \S+")
-        hsr.i3socket().addExpectedValue(re_val)
+        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
         hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
                                          'UTCSTART': str(utcstart),
                                          'STOP': int(stop_ticks / 10),
@@ -953,8 +947,7 @@ class HsWorkerTest(LoggingTestCase):
                               " HitSpool-0")
 
         # add all expected I3Live messages
-        re_val = re.compile(r"received request at \S+ \S+")
-        hsr.i3socket().addExpectedValue(re_val)
+        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
         hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
                                          'UTCSTART': str(utcstart),
                                          'STOP': int(stop_ticks / 10),
@@ -1037,8 +1030,7 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # add all expected I3Live messages
-        re_val = re.compile(r"received request at \S+ \S+")
-        hsr.i3socket().addExpectedValue(re_val)
+        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
         hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
                                          'UTCSTART': str(utcstart),
                                          'STOP': int(stop_ticks / 10),
@@ -1121,8 +1113,7 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # add all expected I3Live messages
-        re_val = re.compile(r"received request at \S+ \S+")
-        hsr.i3socket().addExpectedValue(re_val)
+        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
         hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
                                          'UTCSTART': str(utcstart),
                                          'STOP': int(stop_ticks / 10),
@@ -1219,8 +1210,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("No relevant files found")
 
         # add all expected I3Live messages
-        re_val = re.compile(r"received request at \S+ \S+")
-        hsr.i3socket().addExpectedValue(re_val)
+        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
         hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
                                          'UTCSTART': str(utcstart),
                                          'STOP': int(stop_ticks / 10),
@@ -1305,8 +1295,7 @@ class HsWorkerTest(LoggingTestCase):
                               " Buffer anymore! Abort request.")
 
         # add all expected I3Live messages
-        re_val = re.compile(r"received request at \S+ \S+")
-        hsr.i3socket().addExpectedValue(re_val)
+        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
         hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
                                          'UTCSTART': str(utcstart),
                                          'STOP': int(stop_ticks / 10),
@@ -1359,8 +1348,7 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # add all expected I3Live messages
-        re_val = re.compile(r"received request at \S+ \S+")
-        hsr.i3socket().addExpectedValue(re_val)
+        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
         hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
                                          'UTCSTART': str(utcstart),
                                          'STOP': int(stop_ticks / 10),
@@ -1452,8 +1440,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("No relevant files found")
 
         # add all expected I3Live messages
-        re_val = re.compile(r"received request at \S+ \S+")
-        hsr.i3socket().addExpectedValue(re_val)
+        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
         hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
                                          'UTCSTART': str(utcstart),
                                          'STOP': int(stop_ticks / 10),
@@ -1535,8 +1522,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("alert_start is in the FUTURE ?!")
 
         # add all expected I3Live messages
-        re_val = re.compile(r"received request at \S+ \S+")
-        hsr.i3socket().addExpectedValue(re_val)
+        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
         hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
                                          'UTCSTART': str(utcstart),
                                          'STOP': int(stop_ticks / 10),
@@ -1591,8 +1577,7 @@ class HsWorkerTest(LoggingTestCase):
                               " Assign: all HS data of lastRun instead.")
 
         # add all expected I3Live messages
-        re_val = re.compile(r"received request at \S+ \S+")
-        hsr.i3socket().addExpectedValue(re_val)
+        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
         hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
                                          'UTCSTART': str(utcstart),
                                          'STOP': int(stop_ticks / 10),
@@ -1677,8 +1662,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("failed rsync process:\nFakeFail")
 
         # add all expected I3Live messages
-        re_val = re.compile(r"received request at \S+ \S+")
-        hsr.i3socket().addExpectedValue(re_val)
+        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
         hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
                                          'UTCSTART': str(utcstart),
                                          'STOP': int(stop_ticks / 10),
@@ -1709,6 +1693,89 @@ class HsWorkerTest(LoggingTestCase):
                                   "msgtype": "rsync_sum",
                                   "copydir_user": alert[0]['copy'],
                                   "copydir": copydir,
+                                 })
+
+        # test parser
+        hsr.alert_parser(json.dumps(alert), logfile, sleep_secs=0)
+
+        hsr.check_for_unused_links()
+
+    def test_works(self):
+        # create the worker object
+        hsr = self.create_wrapped()
+
+        # define alert times
+        start_ticks = 157886364643994920
+        stop_ticks = start_ticks + self.ONE_MINUTE
+
+        # create the alert
+        alert = [{'start': str(start_ticks / 10),
+                  'stop': str(stop_ticks / 10),
+                  'copy': "/foo/bar",
+                 },]
+
+        # create lastRun directory
+        last_start = start_ticks - (self.ONE_MINUTE * 10)
+        last_stop = start_ticks - (self.ONE_MINUTE * 6)
+        self.__populate_run(hsr, "lastRun", last_start, last_stop)
+
+        # create currentRun directory
+        cur_start = start_ticks - self.ONE_MINUTE
+        cur_stop = stop_ticks + self.ONE_MINUTE
+        self.__populate_run(hsr, "currentRun", cur_start, cur_stop)
+
+        # create copy directory
+        self.__create_copydir(hsr)
+
+        # set log file name
+        logfile = "unknown.log"
+
+        # initialize formatted start/stop times
+        utcstart = HsTestUtil.get_time(start_ticks)
+        utcstop = HsTestUtil.get_time(stop_ticks)
+
+        # add all expected log messages
+        self.expectLogMessage("Requested HS data copy destination differs"
+                              " from default!")
+        self.expectLogMessage("data will be sent to default destination: %s" %
+                              hsr.TEST_COPY_DIR)
+
+        # add all expected I3Live messages
+        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
+        hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
+                                         'UTCSTART': str(utcstart),
+                                         'STOP': int(stop_ticks / 10),
+                                         'UTCSTOP': str(utcstop),
+                                        })
+
+        # TODO should compute the expected number of files
+        hsr.add_expected_links(utcstart, "currentRun", 4, 5,
+                               i3socket=hsr.i3socket(),
+                               finaldir=alert[0]['copy'])
+
+        # reformat time string for file names
+        timetag = utcstart.strftime("%Y%m%d_%H%M%S")
+
+        # build copy/log directories passed to HsSender
+        copydir = os.path.join(self.COPY_DIR,
+                               "ANON_%s_%s" % (timetag, hsr.fullhost()))
+        logfiledir = os.path.join(self.COPY_DIR, "logs")
+
+        # initialize hsr.sender().socket and add all expected HsSender messages
+        hsr.sender().addExpected({"hubname": hsr.shorthost(),
+                                  "dataload": "TBD",
+                                  "datastart": str(utcstart),
+                                  "alertid": timetag,
+                                  "datastop": str(utcstop),
+                                  "msgtype": "rsync_sum",
+                                  "copydir_user": alert[0]['copy'],
+                                  "copydir": copydir,
+                                 })
+        hsr.sender().addExpected({"msgtype": "log_done",
+                                  "logfile_hsworker": logfile,
+                                  "hubname": hsr.shorthost(),
+                                  "logfiledir": logfiledir,
+                                  "alertid": timetag,
                                  })
 
         # test parser

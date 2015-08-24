@@ -4,6 +4,7 @@
 import datetime
 import os
 import sqlite3
+import struct
 import tempfile
 import zmq
 
@@ -11,7 +12,37 @@ import zmq
 JAN1 = None
 
 
+def create_hits(filename, start_tick, stop_tick, interval):
+    hit_type = 3
+    hit_len = 54
+    ignored = 0L
+    mbid = 0x1234567890123
+
+    filler = [i for i in range((hit_len - 32) / 2)]
+    # byte-order word must be 1
+    filler[0] = 1
+
+    fout = open(filename, "wb")
+    try:
+        tick = start_tick
+        while tick <= stop_tick:
+            buf = struct.pack(">IIQQQ%sH" % len(filler), hit_len, hit_type,
+                              ignored, mbid, tick, *filler)
+            fout.write(buf)
+            if tick == stop_tick:
+                break
+            tick += interval
+            if tick > stop_tick:
+                tick = stop_tick
+    finally:
+        fout.close()
+
+
 def get_time(tick, is_sn_ns=False):
+    """
+    Convert a DAQ tick to a Python `datetime`
+    NOTE: this conversion does not include leapseconds!!!
+    """
     global JAN1
 
     if JAN1 is None:
@@ -303,7 +334,8 @@ class HsTestRunner(object):
                                    make_bad=make_bad, debug=debug)
 
     def add_expected_files(self, alert_start, alert_stop, run_start, run_stop,
-                           interval, fail_links=False, use_db=False):
+                           interval, destdir=None, fail_links=False,
+                           fail_extract=False, use_db=False):
         if not use_db:
             raise Exception("Non-DB tests should use add_expected_links")
 
@@ -316,6 +348,12 @@ class HsTestRunner(object):
 
         firstfile = None
         numfiles = None
+
+        # if extract should fail, all hits will be later than expected
+        if not fail_extract:
+            offset = 0
+        else:
+            offset = (alert_stop - alert_start) * 100
 
         first_time = int(run_start / interval) * interval
         for tick in range(first_time, run_stop, interval):
@@ -333,15 +371,25 @@ class HsTestRunner(object):
                 else:
                     numfiles += 1
 
-
             filename = "HitSpool-%d.dat" % filenum
             cursor.execute("insert or replace"
                            " into hitspool(filename, start_tick, stop_tick)"
                            " values (?,?,?)", (filename, start_tick, stop_tick))
 
+            if destdir is not None:
+                # how many hits should the file contain?
+                num_hits_per_file = 20
+                tick_ival = interval / num_hits_per_file
+                if tick_ival == 0:
+                    tick_ival = 1
+
+                # create the file and fill it with hits
+                create_hits(os.path.join(destdir, filename),
+                            start_tick + offset, stop_tick + offset, tick_ival)
+
         conn.commit()
 
-        if firstfile is not None and not fail_links:
+        if firstfile is not None and destdir is None and not fail_links:
             utc = get_time(alert_start)
             self.__hsr.add_expected_links(utc, "hitspool", firstfile, numfiles)
 
@@ -384,7 +432,8 @@ class HsTestRunner(object):
 
             self.__populate_one(testobj.HUB_DIR, hdir, rundata, use_db=use_db)
 
-    def run(self, start_ticks, stop_ticks, copydir="me@host:/a/b/c"):
+    def run(self, start_ticks, stop_ticks, copydir="me@host:/a/b/c",
+            extract_hits=False):
         if start_ticks is None:
             start_time = None
         else:
@@ -394,7 +443,8 @@ class HsTestRunner(object):
         else:
             stop_time = get_time(stop_ticks)
 
-        self.__hsr.request_parser(start_time, stop_time, copydir, sleep_secs=0)
+        self.__hsr.request_parser(start_time, stop_time, copydir,
+                                  extract_hits=extract_hits, sleep_secs=0)
 
         if self.__check_links:
             self.__hsr.check_for_unused_links()

@@ -77,7 +77,7 @@ class HsGrabber(HsBase.HsBase):
         return self.__poller
 
     def send_alert(self, timeout, alert_start_sn, alert_stop_sn, copydir,
-                   print_dots=True):
+                   extract_hits=False, print_dots=True):
         '''
         Send request to Publisher and wait for response
         '''
@@ -113,6 +113,9 @@ class HsGrabber(HsBase.HsBase):
             alert = {"start": alert_start_sn,
                      "stop": alert_stop_sn,
                      "copy": copydir}
+
+            if extract_hits:
+                alert["extract"] = True
 
             self.__grabber.send(json.dumps(alert))
             logging.info("HsGrabber sent Request")
@@ -171,13 +174,14 @@ if __name__ == "__main__":
         alert_end_utc = None
         copydir = None
         logfile = None
+        extract_hits = False
 
         ##take arguments from command line and check for correct input
         usage = False
         try:
-            opts, _ = getopt.getopt(sys.argv[1:], 'b:c:e:hl:',
+            opts, _ = getopt.getopt(sys.argv[1:], 'b:c:e:hl:x',
                                     ['begin', 'copydir', 'end', 'help',
-                                     'logfile'])
+                                     'logfile', 'extract'])
         except getopt.GetoptError, err:
             print >>sys.stderr, str(err)
             opts = []
@@ -200,6 +204,8 @@ if __name__ == "__main__":
                 copydir = str(arg)
             elif opt == '-l':
                 logfile = str(arg)
+            elif opt == '-x':
+                extract_hits = True
             elif opt == '-h' or opt == '--help':
                 usage = True
 
@@ -235,11 +241,11 @@ It sends SNDAQ timestamps to HsInterface (HsPublisher).
             raise SystemExit(1)
 
         return (alert_start_sn, alert_begin_utc, alert_stop_sn, alert_end_utc,
-                copydir, logfile)
+                copydir, logfile, extract_hits)
 
     def main():
         (alert_start_sn, alert_begin_utc, alert_stop_sn, alert_end_utc, copydir,
-         logfile) = process_args()
+         logfile, extract_hits) = process_args()
 
         hsg = HsGrabber()
 
@@ -266,6 +272,7 @@ It sends SNDAQ timestamps to HsInterface (HsPublisher).
         logging.info("HS DATA BEGIN SNDAQ time: %s", alert_start_sn)
         logging.info("HS DATA END SNDAQ time: %s", alert_stop_sn)
 
-        hsg.send_alert(timeout, alert_start_sn, alert_stop_sn, copydir)
+        hsg.send_alert(timeout, alert_start_sn, alert_stop_sn, copydir,
+                       extract_hits=extract_hits)
 
     main()

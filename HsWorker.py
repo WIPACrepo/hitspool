@@ -87,6 +87,9 @@ class Worker(HsRSyncFiles):
             raise HsException("Bad start time \"%s\": %s" %
                               (alert, traceback.format_exc()))
 
+        # should we extract only the matching hits to a new file?
+        extract_hits = alert_info[0].has_key('extract')
+
         if not alert_info[0].has_key('copy') or alert_info[0]['copy'] is None:
             raise HsException("Copy directory must be set")
 
@@ -130,6 +133,7 @@ class Worker(HsRSyncFiles):
         })
 
         rtnval = self.request_parser(alertstart, alertstop, hs_user_machinedir,
+                                     extract_hits=extract_hits,
                                      sender=self.sender(),
                                      sleep_secs=sleep_secs,
                                      make_remote_dir=False)

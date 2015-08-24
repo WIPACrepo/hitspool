@@ -40,10 +40,12 @@ class Receiver(HsBase.HsBase):
         self.__publisher = self.create_publisher()
         self.__i3socket = self.create_i3socket(expcont)
 
-    def __build_json(self, alert, sn_start_utc, sn_stop_utc):
+    def __build_json(self, alert, sn_start_utc, sn_stop_utc, extract):
         alertmsg = "%s\nstart in UTC : %s\nstop  in UTC : %s\n" \
                    "(no possible leapseconds applied)" % \
                    (alert, sn_start_utc, sn_stop_utc)
+        if extract:
+            alertmsg += "\nExtracting matching hits"
 
         notifies = []
         for email in (HsConstants.ALERT_EMAIL_DEV, HsConstants.ALERT_EMAIL_SN):
@@ -145,9 +147,11 @@ class Receiver(HsBase.HsBase):
                     alertdict = ast.literal_eval(str(alert))
                     alert_start = int(alertdict['start'])
                     alert_stop = int(alertdict['stop'])
+                    extract = alertdict.has_key('extract')
                 except (ValueError, SyntaxError):
                     sn_start_utc = "TBD"
                     sn_stop_utc = "TBD"
+                    extract = False
                 else:
                     jan1 = datetime(datetime.utcnow().year, 1, 1)
 
@@ -164,7 +168,6 @@ class Receiver(HsBase.HsBase):
                                           })
 
                 #publish the request for the HsWorkers:
-                #forwarder.publish(alert)
                 self.__publisher.send("["+alert+"]")
                 logging.info("Publisher published: %s", alert)
 
@@ -174,8 +177,8 @@ class Receiver(HsBase.HsBase):
                                                     " HsWorkers"})
                 # send Live alert JSON for email notification:
 
-                alertjson = self.__build_json(alert, sn_start_utc,
-                                              sn_stop_utc)
+                alertjson = self.__build_json(alert, sn_start_utc, sn_stop_utc,
+                                              extract)
 
                 self.__i3socket.send_json(alertjson)
 
@@ -188,7 +191,7 @@ class Receiver(HsBase.HsBase):
                     logging.error("failed sending confirmation to requester")
 
             except KeyboardInterrupt:
-                # catch termintation signals: can be Ctrl+C (if started loacally)
+                # catch termintation signals: can be Ctrl+C (if started locally)
                 # or another termination message from fabfile
                 logging.warning("KeyboardInterruption received, shutting down...")
                 break

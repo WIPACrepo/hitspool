@@ -19,6 +19,7 @@ import HsUtil
 
 from HsConstants import I3LIVE_PORT, PUBLISHER_PORT, SENDER_PORT
 from HsException import HsException
+from payload import PayloadReader
 
 
 class RunInfoException(Exception):
@@ -178,6 +179,40 @@ class HsRSyncFiles(HsBase.HsBase):
     @staticmethod
     def __db_path(hs_sourcedir):
         return os.path.join(hs_sourcedir, "hitspool", "hitspool.db")
+
+    def __extract_hits(self, src_tuples_list, start_tick, stop_tick, tmp_dir):
+        """
+        Extract hits within [start_ticks, stop_ticks] to a file in tmp_dir
+        and return the new file name
+        """
+        foutname = None
+        fout = None
+
+        try:
+            for src_dir, src_name in src_tuples_list:
+                with PayloadReader(os.path.join(src_dir, src_name)) as rdr:
+                    for pay in rdr:
+                        if pay.utime > stop_tick:
+                            # if past `stop_tick` it's safe to stop looking
+                            break
+
+                        if pay.utime < start_tick:
+                            # nothing yet, keep looking
+                            continue
+
+                        if fout is None:
+                            # if we haven't opened the file yet, do so now
+                            basename = "hits_%d_%d" % (start_tick, stop_tick)
+                            foutname = self.__make_filename(tmp_dir, basename)
+                            fout = open(foutname, "wb")
+
+                        # save this hit
+                        fout.write(pay.bytes)
+        finally:
+            if fout is not None:
+                fout.close()
+
+        return foutname
 
     def __find_requested_files(self, alert_start, alert_stop, hs_sourcedir,
                                sleep_secs):
@@ -371,6 +406,24 @@ class HsRSyncFiles(HsBase.HsBase):
             self.send_alert("linked %s to tmp dir" % next_file)
 
         return copy_files_list
+
+    @staticmethod
+    def __make_filename(dirname, basename, ext=".dat"):
+        """
+        Generate a unique filename
+        dirname - directory where file will be created
+        basename - the base filename (will be used unadorned if possible)
+        ext - the file extension (defaults to ".dat")
+        """
+        basepath = os.path.join(dirname, basename)
+
+        filename = basepath + ext
+        num = 1
+        while True:
+            if not os.path.exists(filename):
+                return filename
+            filename = "%s_%d%s" % (basepath, num, ext)
+            num += 1
 
     def __query_requested_files(self, start_ticks, stop_ticks, hs_sourcedir,
                                 sleep_secs):
@@ -576,7 +629,7 @@ class HsRSyncFiles(HsBase.HsBase):
         os.makedirs(path)
 
     def request_parser(self, alert_start, alert_stop, hs_user_machinedir,
-                       sender=None, sleep_secs=4,
+                       extract_hits=False, sender=None, sleep_secs=4,
                        make_remote_dir=False):
 
         # catch bogus requests
@@ -613,16 +666,19 @@ class HsRSyncFiles(HsBase.HsBase):
         else:
             hs_sourcedir = self.TEST_HUB_DIR
 
-        # -- building tmp directory for relevant hs data copy -- #
+        # convert start/stop times to DAQ ticks
+        start_ticks = HsUtil.get_daq_ticks(self.jan1(), alert_start)
+        stop_ticks = HsUtil.get_daq_ticks(self.jan1(), alert_stop)
 
         hs_dbfile = self.__db_path(hs_sourcedir)
         if os.path.exists(hs_dbfile):
-            start_ticks = HsUtil.get_daq_ticks(self.jan1(), alert_start)
-            stop_ticks = HsUtil.get_daq_ticks(self.jan1(), alert_stop)
             src_tuples_list = self.__query_requested_files(start_ticks,
                                                            stop_ticks,
                                                            hs_sourcedir,
                                                            sleep_secs)
+            if src_tuples_list is None:
+                logging.error("No data found between %s and %s" %
+                              (alert_start, alert_stop))
         else:
             src_tuples_list = self.__find_requested_files(alert_start,
                                                           alert_stop,
@@ -633,6 +689,7 @@ class HsRSyncFiles(HsBase.HsBase):
 
         (_, timetag) = self.get_timetag_tuple(hs_copydir, alert_start)
 
+        # temporary directory for relevant hs data copy
         tmp_dir = self.__staging_dir(timetag)
 
         if not os.path.exists(tmp_dir):
@@ -643,8 +700,20 @@ class HsRSyncFiles(HsBase.HsBase):
                 logging.error("Couldn't create %s: %s", tmp_dir, err)
                 return None
 
-        # -- link files to tmp directory -- #
-        copy_files_list = self.__link_files(src_tuples_list, tmp_dir)
+        if not extract_hits:
+            # link files to tmp directory
+            copy_files_list = self.__link_files(src_tuples_list, tmp_dir)
+        else:
+            # write hits within the range to a new file in tmp directory
+            hitfile = self.__extract_hits(src_tuples_list, start_ticks,
+                                          stop_ticks, tmp_dir)
+            if hitfile is None:
+                logging.error("No hits found for [%s-%s] in %s" %
+                              (alert_start, alert_stop, src_tuples_list))
+                return None
+
+            copy_files_list = (hitfile, )
+
         if len(copy_files_list) == 0:
             logging.error("No relevant files found")
             return None

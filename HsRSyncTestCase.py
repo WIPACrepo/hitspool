@@ -2,6 +2,8 @@
 
 
 import logging
+import os
+import re
 import shutil
 
 import HsTestUtil
@@ -81,7 +83,9 @@ class HsRSyncTestCase(LoggingTestCase):
 
         # test parser
         try:
-            hsr.request_parser(None, None, copydir, sleep_secs=0)
+            hsr.request_parser(HsTestUtil.get_time(1),
+                               HsTestUtil.get_time(2),
+                               copydir, sleep_secs=0)
         except TypeError, terr:
             self.assertEquals(str(terr), "expected string or buffer",
                               "Unexpected %s exception: %s" %
@@ -98,7 +102,9 @@ class HsRSyncTestCase(LoggingTestCase):
         copydir = "me@host:/a/b/c"
 
         # test parser
-        hsr.request_parser(None, None, copydir, sleep_secs=0)
+        hsr.request_parser(HsTestUtil.get_time(1),
+                           HsTestUtil.get_time(2),
+                           copydir, sleep_secs=0)
 
     def test_bad_last_run_old(self):
         # create the worker object
@@ -1149,3 +1155,108 @@ class HsRSyncTestCase(LoggingTestCase):
                                   self.INTERVAL, use_db=use_db)
 
         tstrun.run(start_ticks, stop_ticks)
+
+    def test_works(self):
+        # create the worker object
+        hsr = self.create_wrapped()
+
+        # define alert times
+        start_ticks = 157886364643994920
+        stop_ticks = start_ticks + self.ONE_MINUTE
+
+        # create lastRun directory
+        last_start = start_ticks - (self.ONE_MINUTE * 10)
+        last_stop = start_ticks - (self.ONE_MINUTE * 6)
+
+        # create currentRun directory
+        cur_start = start_ticks - self.ONE_MINUTE
+        cur_stop = stop_ticks + self.ONE_MINUTE
+
+        # use DB or old info.txt?
+        use_db = True
+
+        tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
+                                         cur_stop, interval=self.INTERVAL)
+
+        tstrun.populate(self, use_db=use_db)
+
+        # add all expected files being transferred
+        tstrun.add_expected_files(start_ticks, stop_ticks, last_start,
+                                  last_stop, self.INTERVAL, use_db=use_db)
+        tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
+                                  self.INTERVAL, use_db=use_db)
+
+        tstrun.run(start_ticks, stop_ticks)
+
+    def test_extract(self):
+        # create the worker object
+        hsr = self.create_wrapped()
+
+        # define alert times
+        start_ticks = 157886364643994920
+        stop_ticks = start_ticks + self.ONE_MINUTE
+
+        # create lastRun directory
+        last_start = start_ticks - (self.ONE_MINUTE * 10)
+        last_stop = start_ticks - (self.ONE_MINUTE * 6)
+
+        # create currentRun directory
+        cur_start = start_ticks - self.ONE_MINUTE
+        cur_stop = stop_ticks + self.ONE_MINUTE
+
+        # use DB or old info.txt?
+        use_db = True
+
+        tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
+                                         cur_stop, interval=self.INTERVAL)
+
+        tstrun.populate(self, use_db=use_db)
+
+        # add all expected files being transferred
+        destdir = os.path.join(self.HUB_DIR, "hitspool")
+        tstrun.add_expected_files(start_ticks, stop_ticks, last_start,
+                                  last_stop, self.INTERVAL, use_db=use_db,
+                                  destdir=destdir)
+        tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
+                                  self.INTERVAL, use_db=use_db,
+                                  destdir=destdir)
+
+        tstrun.run(start_ticks, stop_ticks, extract_hits=True)
+
+    def test_extract_fail(self):
+        # create the worker object
+        hsr = self.create_wrapped()
+
+        # define alert times
+        start_ticks = 157886364643994920
+        stop_ticks = start_ticks + self.ONE_MINUTE
+
+        # create lastRun directory
+        last_start = start_ticks - (self.ONE_MINUTE * 10)
+        last_stop = start_ticks - (self.ONE_MINUTE * 6)
+
+        # create currentRun directory
+        cur_start = start_ticks - self.ONE_MINUTE
+        cur_stop = stop_ticks + self.ONE_MINUTE
+
+        # use DB or old info.txt?
+        use_db = True
+
+        tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
+                                         cur_stop, interval=self.INTERVAL)
+
+        tstrun.populate(self, use_db=use_db)
+
+        # add all expected log messages
+        self.expectLogMessage(re.compile("No hits found for .*"))
+
+        # add all expected files being transferred
+        destdir = os.path.join(self.HUB_DIR, "hitspool")
+        tstrun.add_expected_files(start_ticks, stop_ticks, last_start,
+                                  last_stop, self.INTERVAL, use_db=use_db,
+                                  destdir=destdir, fail_extract=True)
+        tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
+                                  self.INTERVAL, use_db=use_db,
+                                  destdir=destdir, fail_extract=True)
+
+        tstrun.run(start_ticks, stop_ticks, extract_hits=True)
