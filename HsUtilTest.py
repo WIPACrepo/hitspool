@@ -7,9 +7,13 @@ import HsUtil
 import HsTestUtil
 
 try:
+    # pylint: disable=unused-import
+    # test for modern (post 2.6) unittest function
     from unittest import skip as xxx
+    # if we made it here, we don't need to augment the <=2.6 TestCase
     from unittest import TestCase as TestCasePlus
 except ImportError:
+    # add assertIsNone() and assertIsNotNone() to older TestCase
     from unittest import TestCase
     class TestCasePlus(TestCase):
         def assertIsNone(self, var, msg=None):

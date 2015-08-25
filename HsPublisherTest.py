@@ -65,7 +65,7 @@ class HsPublisherTest(LoggingTestCase):
         rcvr.alert_socket().addExpected("DONE\0")
 
         # notification message strings
-        notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % rcvr.cluster()
+        notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % rcvr.cluster
         notify_lines = [req_str,
                         'start in UTC : %s' % start_utc,
                         'stop  in UTC : %s' % stop_utc,
@@ -73,10 +73,10 @@ class HsPublisherTest(LoggingTestCase):
                        ]
 
         # initialize I3Live socket and add all expected I3Live messages
-        rcvr.i3socket().addExpectedValue("Received data request for"
-                                         " [%s , %s] " % (start_utc, stop_utc))
-        rcvr.i3socket().addExpectedValue("Published request to HsWorkers")
-        rcvr.i3socket().addExpectedAlert(
+        rcvr.i3socket.addExpectedValue("Received data request for"
+                                       " [%s , %s] " % (start_utc, stop_utc))
+        rcvr.i3socket.addExpectedValue("Published request to HsWorkers")
+        rcvr.i3socket.addExpectedAlert(
             {'condition': notify_hdr,
              'desc': 'HsInterface Data Request',
              'notifies': [
@@ -94,7 +94,7 @@ class HsPublisherTest(LoggingTestCase):
             })
 
         # initialize outgoing socket and add all expected messages
-        rcvr.publisher().addExpected("[%s]" % req_str)
+        rcvr.publisher.addExpected("[%s]" % req_str)
 
         # add all expected log messages
         self.expectLogMessage("received request:\n%s" % req_str)
@@ -120,7 +120,7 @@ class HsPublisherTest(LoggingTestCase):
         rcvr.alert_socket().addExpected("DONE\0")
 
         # notification message strings
-        notify_hdr = 'DATA REQUEST HsInterface Alert: %s'% rcvr.cluster()
+        notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % rcvr.cluster
         notify_lines = [req_str,
                         'start in UTC : %s' % start_utc,
                         'stop  in UTC : %s' % stop_utc,
@@ -128,9 +128,9 @@ class HsPublisherTest(LoggingTestCase):
                        ]
 
         # initialize I3Live socket and add all expected I3Live messages
-        rcvr.i3socket().addExpectedValue("Received data request for [TBD , TBD] ")
-        rcvr.i3socket().addExpectedValue("Published request to HsWorkers")
-        rcvr.i3socket().addExpectedAlert(
+        rcvr.i3socket.addExpectedValue("Received data request for [TBD , TBD] ")
+        rcvr.i3socket.addExpectedValue("Published request to HsWorkers")
+        rcvr.i3socket.addExpectedAlert(
             {'condition': notify_hdr,
              'desc': 'HsInterface Data Request',
              'notifies': [
@@ -148,7 +148,7 @@ class HsPublisherTest(LoggingTestCase):
             })
 
         # initialize outgoing socket and add all expected messages
-        rcvr.publisher().addExpected("[%s]" % req_str)
+        rcvr.publisher.addExpected("[%s]" % req_str)
 
         # add all expected log messages
         self.expectLogMessage("received request:\n%s" % req_str)
@@ -174,7 +174,7 @@ class HsPublisherTest(LoggingTestCase):
         rcvr.alert_socket().addExpected("DONE\0")
 
         # notification message strings
-        notify_hdr = 'DATA REQUEST HsInterface Alert: %s'% rcvr.cluster()
+        notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % rcvr.cluster
         notify_lines = [req_str,
                         'start in UTC : %s' % start_utc,
                         'stop  in UTC : %s' % stop_utc,
@@ -182,10 +182,10 @@ class HsPublisherTest(LoggingTestCase):
                        ]
 
         # initialize I3Live socket and add all expected I3Live messages
-        rcvr.i3socket().addExpectedValue("Received data request for"
-                                         " [%s , %s] " % (start_utc, stop_utc))
-        rcvr.i3socket().addExpectedValue("Published request to HsWorkers")
-        rcvr.i3socket().addExpectedAlert(
+        rcvr.i3socket.addExpectedValue("Received data request for"
+                                       " [%s , %s] " % (start_utc, stop_utc))
+        rcvr.i3socket.addExpectedValue("Published request to HsWorkers")
+        rcvr.i3socket.addExpectedAlert(
             {'condition': notify_hdr,
              'desc': 'HsInterface Data Request',
              'notifies': [
@@ -203,7 +203,7 @@ class HsPublisherTest(LoggingTestCase):
             })
 
         # initialize outgoing socket and add all expected messages
-        rcvr.publisher().addExpected("[%s]" % req_str)
+        rcvr.publisher.addExpected("[%s]" % req_str)
 
         # add all expected log messages
         self.expectLogMessage("received request:\n%s" % req_str)
@@ -230,7 +230,7 @@ class HsPublisherTest(LoggingTestCase):
         rcvr.alert_socket().addExpected("DONE\0")
 
         # notification message strings
-        notify_hdr = 'DATA REQUEST HsInterface Alert: %s'% rcvr.cluster()
+        notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % rcvr.cluster
         notify_lines = [req_str,
                         'start in UTC : %s' % start_utc,
                         'stop  in UTC : %s' % stop_utc,
@@ -238,10 +238,10 @@ class HsPublisherTest(LoggingTestCase):
                        ]
 
         # initialize I3Live socket and add all expected I3Live messages
-        rcvr.i3socket().addExpectedValue("Received data request for"
-                                         " [%s , %s] " % (start_utc, stop_utc))
-        rcvr.i3socket().addExpectedValue("Published request to HsWorkers")
-        rcvr.i3socket().addExpectedAlert(
+        rcvr.i3socket.addExpectedValue("Received data request for"
+                                       " [%s , %s] " % (start_utc, stop_utc))
+        rcvr.i3socket.addExpectedValue("Published request to HsWorkers")
+        rcvr.i3socket.addExpectedAlert(
             {'condition': notify_hdr,
              'desc': 'HsInterface Data Request',
              'notifies': [
@@ -259,7 +259,7 @@ class HsPublisherTest(LoggingTestCase):
             })
 
         # initialize outgoing socket and add all expected messages
-        rcvr.publisher().addExpected("[%s]" % req_str)
+        rcvr.publisher.addExpected("[%s]" % req_str)
 
         # add all expected log messages
         self.expectLogMessage("received request:\n%s" % req_str)
@@ -288,7 +288,7 @@ class HsPublisherTest(LoggingTestCase):
         rcvr.alert_socket().addExpected("DONE\0", answer="XXX")
 
         # notification message strings
-        notify_hdr = 'DATA REQUEST HsInterface Alert: %s'% rcvr.cluster()
+        notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % rcvr.cluster
         notify_lines = [req_str,
                         'start in UTC : %s' % start_utc,
                         'stop  in UTC : %s' % stop_utc,
@@ -296,10 +296,10 @@ class HsPublisherTest(LoggingTestCase):
                        ]
 
         # initialize I3Live socket and add all expected I3Live messages
-        rcvr.i3socket().addExpectedValue("Received data request for"
-                                         " [%s , %s] " % (start_utc, stop_utc))
-        rcvr.i3socket().addExpectedValue("Published request to HsWorkers")
-        rcvr.i3socket().addExpectedAlert(
+        rcvr.i3socket.addExpectedValue("Received data request for"
+                                       " [%s , %s] " % (start_utc, stop_utc))
+        rcvr.i3socket.addExpectedValue("Published request to HsWorkers")
+        rcvr.i3socket.addExpectedAlert(
             {'condition': notify_hdr,
              'desc': 'HsInterface Data Request',
              'notifies': [
@@ -317,7 +317,7 @@ class HsPublisherTest(LoggingTestCase):
             })
 
         # initialize outgoing socket and add all expected messages
-        rcvr.publisher().addExpected("[%s]" % req_str)
+        rcvr.publisher.addExpected("[%s]" % req_str)
 
         # add all expected log messages
         self.expectLogMessage("received request:\n%s" % req_str)
@@ -346,7 +346,7 @@ class HsPublisherTest(LoggingTestCase):
         rcvr.alert_socket().addExpected("DONE\0")
 
         # notification message strings
-        notify_hdr = 'DATA REQUEST HsInterface Alert: %s'% rcvr.cluster()
+        notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % rcvr.cluster
         notify_lines = [req_str,
                         'start in UTC : %s' % start_utc,
                         'stop  in UTC : %s' % stop_utc,
@@ -354,10 +354,10 @@ class HsPublisherTest(LoggingTestCase):
                        ]
 
         # initialize I3Live socket and add all expected I3Live messages
-        rcvr.i3socket().addExpectedValue("Received data request for"
-                                         " [%s , %s] " % (start_utc, stop_utc))
-        rcvr.i3socket().addExpectedValue("Published request to HsWorkers")
-        rcvr.i3socket().addExpectedAlert(
+        rcvr.i3socket.addExpectedValue("Received data request for"
+                                       " [%s , %s] " % (start_utc, stop_utc))
+        rcvr.i3socket.addExpectedValue("Published request to HsWorkers")
+        rcvr.i3socket.addExpectedAlert(
             {'condition': notify_hdr,
              'desc': 'HsInterface Data Request',
              'notifies': [
@@ -375,7 +375,7 @@ class HsPublisherTest(LoggingTestCase):
             })
 
         # initialize outgoing socket and add all expected messages
-        rcvr.publisher().addExpected("[%s]" % req_str)
+        rcvr.publisher.addExpected("[%s]" % req_str)
 
         # add all expected log messages
         self.expectLogMessage("received request:\n%s" % req_str)

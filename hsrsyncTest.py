@@ -40,10 +40,12 @@ class MyHsRSync(hsrsync.HsRSync):
 
 
 class HsRSyncTest(HsRSyncTestCase.HsRSyncTestCase):
-    def create_real(self):
+    @property
+    def real_object(self):
         return hsrsync.HsRSync(is_test=True)
 
-    def create_wrapped(self):
+    @property
+    def wrapped_object(self):
         return MyHsRSync(is_test=True)
 
     def setUp(self):

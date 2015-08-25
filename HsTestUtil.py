@@ -147,7 +147,7 @@ class Mock0MQSocket(object):
                                        expval[xkey], type(expval[xkey]))
                     if badstr is not None:
                         badval[key] = badstr
-                elif type(expval) == type(val):
+                elif isinstance(val, type(expval)):
                     if expval != val:
                         badval[key] = "'%s' != expected '%s'" % (val, expval)
                 else:

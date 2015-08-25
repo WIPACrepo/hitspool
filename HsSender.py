@@ -77,6 +77,7 @@ class HsSender(HsBase.HsBase):
 
         raise SystemExit(1)
 
+    @property
     def i3socket(self):
         return self.__i3socket
 
@@ -110,7 +111,7 @@ class HsSender(HsBase.HsBase):
         hs_basedir, no_spade \
             = self.hs_data_location_check(copydir, copydir_user,
                                           force_spade=force_spade)
-        if force_spade or self.is_cluster_sps():
+        if force_spade or self.is_cluster_sps:
             if no_spade and not force_spade:
                 logging.info("Not scheduling for SPADE pickup")
             else:
@@ -140,6 +141,7 @@ class HsSender(HsBase.HsBase):
 
         return True
 
+    @property
     def reporter(self):
         return self.__reporter
 
@@ -150,7 +152,7 @@ class HsSender(HsBase.HsBase):
         """
 
         if not os.path.isdir(copydir):
-            logging.error("Source directory \"%s\" does not exist" % copydir)
+            logging.error("Source directory \"%s\" does not exist", copydir)
             return None, True
 
         logging.info("Checking the data location...")
@@ -217,7 +219,7 @@ class HsSender(HsBase.HsBase):
 
         logging.info("Preparation for SPADE Pickup of %s DONE", copydir)
         self.__i3socket.send_json({"service": "HSiface",
-                                   "varname": "HsSender@" + self.shorthost(),
+                                   "varname": "HsSender@%s" % self.shorthost,
                                    "value": "SPADE-ing of %s done" % copydir})
 
         return (hs_bzipname, hs_spade_semfile)
@@ -291,16 +293,15 @@ if __name__ == "__main__":
             newmsg.HS_SPADE_DIR = spadedir
 
         if logfile is None:
-            if newmsg.is_cluster_local():
+            if newmsg.is_cluster_local:
                 logdir = "/home/david/TESTCLUSTER/2ndbuild/logs"
             else:
                 logdir = "/mnt/data/pdaqlocal/HsInterface/logs"
-            logfile = os.path.join(logdir, "hssender_%s.log" %
-                                   newmsg.shorthost())
+            logfile = os.path.join(logdir, "hssender_%s.log" % newmsg.shorthost)
 
         newmsg.init_logging(logfile)
 
-        logging.info("HsSender starts on %s", newmsg.shorthost())
+        logging.info("HsSender starts on %s", newmsg.shorthost)
 
         while True:
             logging.info("HsSender waits for new reports from HsWorkers...")

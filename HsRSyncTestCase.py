@@ -22,10 +22,12 @@ class HsRSyncTestCase(LoggingTestCase):
     # this is initialized in HsTestUtil.populate()
     HUB_DIR = None
 
-    def create_real(self):
+    @property
+    def real_object(self):
         raise NotImplementedError()
 
-    def create_wrapped(self):
+    @property
+    def wrapped_object(self):
         raise NotImplementedError()
 
     def setUp(self):
@@ -45,7 +47,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_nothing(self):
         # create the worker object
-        hsr = self.create_real()
+        hsr = self.real_object
 
         # check all log messages
         self.setLogLevel(0)
@@ -63,7 +65,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_initial_old(self):
         # create the worker object
-        hsr = self.create_real()
+        hsr = self.real_object
 
         # initialize copy path
         copyuser = "me"
@@ -78,7 +80,7 @@ class HsRSyncTestCase(LoggingTestCase):
                               (copyuser, copyhost))
         self.expectLogMessage("HS COPYDIR = %s" % copypath)
         self.expectLogMessage("HS DESTINATION HOST: %s" % copyhost)
-        self.expectLogMessage("HsInterface running on: %s" % hsr.cluster())
+        self.expectLogMessage("HsInterface running on: %s" % hsr.cluster)
         self.expectLogMessage("CurrentRun info.txt reading/parsing failed")
 
         # test parser
@@ -93,7 +95,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_no_info_txt_old(self):
         # create the worker object
-        hsr = self.create_real()
+        hsr = self.real_object
         hsr.TEST_HUB_DIR = "/this/directory/does/not/exist"
 
         # add all expected log messages
@@ -108,7 +110,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_bad_last_run_old(self):
         # create the worker object
-        hsr = self.create_real()
+        hsr = self.real_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -138,7 +140,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_bad_current_run_old(self):
         # create the worker object
-        hsr = self.create_real()
+        hsr = self.real_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -168,7 +170,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_not_first_current_file_old(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -198,7 +200,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_not_first_current_file(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -231,7 +233,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_not_first_last_file_old(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -261,7 +263,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_not_first_last_file(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -291,7 +293,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_bad_alert_range_old(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -321,7 +323,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_bad_alert_range(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -351,7 +353,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_partial_current_front_old(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -385,7 +387,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_partial_current_front(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -417,7 +419,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_between_runs_old(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -447,7 +449,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_between_runs(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -482,7 +484,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_partial_last_front_old(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -516,7 +518,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_partial_last_front(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -548,7 +550,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_partial_last_end_old(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -577,7 +579,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_partial_last_end(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -609,7 +611,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_span_time_gap_old(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -639,7 +641,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_span_time_gap(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -671,7 +673,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_span_link_fail_old(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
         hsr.fail_hardlink()
 
         # define alert times
@@ -710,7 +712,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_span_link_fail(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
         hsr.fail_hardlink()
 
         # define alert times
@@ -753,7 +755,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_before_last_start_old(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -783,7 +785,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_before_last_start(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -818,7 +820,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_case5_old(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -847,7 +849,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_case5(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -879,7 +881,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_case5_link_fail_old(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
         hsr.fail_hardlink()
 
         # define alert times
@@ -916,7 +918,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_case5_link_fail(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
         hsr.fail_hardlink()
 
         # define alert times
@@ -960,7 +962,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_alert_in_future_old(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -989,7 +991,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_alert_in_future(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -1024,7 +1026,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_penultimate_old(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -1057,7 +1059,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_penultimate(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -1089,7 +1091,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_fail_rsync_old(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
         hsr.fail_rsync()
 
         # define alert times
@@ -1122,7 +1124,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_fail_rsync(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
         hsr.fail_rsync()
 
         # define alert times
@@ -1158,7 +1160,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_works(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -1190,7 +1192,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_extract(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -1225,7 +1227,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
     def test_extract_fail(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920

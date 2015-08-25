@@ -26,14 +26,14 @@ class MySender(HsSender.HsSender):
         return Mock0MQSocket("Reporter")
 
     def create_i3socket(self, host):
-        return MockI3Socket("HsSender@%s" % self.shorthost())
+        return MockI3Socket("HsSender@%s" % self.shorthost)
 
     def validate(self):
         """
         Check that all expected messages were received by mock sockets
         """
-        self.reporter().validate()
-        self.i3socket().validate()
+        self.reporter.validate()
+        self.i3socket.validate()
 
 
 class FailableSender(MySender):
@@ -465,7 +465,7 @@ class HsSenderTest(LoggingTestCase):
                                             numfiles, real_stuff=True)
 
         # add all expected I3Live messages
-        sender.i3socket().addExpectedValue("SPADE-ing of %s done" % hsdir)
+        sender.i3socket.addExpectedValue("SPADE-ing of %s done" % hsdir)
 
         # set SPADE path to something which exists everywhere
         sender.HS_SPADE_DIR = "/tmp"
@@ -527,7 +527,7 @@ class HsSenderTest(LoggingTestCase):
         msg = None
 
         # add all expected JSON messages
-        sender.reporter().addIncoming(msg)
+        sender.reporter.addIncoming(msg)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -549,7 +549,7 @@ class HsSenderTest(LoggingTestCase):
         msg = json.dumps("abc")
 
         # add all expected JSON messages
-        sender.reporter().addIncoming(msg)
+        sender.reporter.addIncoming(msg)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -573,7 +573,7 @@ class HsSenderTest(LoggingTestCase):
         msg = json.dumps({"abc": 123})
 
         # add all expected JSON messages
-        sender.reporter().addIncoming(msg)
+        sender.reporter.addIncoming(msg)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -597,7 +597,7 @@ class HsSenderTest(LoggingTestCase):
         msg = json.dumps({"msgtype": "rsync_sum"})
 
         # add all expected JSON messages
-        sender.reporter().addIncoming(msg)
+        sender.reporter.addIncoming(msg)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -622,7 +622,7 @@ class HsSenderTest(LoggingTestCase):
                           "copydir_user": "zzz"})
 
         # add all expected JSON messages
-        sender.reporter().addIncoming(msg)
+        sender.reporter.addIncoming(msg)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -664,7 +664,7 @@ class HsSenderTest(LoggingTestCase):
               }
 
         # add all expected JSON messages
-        sender.reporter().addIncoming(json.dumps(msg))
+        sender.reporter.addIncoming(json.dumps(msg))
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)

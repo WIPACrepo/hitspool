@@ -30,7 +30,7 @@ class Receiver(HsBase.HsBase):
     def __init__(self, is_test=False):
         super(Receiver, self).__init__(is_test=is_test)
 
-        if self.is_cluster_local():
+        if self.is_cluster_local:
             expcont = "localhost"
         else:
             expcont = "expcont"
@@ -53,12 +53,12 @@ class Receiver(HsBase.HsBase):
                 "receiver": email,
                 "notifies_txt"   : alertmsg,
                 "notifies_header": "DATA REQUEST HsInterface Alert: %s" % \
-                                   self.cluster(),
+                                   self.cluster,
                 }
             notifies.append(ndict)
 
         value = {"condition"    : "DATA REQUEST HsInterface Alert: %s" % \
-                                  self.cluster(),
+                                  self.cluster,
                  "desc"         : "HsInterface Data Request",
                  "notifies"     : notifies,
                  "short_subject": "true",
@@ -104,7 +104,7 @@ class Receiver(HsBase.HsBase):
         logging.info("bind PUB socket to port %d", PUBLISHER_PORT)
         return sock
 
-    def handler(self, signum, frame):
+    def handler(self, signum, _):
         """Clean exit when program is terminated from outside (via pkill)"""
         logging.warning("Signal Handler called with signal %s", signum)
         logging.warning("Shutting down...\n")
@@ -125,9 +125,11 @@ class Receiver(HsBase.HsBase):
 
         raise SystemExit(0)
 
+    @property
     def i3socket(self):
         return self.__i3socket
 
+    @property
     def publisher(self):
         return self.__publisher
 
@@ -238,16 +240,16 @@ if __name__ == '__main__':
         signal.signal(signal.SIGTERM, receiver.handler)
 
         if logfile is None:
-            if receiver.is_cluster_local():
+            if receiver.is_cluster_local:
                 logdir = "/home/david/TESTCLUSTER/expcont/logs"
             else:
                 logdir = "/mnt/data/pdaqlocal/HsInterface/logs"
             logfile = os.path.join(logdir, "hspublisher_%s.log" %
-                                   receiver.shorthost())
+                                   receiver.shorthost)
 
         receiver.init_logging(logfile)
 
-        logging.info("HsPublisher started on %s", receiver.shorthost())
+        logging.info("HsPublisher started on %s", receiver.shorthost)
 
         receiver.reply_request()
 

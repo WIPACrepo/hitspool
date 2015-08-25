@@ -44,6 +44,7 @@ class HsBase(object):
 
         self.__src_mchn_short = hostname
 
+    @property
     def cluster(self):
         if self.__cluster == self.LOCALHOST:
             return "LOCALHOST"
@@ -55,10 +56,12 @@ class HsBase(object):
             return "TEST"
         return "UNKNOWN(#%d)" % self.__cluster
 
+    @property
     def fullhost(self):
         return self.__src_mchn
 
-    def init_logging(self, logfile=None, level=logging.INFO, both=False):
+    @staticmethod
+    def init_logging(logfile=None, level=logging.INFO, both=False):
         if len(logging.getLogger().handlers) > 0:
             # any logging done before this point creates a StreamHandler
             # which causes basicConfig() to be ignored in Python 2.6
@@ -80,12 +83,15 @@ class HsBase(object):
                 out.setFormatter(logging.Formatter("%(message)s"))
                 logging.getLogger().addHandler(out)
 
+    @property
     def is_cluster_local(self):
         return self.__cluster == self.LOCALHOST
 
+    @property
     def is_cluster_sps(self):
         return self.__cluster == self.SPS
 
+    @property
     def is_cluster_spts(self):
         return self.__cluster == self.SPTS
 
@@ -112,6 +118,7 @@ class HsBase(object):
 
         return True
 
+    @property
     def shorthost(self):
         return self.__src_mchn_short
 
@@ -137,7 +144,8 @@ class HsBase(object):
             # move back to original directory
             os.chdir(curdir)
 
-    def __write_tarfile_internal(self, sourcedir, sourcefiles, tarname):
+    @staticmethod
+    def __write_tarfile_internal(sourcedir, sourcefiles, tarname):
         extra = ""
         if tarname.endswith(".gz") or tarname.endswith(".tgz"):
             extra = ":gz"

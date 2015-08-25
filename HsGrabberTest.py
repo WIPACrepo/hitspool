@@ -24,9 +24,9 @@ class MyGrabber(HsGrabber.HsGrabber):
         return HsTestUtil.MockI3Socket("HsGrabber")
 
     def validate(self):
-        self.grabber().validate()
-        self.poller().validate()
-        self.i3socket().validate()
+        self.grabber.validate()
+        self.poller.validate()
+        self.i3socket.validate()
 
 class HsGrabberTest(LoggingTestCase):
     def setUp(self):
@@ -106,11 +106,11 @@ class HsGrabberTest(LoggingTestCase):
         hsg = MyGrabber()
 
         # add all JSON and response messages
-        hsg.grabber().addExpected(json.dumps(alert))
+        hsg.grabber.addExpected(json.dumps(alert))
 
         # add grabber to poller socket
-        hsg.poller().addPollResult(None)
-        hsg.poller().addPollResult(None)
+        hsg.poller.addPollResult(None)
+        hsg.poller.addPollResult(None)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -144,14 +144,14 @@ class HsGrabberTest(LoggingTestCase):
         hsg = MyGrabber()
 
         # add all JSON and response messages
-        hsg.grabber().addExpected(json.dumps(alert))
-        hsg.grabber().addIncoming("DONE\0")
+        hsg.grabber.addExpected(json.dumps(alert))
+        hsg.grabber.addIncoming("DONE\0")
 
         # add grabber to poller socket
-        hsg.poller().addPollResult(hsg.grabber())
+        hsg.poller.addPollResult(hsg.grabber)
 
         # add all expected I3Live messages
-        hsg.i3socket().addExpectedValue("pushed request")
+        hsg.i3socket.addExpectedValue("pushed request")
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)

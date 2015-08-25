@@ -30,7 +30,7 @@ class HsGrabber(HsBase.HsBase):
     def __init__(self):
         super(HsGrabber, self).__init__()
 
-        if self.is_cluster_local():
+        if self.is_cluster_local:
             expcont = "localhost"
         else:
             expcont = "expcont"
@@ -67,12 +67,15 @@ class HsGrabber(HsBase.HsBase):
         sock.connect("tcp://%s:%d" % (host, I3LIVE_PORT))
         return sock
 
+    @property
     def grabber(self):
         return self.__grabber
 
+    @property
     def i3socket(self):
         return self.__i3socket
 
+    @property
     def poller(self):
         return self.__poller
 
@@ -251,10 +254,10 @@ It sends SNDAQ timestamps to HsInterface (HsPublisher).
 
         hsg.init_logging(logfile, level=logging.INFO)
 
-        logging.info("This HsGrabber runs on: %s", hsg.fullhost())
+        logging.info("This HsGrabber runs on: %s", hsg.fullhost)
 
         if copydir is None:
-            if hsg.is_cluster_local():
+            if hsg.is_cluster_local:
                 import getpass
 
                 sec_bldr = "localhost"

@@ -52,7 +52,7 @@ class Worker(HsRSyncFiles):
 
         self.__copydir_dft = None
         self.__service = "HSiface"
-        self.__varname = "%s@%s" % (progname, self.shorthost())
+        self.__varname = "%s@%s" % (progname, self.shorthost)
 
     def alert_parser(self, alert, logfile, sleep_secs=4):
         """
@@ -134,7 +134,7 @@ class Worker(HsRSyncFiles):
 
         rtnval = self.request_parser(alertstart, alertstop, hs_user_machinedir,
                                      extract_hits=extract_hits,
-                                     sender=self.sender(),
+                                     sender=self.sender,
                                      sleep_secs=sleep_secs,
                                      make_remote_dir=False)
         if rtnval is None:
@@ -143,7 +143,7 @@ class Worker(HsRSyncFiles):
         timetag = rtnval
 
         # -- also transmit the log file to the HitSpool copy directory:
-        if self.is_cluster_sps() or self.is_cluster_spts():
+        if self.is_cluster_sps or self.is_cluster_spts:
             logfiledir = "/mnt/data/pdaqlocal/HsInterface/logs/workerlogs"
             logtargetdir = self.extract_ssh_access(hs_user_machinedir) + ":" + \
                            logfiledir
@@ -158,14 +158,14 @@ class Worker(HsRSyncFiles):
             return None
 
         logging.info("logfile transmitted to copydir: %s", log_rsync_out)
-        if self.sender() is not None:
-            log_json = {"hubname": self.shorthost(),
+        if self.sender is not None:
+            log_json = {"hubname": self.shorthost,
                         "alertid": timetag,
                         "logfiledir": logfiledir,
                         "logfile_hsworker": logfile,
                         "msgtype": "log_done"}
             # XXX lose the json.dumps()
-            self.sender().send_json(json.dumps(log_json))
+            self.sender.send_json(json.dumps(log_json))
             logging.info("sent json to HsSender: %s", log_json)
 
         return True
@@ -183,7 +183,7 @@ class Worker(HsRSyncFiles):
             time.sleep(wait_time)
 
     def extract_ssh_access(self, hs_user_machinedir):
-        if self.is_cluster_sps() or self.is_cluster_spts():
+        if self.is_cluster_sps or self.is_cluster_spts:
             #for the REAL interface
             # data goes ALWAYS to 2ndbuild with user pdaq:
             return 'pdaq@2ndbuild'
@@ -218,13 +218,13 @@ class Worker(HsRSyncFiles):
         if self.__i3socket is not None:
             i3live_dict = {}
             i3live_dict["service"] = "HSiface"
-            i3live_dict["varname"] = "HsWorker@" + self.shorthost()
+            i3live_dict["varname"] = "HsWorker@%s" % self.shorthost
             i3live_dict["value"] = "INFO: SHUT DOWN called by external signal."
             self.__i3socket.send_json(i3live_dict)
 
             i3live_dict = {}
             i3live_dict["service"] = "HSiface"
-            i3live_dict["varname"] = "HsWorker@" + self.shorthost()
+            i3live_dict["varname"] = "HsWorker@%s" % self.shorthost
             i3live_dict["value"] = "STOPPED"
             self.__i3socket.send_json(i3live_dict)
 
@@ -233,11 +233,11 @@ class Worker(HsRSyncFiles):
         raise SystemExit(0)
 
     def mainloop(self, logfile):
-        if self.subscriber() is None:
+        if self.subscriber is None:
             raise Exception("Subscriber has not been initialized")
 
         logging.info("ready for new alert...")
-        message = self.subscriber().recv()
+        message = self.subscriber.recv()
         logging.info("HsWorker received alert message:\n"
                      "%s\nfrom Publisher", message)
         logging.info("start processing alert...")
@@ -245,24 +245,24 @@ class Worker(HsRSyncFiles):
 
     def rsync_target(self, hs_user_machinedir, hs_ssh_access, timetag_dir,
                      hs_copydest):
-        if self.is_cluster_sps() or self.is_cluster_spts():
+        if self.is_cluster_sps or self.is_cluster_spts:
             return hs_ssh_access + '::hitspool/' + timetag_dir
 
         return self.__copydir_dft + timetag_dir
 
     def send_alert(self, value, prio=None):
-        if self.i3socket() is not None:
+        if self.i3socket is not None:
             alert = {}
             alert["service"] = self.__service
             alert["varname"] = self.__varname
             alert["value"] = value
             if prio is not None:
                 alert["prio"] = prio
-            self.i3socket().send_json(alert)
+            self.i3socket.send_json(alert)
 
     def set_default_copydir(self, hs_copydir):
         '''Set default copy destination'''
-        if self.is_cluster_sps() or self.is_cluster_spts():
+        if self.is_cluster_sps or self.is_cluster_spts:
             self.__copydir_dft = "/mnt/data/pdaqlocal/HsDataCopy"
         else:
             self.__copydir_dft = self.TEST_COPY_DIR
@@ -335,16 +335,16 @@ if __name__ == '__main__':
             worker.TEST_HUB_DIR = hubdir
 
         if logfile is None:
-            if worker.is_cluster_sps() or worker.is_cluster_spts():
+            if worker.is_cluster_sps or worker.is_cluster_spts:
                 logdir = "/mnt/data/pdaqlocal/HsInterface/logs"
             else:
                 logdir = os.path.join(worker.TEST_HUB_DIR, "logs")
             logfile = os.path.join(logdir,
-                                   "hsworker_%s.log" % worker.shorthost())
+                                   "hsworker_%s.log" % worker.shorthost)
 
         worker.init_logging(logfile)
 
-        logging.info("this Worker runs on: %s", worker.shorthost())
+        logging.info("this Worker runs on: %s", worker.shorthost)
 
         while True:
             try:

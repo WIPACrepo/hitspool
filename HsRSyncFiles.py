@@ -56,10 +56,10 @@ class RunInfo(object):
                 fin.close()
 
                 try:
-                    self.__startrun = int(infodict['T0'])
-                    self.__cur_time = infodict['CURT']
-                    self.__interval = infodict['IVAL']
-                    self.__ival_sec = self.__interval * 1.0E-10
+                    startrun = int(infodict['T0'])
+                    cur_time = infodict['CURT']
+                    interval = infodict['IVAL']
+                    self.__ival_sec = interval * 1.0E-10
                     self.__cur_file = infodict['CURF']
                     self.__max_files = infodict['MAXF']
                     parsed = True
@@ -71,38 +71,37 @@ class RunInfo(object):
             raise RunInfoException("info.txt reading/parsing failed")
 
         # how long already writing to current file, time in DAQ units
-        total_data = int((self.__cur_time - self.__startrun) / \
-                      (self.__max_files * self.__interval))
+        total_data = int((cur_time - startrun) / \
+                      (self.__max_files * interval))
         if total_data == 0:
             # file index of oldest in buffer existing file
             self.__oldest_file = 0
-            startdata = self.__startrun
+            startdata = startrun
         else:
             # oldest, in hit spool buffer existing time stamp in DAQ units
             self.__oldest_file = self.__cur_file + 1
-            tfile = (self.__cur_time - self.__startrun) % \
-                    self.__interval
-            startdata = int(self.__cur_time - ((self.__max_files - 1) *
-                                               self.__interval) - tfile)
+            tfile = (cur_time - startrun) % interval
+            startdata = int(cur_time - ((self.__max_files - 1) *
+                                        interval) - tfile)
 
         # convert the times into datetime objects
         # PDAQ TIME UNITS ARE 0.1 NANOSECONDS
         # XXX should use leapsecond to get time
         self.__buffstart = self.jan1() + timedelta(seconds=startdata*1.0E-10)
         self.__buffstop = self.jan1() + \
-                          timedelta(seconds=self.__cur_time*1.0E-10)
+                          timedelta(seconds=cur_time*1.0E-10)
 
+    @property
     def buffer_start_utc(self):
         return self.__buffstart
 
+    @property
     def buffer_stop_utc(self):
         return self.__buffstop
 
+    @property
     def cur_file(self):
         return self.__cur_file
-
-    def cur_time(self):
-        return self.__cur_time
 
     def file_num(self, alert_time):
         """
@@ -113,9 +112,6 @@ class RunInfo(object):
         numfiles = seconds / self.__ival_sec
         return int((numfiles + self.__oldest_file) % self.__max_files)
 
-    def interval(self):
-        return self.__interval
-
     @classmethod
     def jan1(cls):
         if cls.JAN1 is None:
@@ -124,14 +120,13 @@ class RunInfo(object):
 
         return cls.JAN1
 
+    @property
     def max_files(self):
         return self.__max_files
 
+    @property
     def oldest_file(self):
         return self.__oldest_file
-
-    def startrun(self):
-        return self.__startrun
 
 
 class HsRSyncFiles(HsBase.HsBase):
@@ -143,7 +138,7 @@ class HsRSyncFiles(HsBase.HsBase):
     def __init__(self, host=None, is_test=False):
         super(HsRSyncFiles, self).__init__(host=host, is_test=is_test)
 
-        if self.is_cluster_sps() or self.is_cluster_spts():
+        if self.is_cluster_sps or self.is_cluster_spts:
             expcont = "expcont"
             sec_bldr = "2ndbuild"
         else:
@@ -155,8 +150,8 @@ class HsRSyncFiles(HsBase.HsBase):
         self.__i3socket = self.create_i3socket(expcont)
         self.__subscriber = self.create_subscriber_socket(expcont)
 
-    def __build_file_list(self, src_dir, spoolname, firstnum, lastnum,
-                          maxfiles):
+    @staticmethod
+    def __build_file_list(src_dir, spoolname, firstnum, lastnum, maxfiles):
         """
         Return a list of tuples containing (spool directory, filename)
         """
@@ -257,26 +252,26 @@ class HsRSyncFiles(HsBase.HsBase):
         # Which Run directory is the correct one: lastRun or currentRun ?
 
         ### XXX should normalize these tests
-        if last_info.buffer_stop_utc() < alert_start < \
-           cur_info.buffer_start_utc() < alert_stop:
+        if last_info.buffer_stop_utc < alert_start < \
+           cur_info.buffer_start_utc < alert_stop:
             spoolname = 'currentRun'
-            sn_start_file = cur_info.oldest_file()
+            sn_start_file = cur_info.oldest_file
             sn_stop_file = cur_info.file_num(alert_stop)
-            sn_max_files = cur_info.max_files()
+            sn_max_files = cur_info.max_files
 
             logging.warning("Sn_start doesn't exist in %s buffer anymore!"
                             " Start with oldest possible data: HitSpool-%d",
-                            spoolname, cur_info.oldest_file())
+                            spoolname, cur_info.oldest_file)
 
-        elif cur_info.buffer_start_utc() < alert_start < alert_stop < \
-             cur_info.buffer_stop_utc():
+        elif cur_info.buffer_start_utc < alert_start < alert_stop < \
+             cur_info.buffer_stop_utc:
             spoolname = 'currentRun'
             sn_start_file = cur_info.file_num(alert_start)
             sn_stop_file = cur_info.file_num(alert_stop)
-            sn_max_files = cur_info.max_files()
+            sn_max_files = cur_info.max_files
 
-        elif last_info.buffer_stop_utc() < alert_start < alert_stop \
-             < cur_info.buffer_start_utc():
+        elif last_info.buffer_stop_utc < alert_start < alert_stop \
+             < cur_info.buffer_start_utc:
             logging.error("Requested data doesn't exist in HitSpool"
                           " Buffer anymore! Abort request.")
 
@@ -284,79 +279,79 @@ class HsRSyncFiles(HsBase.HsBase):
                             " anymore in HsBuffer. Abort request.")
             return None
 
-        elif last_info.buffer_start_utc() < alert_start < \
-             last_info.buffer_stop_utc() < alert_stop:
+        elif last_info.buffer_start_utc < alert_start < \
+             last_info.buffer_stop_utc < alert_stop:
             # tricky case: alert_start in lastRun and alert_stop in currentRun
             spoolname = 'lastRun'
             sn_start_file = last_info.file_num(alert_start)
-            sn_stop_file = last_info.cur_file()
-            sn_max_files = last_info.max_files()
+            sn_stop_file = last_info.cur_file
+            sn_max_files = last_info.max_files
 
             logging.info("Requested data distributed over both Run directories")
 
             # if sn_stop is available from currentRun:
             # define 3 sn_stop files indices to have two data sets:
             # sn_start-sn_stop1 & sn_stop2-sn_top3
-            if cur_info.buffer_start_utc() < alert_stop:
+            if cur_info.buffer_start_utc < alert_stop:
                 logging.info("SN_START & SN_STOP distributed over lastRun"
                              " and currentRun")
                 logging.info("add relevant files from currentRun directory...")
                 #in currentRun:
                 spoolname2 = 'currentRun'
-                sn_start_file2 = cur_info.oldest_file()
+                sn_start_file2 = cur_info.oldest_file
                 sn_stop_file2 = cur_info.file_num(alert_stop)
-                sn_max_files2 = cur_info.max_files()
+                sn_max_files2 = cur_info.max_files
 
-        elif last_info.buffer_start_utc() < alert_start < alert_stop < \
-             last_info.buffer_stop_utc():
+        elif last_info.buffer_start_utc < alert_start < alert_stop < \
+             last_info.buffer_stop_utc:
             spoolname = 'lastRun'
             sn_start_file = last_info.file_num(alert_start)
             sn_stop_file = last_info.file_num(alert_stop)
-            sn_max_files = last_info.max_files()
+            sn_max_files = last_info.max_files
 
-        elif alert_start < last_info.buffer_start_utc() < alert_stop < \
-             last_info.buffer_stop_utc():
+        elif alert_start < last_info.buffer_start_utc < alert_stop < \
+             last_info.buffer_stop_utc:
             spoolname = 'lastRun'
-            sn_start_file = last_info.oldest_file()
+            sn_start_file = last_info.oldest_file
             sn_stop_file = last_info.file_num(alert_stop)
-            sn_max_files = last_info.max_files()
+            sn_max_files = last_info.max_files
 
             logging.warning("sn_start doesn't exist in %s buffer anymore!"
                             " Start with oldest possible data: HitSpool-%d",
-                            spoolname, last_info.oldest_file())
+                            spoolname, last_info.oldest_file)
 
-        elif alert_start < alert_stop < last_info.buffer_start_utc():
+        elif alert_start < alert_stop < last_info.buffer_start_utc:
             logging.error("Requested data doesn't exist in HitSpool Buffer"
                           " anymore! Abort request.")
             self.send_alert("Requested data doesn't exist"
                             " anymore in HsBuffer. Abort request.")
             return None
 
-        elif cur_info.buffer_stop_utc() < alert_start:
+        elif cur_info.buffer_stop_utc < alert_start:
             logging.error("alert_start is in the FUTURE ?!")
             self.send_alert("Requested data is younger than"
                             " most recent HS data. Abort request.")
             return None
 
-        elif alert_start < last_info.buffer_start_utc() < \
-             last_info.buffer_stop_utc() < alert_stop < \
-             cur_info.buffer_start_utc():
+        elif alert_start < last_info.buffer_start_utc < \
+             last_info.buffer_stop_utc < alert_stop < \
+             cur_info.buffer_start_utc:
             logging.warning("alert_start < lastRun < alert_stop < currentRun."
                             " Assign: all HS data of lastRun instead.")
             spoolname = 'lastRun'
-            sn_start_file = last_info.oldest_file()
-            sn_stop_file = last_info.cur_file()
-            sn_max_files = last_info.max_files()
+            sn_start_file = last_info.oldest_file
+            sn_stop_file = last_info.cur_file
+            sn_max_files = last_info.max_files
 
-        elif last_info.buffer_stop_utc() < alert_start < \
-             cur_info.buffer_start_utc() < cur_info.buffer_stop_utc() < \
+        elif last_info.buffer_stop_utc < alert_start < \
+             cur_info.buffer_start_utc < cur_info.buffer_stop_utc < \
              alert_stop:
             logging.warning("lastRun < alert_start < currentRun < alert_stop."
                             " Assign: all HS data of currentRun instead.")
             spoolname = 'currentRun'
-            sn_start_file = cur_info.oldest_file()
-            sn_stop_file = cur_info.cur_file()
-            sn_max_files = cur_info.max_files()
+            sn_start_file = cur_info.oldest_file
+            sn_stop_file = cur_info.cur_file
+            sn_max_files = cur_info.max_files
         else:
             logging.error("Unhandled case ?!")
             self.send_alert("Fell off the end of buffer logic."
@@ -453,7 +448,7 @@ class HsRSyncFiles(HsBase.HsBase):
 
         (timetag_prefix, timetag) = self.get_timetag_tuple(hs_copydir,
                                                            alert_start)
-        timetag_dir = timetag_prefix + "_" + timetag + "_" + self.fullhost()
+        timetag_dir = timetag_prefix + "_" + timetag + "_" + self.fullhost
 
         # ---- Rsync the relevant files to DESTINATION ---- #
 
@@ -479,7 +474,7 @@ class HsRSyncFiles(HsBase.HsBase):
         tmp_dir = self.__staging_dir(timetag)
 
         # --- catch rsync error --- #
-        if len(hs_rsync_err) is not 0:
+        if len(hs_rsync_err) != 0:
             logging.error("failed rsync process:\n%s", hs_rsync_err)
             logging.info("KEEP tmp dir with data in: %s", tmp_dir)
             self.send_alert("ERROR in rsync. Keep tmp dir.")
@@ -487,7 +482,7 @@ class HsRSyncFiles(HsBase.HsBase):
 
             if sender is not None:
                 # send msg to HsSender
-                report_json = {"hubname": self.shorthost(),
+                report_json = {"hubname": self.shorthost,
                                "alertid": timetag,
                                "dataload": int(0),
                                "datastart": str(alert_start),
@@ -505,7 +500,7 @@ class HsRSyncFiles(HsBase.HsBase):
 
         logging.info("rsync out:\n%s", hs_rsync_out)
         logging.info("successful copy of HS data from %s to %s at %s",
-                     self.fullhost(), hs_copydest, hs_ssh_access)
+                     self.fullhost, hs_copydest, hs_ssh_access)
 
         rsync_dataload = re.search(r'(?<=total size is )[0-9]*',
                                    hs_rsync_out[-1])
@@ -521,7 +516,7 @@ class HsRSyncFiles(HsBase.HsBase):
                             (dataload_mb, hs_ssh_access), prio=1)
 
         if sender is not None:
-            report_json = {"hubname": self.shorthost(),
+            report_json = {"hubname": self.shorthost,
                            "alertid": timetag,
                            "dataload": dataload_mb,
                            "datastart": str(alert_start),
@@ -546,7 +541,7 @@ class HsRSyncFiles(HsBase.HsBase):
         return timetag
 
     def __staging_dir(self, timetag):
-        if self.is_cluster_sps() or self.is_cluster_spts():
+        if self.is_cluster_sps or self.is_cluster_spts:
             tmpdir = "/mnt/data/pdaqlocal/tmp"
         else:
             tmpdir = os.path.join(self.TEST_HUB_DIR)
@@ -589,7 +584,7 @@ class HsRSyncFiles(HsBase.HsBase):
 
         # Socket to receive message on:
         sock = self.__context.socket(zmq.SUB)
-        sock.setsockopt(zmq.IDENTITY, self.fullhost())
+        sock.setsockopt(zmq.IDENTITY, self.fullhost)
         sock.setsockopt(zmq.SUBSCRIBE, "")
         sock.connect("tcp://%s:%d" % (host, PUBLISHER_PORT))
         return sock
@@ -614,6 +609,7 @@ class HsRSyncFiles(HsBase.HsBase):
             raise HsException("Cannot link \"%s\" to \"%s\": %s" %
                               (filename, targetdir, err))
 
+    @property
     def i3socket(self):
         return self.__i3socket
 
@@ -659,9 +655,9 @@ class HsRSyncFiles(HsBase.HsBase):
                           "Abort request.", hs_user_machinedir)
             return None
 
-        logging.info("HsInterface running on: %s", self.cluster())
+        logging.info("HsInterface running on: %s", self.cluster)
 
-        if self.is_cluster_sps() or self.is_cluster_spts():
+        if self.is_cluster_sps or self.is_cluster_spts:
             hs_sourcedir = '/mnt/data/pdaqlocal'
         else:
             hs_sourcedir = self.TEST_HUB_DIR
@@ -677,8 +673,8 @@ class HsRSyncFiles(HsBase.HsBase):
                                                            hs_sourcedir,
                                                            sleep_secs)
             if src_tuples_list is None:
-                logging.error("No data found between %s and %s" %
-                              (alert_start, alert_stop))
+                logging.error("No data found between %s and %s", alert_start,
+                              alert_stop)
         else:
             src_tuples_list = self.__find_requested_files(alert_start,
                                                           alert_stop,
@@ -694,7 +690,7 @@ class HsRSyncFiles(HsBase.HsBase):
 
         if not os.path.exists(tmp_dir):
             try:
-                self.mkdir(self.fullhost(), tmp_dir)
+                self.mkdir(self.fullhost, tmp_dir)
                 logging.info("created tmp dir for relevant hs files")
             except StandardError, err:
                 logging.error("Couldn't create %s: %s", tmp_dir, err)
@@ -708,8 +704,8 @@ class HsRSyncFiles(HsBase.HsBase):
             hitfile = self.__extract_hits(src_tuples_list, start_ticks,
                                           stop_ticks, tmp_dir)
             if hitfile is None:
-                logging.error("No hits found for [%s-%s] in %s" %
-                              (alert_start, alert_stop, src_tuples_list))
+                logging.error("No hits found for [%s-%s] in %s", alert_start,
+                              alert_stop, src_tuples_list)
                 return None
 
             copy_files_list = (hitfile, )
@@ -732,11 +728,9 @@ class HsRSyncFiles(HsBase.HsBase):
         relstr = "" if relative else " --no-relative"
 
         if source == "":
-            logging.error("No source specified")
-            return None
+            return None, "No source specified"
         elif target == "":
-            logging.error("No target specified")
-            return None
+            return None, "No target specified"
         elif target[-1] != "/":
             # make sure `rsync` knows the target should be a directory
             target += "/"
@@ -758,7 +752,7 @@ class HsRSyncFiles(HsBase.HsBase):
         return (hs_rsync_out, hs_rsync_err)
 
     def rsync_target(self, hs_user_machinedir, _, timetag_dir, hs_copydest):
-        if self.is_cluster_sps() or self.is_cluster_spts():
+        if self.is_cluster_sps or self.is_cluster_spts:
             return os.path.join(hs_user_machinedir, timetag_dir)
 
         return hs_copydest
@@ -766,11 +760,13 @@ class HsRSyncFiles(HsBase.HsBase):
     def send_alert(self, value, prio=None):
         pass
 
+    @property
     def sender(self):
         return self.__sender
 
     def set_default_copydir(self, hs_copydir):
         pass
 
+    @property
     def subscriber(self):
         return self.__subscriber

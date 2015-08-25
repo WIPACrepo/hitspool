@@ -61,7 +61,7 @@ class MyWorker(HsWorker.Worker):
                             (llen, "" if llen == 1 else "s"))
 
     def create_i3socket(self, host):
-        return HsTestUtil.MockI3Socket("HsWorker@%s" % self.shorthost())
+        return HsTestUtil.MockI3Socket("HsWorker@%s" % self.shorthost)
 
     def create_sender_socket(self, host):
         return MockSenderSocket()
@@ -161,10 +161,12 @@ class HsWorkerTest(LoggingTestCase):
                 for line in fin:
                     print >>sys.stderr, line,
 
-    def create_real(self):
+    @property
+    def real_object(self):
         return HsWorker.Worker("Worker")
 
-    def create_wrapped(self):
+    @property
+    def wrapped_object(self):
         return MyWorker()
 
     def setUp(self):
@@ -186,7 +188,7 @@ class HsWorkerTest(LoggingTestCase):
 
     def test_nothing(self):
         # create the worker object
-        hsr = self.create_real()
+        hsr = self.real_object
 
         # no alert
         alert = None
@@ -207,7 +209,7 @@ class HsWorkerTest(LoggingTestCase):
 
     def test_bad_alert_str(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # bad alert
         alert = "foo"
@@ -232,7 +234,7 @@ class HsWorkerTest(LoggingTestCase):
 
     def test_bad_alert_empty(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # empty alert
         alert = []
@@ -253,7 +255,7 @@ class HsWorkerTest(LoggingTestCase):
 
     def test_bad_alert_dict(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # bad alert
         alert = {}
@@ -274,7 +276,7 @@ class HsWorkerTest(LoggingTestCase):
 
     def test_alert_bad_start(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # create the alert
         alert = [{'start': None,
@@ -300,7 +302,7 @@ class HsWorkerTest(LoggingTestCase):
 
     def test_alert_bad_stop(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 1234567890
@@ -329,7 +331,7 @@ class HsWorkerTest(LoggingTestCase):
 
     def test_alert_bad_copy(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -359,7 +361,7 @@ class HsWorkerTest(LoggingTestCase):
 
     def test_huge_time_range(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -381,9 +383,9 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage(errmsg)
 
         # add all expected I3Live messages
-        hsr.i3socket().addExpectedValue(re.compile(r"received request at"
-                                                   r" \S+ \S+"))
-        hsr.i3socket().addExpectedValue("ERROR: " + errmsg)
+        hsr.i3socket.addExpectedValue(re.compile(r"received request at"
+                                                 r" \S+ \S+"))
+        hsr.i3socket.addExpectedValue("ERROR: " + errmsg)
 
         # initialize remaining values
         logfile = None
@@ -393,7 +395,7 @@ class HsWorkerTest(LoggingTestCase):
 
     def test_no_info_txt(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -417,14 +419,14 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("CurrentRun info.txt reading/parsing failed")
 
         # add all expected I3Live messages
-        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
-                                         'UTCSTART': str(utcstart),
-                                         'STOP': int(stop_ticks / 10),
-                                         'UTCSTOP': str(utcstop),
-                                        })
-        hsr.i3socket().addExpectedValue('ERROR: Current Run info.txt'
-                                        ' reading/parsing failed')
+        hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
+        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
+                                       'UTCSTART': str(utcstart),
+                                       'STOP': int(stop_ticks / 10),
+                                       'UTCSTOP': str(utcstop),
+                                      })
+        hsr.i3socket.addExpectedValue('ERROR: Current Run info.txt'
+                                      ' reading/parsing failed')
 
         # initialize remaining values
         logfile = None
@@ -434,7 +436,7 @@ class HsWorkerTest(LoggingTestCase):
 
     def test_bad_last_run(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -472,14 +474,14 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("LastRun info.txt reading/parsing failed")
 
         # add all expected I3Live messages
-        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
-                                         'UTCSTART': str(utcstart),
-                                         'STOP': int(stop_ticks / 10),
-                                         'UTCSTOP': str(utcstop),
-                                        })
-        hsr.i3socket().addExpectedValue('ERROR: Last Run info.txt'
-                                        ' reading/parsing failed')
+        hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
+        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
+                                       'UTCSTART': str(utcstart),
+                                       'STOP': int(stop_ticks / 10),
+                                       'UTCSTOP': str(utcstop),
+                                      })
+        hsr.i3socket.addExpectedValue('ERROR: Last Run info.txt'
+                                      ' reading/parsing failed')
 
         # initialize remaining values
         logfile = "unknown.log"
@@ -489,7 +491,7 @@ class HsWorkerTest(LoggingTestCase):
 
     def test_bad_current_run(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -528,14 +530,14 @@ class HsWorkerTest(LoggingTestCase):
 
 
         # add all expected I3Live messages
-        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
-                                         'UTCSTART': str(utcstart),
-                                         'STOP': int(stop_ticks / 10),
-                                         'UTCSTOP': str(utcstop),
-                                        })
-        hsr.i3socket().addExpectedValue('ERROR: Current Run info.txt'
-                                        ' reading/parsing failed')
+        hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
+        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
+                                       'UTCSTART': str(utcstart),
+                                       'STOP': int(stop_ticks / 10),
+                                       'UTCSTOP': str(utcstop),
+                                      })
+        hsr.i3socket.addExpectedValue('ERROR: Current Run info.txt'
+                                      ' reading/parsing failed')
 
         # initialize remaining values
         logfile = "unknown.log"
@@ -545,7 +547,7 @@ class HsWorkerTest(LoggingTestCase):
 
     def test_not_first_current_file(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -585,16 +587,16 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # add all expected I3Live messages
-        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
-                                         'UTCSTART': str(utcstart),
-                                         'STOP': int(stop_ticks / 10),
-                                         'UTCSTOP': str(utcstop),
-                                        })
+        hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
+        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
+                                       'UTCSTART': str(utcstart),
+                                       'STOP': int(stop_ticks / 10),
+                                       'UTCSTOP': str(utcstop),
+                                      })
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(utcstart, "lastRun", 4, 5,
-                               i3socket=hsr.i3socket(),
+                               i3socket=hsr.i3socket,
                                finaldir=alert[0]['copy'])
 
         # reformat time string for file names
@@ -602,25 +604,25 @@ class HsWorkerTest(LoggingTestCase):
 
         # build copy/log directories passed to HsSender
         copydir = os.path.join(self.COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost()))
+                               "ANON_%s_%s" % (timetag, hsr.fullhost))
         logfiledir = os.path.join(self.COPY_DIR, "logs")
 
-        # initialize hsr.sender().socket and add all expected HsSender messages
-        hsr.sender().addExpected({"hubname": hsr.shorthost(),
-                                  "dataload": "TBD",
-                                  "datastart": str(utcstart),
-                                  "alertid": timetag,
-                                  "datastop": str(utcstop),
-                                  "msgtype": "rsync_sum",
-                                  "copydir_user": alert[0]['copy'],
-                                  "copydir": copydir,
-                                 })
-        hsr.sender().addExpected({"msgtype": "log_done",
-                                  "logfile_hsworker": logfile,
-                                  "hubname": hsr.shorthost(),
-                                  "logfiledir": logfiledir,
-                                  "alertid": timetag,
-                                 })
+        # initialize hsr.sender.socket and add all expected HsSender messages
+        hsr.sender.addExpected({"hubname": hsr.shorthost,
+                                "dataload": "TBD",
+                                "datastart": str(utcstart),
+                                "alertid": timetag,
+                                "datastop": str(utcstop),
+                                "msgtype": "rsync_sum",
+                                "copydir_user": alert[0]['copy'],
+                                "copydir": copydir,
+                               })
+        hsr.sender.addExpected({"msgtype": "log_done",
+                                "logfile_hsworker": logfile,
+                                "hubname": hsr.shorthost,
+                                "logfiledir": logfiledir,
+                                "alertid": timetag,
+                               })
 
         # test parser
         hsr.alert_parser(json.dumps(alert), logfile, sleep_secs=0)
@@ -629,7 +631,7 @@ class HsWorkerTest(LoggingTestCase):
 
     def test_not_first_last_file(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -669,16 +671,16 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # add all expected I3Live messages
-        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
-                                         'UTCSTART': str(utcstart),
-                                         'STOP': int(stop_ticks / 10),
-                                         'UTCSTOP': str(utcstop),
-                                        })
+        hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
+        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
+                                       'UTCSTART': str(utcstart),
+                                       'STOP': int(stop_ticks / 10),
+                                       'UTCSTOP': str(utcstop),
+                                      })
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(utcstart, "currentRun", 4, 5,
-                               i3socket=hsr.i3socket(),
+                               i3socket=hsr.i3socket,
                                finaldir=alert[0]['copy'])
 
         # reformat time string for file names
@@ -686,25 +688,25 @@ class HsWorkerTest(LoggingTestCase):
 
         # build copy/log directories passed to HsSender
         copydir = os.path.join(self.COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost()))
+                               "ANON_%s_%s" % (timetag, hsr.fullhost))
         logfiledir = os.path.join(self.COPY_DIR, "logs")
 
-        # initialize hsr.sender().socket and add all expected HsSender messages
-        hsr.sender().addExpected({"hubname": hsr.shorthost(),
-                                  "dataload": "TBD",
-                                  "datastart": str(utcstart),
-                                  "alertid": timetag,
-                                  "datastop": str(utcstop),
-                                  "msgtype": "rsync_sum",
-                                  "copydir_user": alert[0]['copy'],
-                                  "copydir": copydir,
-                                 })
-        hsr.sender().addExpected({"msgtype": "log_done",
-                                  "logfile_hsworker": logfile,
-                                  "hubname": hsr.shorthost(),
-                                  "logfiledir": logfiledir,
-                                  "alertid": timetag,
-                                 })
+        # initialize hsr.sender.socket and add all expected HsSender messages
+        hsr.sender.addExpected({"hubname": hsr.shorthost,
+                                "dataload": "TBD",
+                                "datastart": str(utcstart),
+                                "alertid": timetag,
+                                "datastop": str(utcstop),
+                                "msgtype": "rsync_sum",
+                                "copydir_user": alert[0]['copy'],
+                                "copydir": copydir,
+                               })
+        hsr.sender.addExpected({"msgtype": "log_done",
+                                "logfile_hsworker": logfile,
+                                "hubname": hsr.shorthost,
+                                "logfiledir": logfiledir,
+                                "alertid": timetag,
+                               })
 
         # test parser
         hsr.alert_parser(json.dumps(alert), logfile, sleep_secs=0)
@@ -713,7 +715,7 @@ class HsWorkerTest(LoggingTestCase):
 
     def test_bad_alert_range(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -750,21 +752,21 @@ class HsWorkerTest(LoggingTestCase):
                               " Abort request.")
 
         # add all expected I3Live messages
-        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
-                                         'UTCSTART': str(utcstart),
-                                         'STOP': int(stop_ticks / 10),
-                                         'UTCSTOP': str(utcstop),
-                                        })
-        hsr.i3socket().addExpectedValue("alert_stop < alert_start."
-                                        " Abort request.")
+        hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
+        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
+                                       'UTCSTART': str(utcstart),
+                                       'STOP': int(stop_ticks / 10),
+                                       'UTCSTOP': str(utcstop),
+                                      })
+        hsr.i3socket.addExpectedValue("alert_stop < alert_start."
+                                      " Abort request.")
 
         # test parser
         hsr.alert_parser(json.dumps(alert), logfile, sleep_secs=0)
 
     def test_partial_current_front(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -806,16 +808,16 @@ class HsWorkerTest(LoggingTestCase):
                               "HitSpool-0")
 
         # add all expected I3Live messages
-        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
-                                         'UTCSTART': str(utcstart),
-                                         'STOP': int(stop_ticks / 10),
-                                         'UTCSTOP': str(utcstop),
-                                        })
+        hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
+        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
+                                       'UTCSTART': str(utcstart),
+                                       'STOP': int(stop_ticks / 10),
+                                       'UTCSTOP': str(utcstop),
+                                      })
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(utcstart, "currentRun", 0, 4,
-                               i3socket=hsr.i3socket(),
+                               i3socket=hsr.i3socket,
                                finaldir=alert[0]['copy'])
 
         # reformat time string for file names
@@ -823,25 +825,25 @@ class HsWorkerTest(LoggingTestCase):
 
         # build copy/log directories passed to HsSender
         copydir = os.path.join(self.COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost()))
+                               "ANON_%s_%s" % (timetag, hsr.fullhost))
         logfiledir = os.path.join(self.COPY_DIR, "logs")
 
-        # initialize hsr.sender().socket and add all expected HsSender messages
-        hsr.sender().addExpected({"hubname": hsr.shorthost(),
-                                  "dataload": "TBD",
-                                  "datastart": str(utcstart),
-                                  "alertid": timetag,
-                                  "datastop": str(utcstop),
-                                  "msgtype": "rsync_sum",
-                                  "copydir_user": alert[0]['copy'],
-                                  "copydir": copydir,
-                                 })
-        hsr.sender().addExpected({"msgtype": "log_done",
-                                  "logfile_hsworker": logfile,
-                                  "hubname": hsr.shorthost(),
-                                  "logfiledir": logfiledir,
-                                  "alertid": timetag,
-                                 })
+        # initialize hsr.sender.socket and add all expected HsSender messages
+        hsr.sender.addExpected({"hubname": hsr.shorthost,
+                                "dataload": "TBD",
+                                "datastart": str(utcstart),
+                                "alertid": timetag,
+                                "datastop": str(utcstop),
+                                "msgtype": "rsync_sum",
+                                "copydir_user": alert[0]['copy'],
+                                "copydir": copydir,
+                               })
+        hsr.sender.addExpected({"msgtype": "log_done",
+                                "logfile_hsworker": logfile,
+                                "hubname": hsr.shorthost,
+                                "logfiledir": logfiledir,
+                                "alertid": timetag,
+                               })
 
         # test parser
         hsr.alert_parser(json.dumps(alert), logfile, sleep_secs=0)
@@ -850,7 +852,7 @@ class HsWorkerTest(LoggingTestCase):
 
     def test_between_runs(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -891,21 +893,21 @@ class HsWorkerTest(LoggingTestCase):
                               " Buffer anymore! Abort request.")
 
         # add all expected I3Live messages
-        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
-                                         'UTCSTART': str(utcstart),
-                                         'STOP': int(stop_ticks / 10),
-                                         'UTCSTOP': str(utcstop),
-                                        })
-        hsr.i3socket().addExpectedValue("Requested data doesn't exist anymore"
-                                        " in HsBuffer. Abort request.")
+        hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
+        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
+                                       'UTCSTART': str(utcstart),
+                                       'STOP': int(stop_ticks / 10),
+                                       'UTCSTOP': str(utcstop),
+                                      })
+        hsr.i3socket.addExpectedValue("Requested data doesn't exist anymore"
+                                      " in HsBuffer. Abort request.")
 
         # test parser
         hsr.alert_parser(json.dumps(alert), logfile, sleep_secs=0)
 
     def test_partial_last_front(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -947,16 +949,16 @@ class HsWorkerTest(LoggingTestCase):
                               " HitSpool-0")
 
         # add all expected I3Live messages
-        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
-                                         'UTCSTART': str(utcstart),
-                                         'STOP': int(stop_ticks / 10),
-                                         'UTCSTOP': str(utcstop),
-                                        })
+        hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
+        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
+                                       'UTCSTART': str(utcstart),
+                                       'STOP': int(stop_ticks / 10),
+                                       'UTCSTOP': str(utcstop),
+                                      })
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(utcstart, "lastRun", 0, 4,
-                               i3socket=hsr.i3socket(),
+                               i3socket=hsr.i3socket,
                                finaldir=alert[0]['copy'])
 
         # reformat time string for file names
@@ -964,25 +966,25 @@ class HsWorkerTest(LoggingTestCase):
 
         # build copy/log directories passed to HsSender
         copydir = os.path.join(self.COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost()))
+                               "ANON_%s_%s" % (timetag, hsr.fullhost))
         logfiledir = os.path.join(self.COPY_DIR, "logs")
 
-        # initialize hsr.sender().socket and add all expected HsSender messages
-        hsr.sender().addExpected({"hubname": hsr.shorthost(),
-                                  "dataload": "TBD",
-                                  "datastart": str(utcstart),
-                                  "alertid": timetag,
-                                  "datastop": str(utcstop),
-                                  "msgtype": "rsync_sum",
-                                  "copydir_user": alert[0]['copy'],
-                                  "copydir": copydir,
-                                 })
-        hsr.sender().addExpected({"msgtype": "log_done",
-                                  "logfile_hsworker": logfile,
-                                  "hubname": hsr.shorthost(),
-                                  "logfiledir": logfiledir,
-                                  "alertid": timetag,
-                                 })
+        # initialize hsr.sender.socket and add all expected HsSender messages
+        hsr.sender.addExpected({"hubname": hsr.shorthost,
+                                "dataload": "TBD",
+                                "datastart": str(utcstart),
+                                "alertid": timetag,
+                                "datastop": str(utcstop),
+                                "msgtype": "rsync_sum",
+                                "copydir_user": alert[0]['copy'],
+                                "copydir": copydir,
+                               })
+        hsr.sender.addExpected({"msgtype": "log_done",
+                                "logfile_hsworker": logfile,
+                                "hubname": hsr.shorthost,
+                                "logfiledir": logfiledir,
+                                "alertid": timetag,
+                               })
 
         # test parser
         hsr.alert_parser(json.dumps(alert), logfile, sleep_secs=0)
@@ -991,7 +993,7 @@ class HsWorkerTest(LoggingTestCase):
 
     def test_partial_last_end(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -1030,16 +1032,16 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # add all expected I3Live messages
-        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
-                                         'UTCSTART': str(utcstart),
-                                         'STOP': int(stop_ticks / 10),
-                                         'UTCSTOP': str(utcstop),
-                                        })
+        hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
+        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
+                                       'UTCSTART': str(utcstart),
+                                       'STOP': int(stop_ticks / 10),
+                                       'UTCSTOP': str(utcstop),
+                                      })
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(utcstart, "lastRun", 20, 1,
-                               i3socket=hsr.i3socket(),
+                               i3socket=hsr.i3socket,
                                finaldir=alert[0]['copy'])
 
         # reformat time string for file names
@@ -1047,25 +1049,25 @@ class HsWorkerTest(LoggingTestCase):
 
         # build copy/log directories passed to HsSender
         copydir = os.path.join(self.COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost()))
+                               "ANON_%s_%s" % (timetag, hsr.fullhost))
         logfiledir = os.path.join(self.COPY_DIR, "logs")
 
-        # initialize hsr.sender().socket and add all expected HsSender messages
-        hsr.sender().addExpected({"hubname": hsr.shorthost(),
-                                  "dataload": "TBD",
-                                  "datastart": str(utcstart),
-                                  "alertid": timetag,
-                                  "datastop": str(utcstop),
-                                  "msgtype": "rsync_sum",
-                                  "copydir_user": alert[0]['copy'],
-                                  "copydir": copydir,
-                                 })
-        hsr.sender().addExpected({"msgtype": "log_done",
-                                  "logfile_hsworker": logfile,
-                                  "hubname": hsr.shorthost(),
-                                  "logfiledir": logfiledir,
-                                  "alertid": timetag,
-                                 })
+        # initialize hsr.sender.socket and add all expected HsSender messages
+        hsr.sender.addExpected({"hubname": hsr.shorthost,
+                                "dataload": "TBD",
+                                "datastart": str(utcstart),
+                                "alertid": timetag,
+                                "datastop": str(utcstop),
+                                "msgtype": "rsync_sum",
+                                "copydir_user": alert[0]['copy'],
+                                "copydir": copydir,
+                               })
+        hsr.sender.addExpected({"msgtype": "log_done",
+                                "logfile_hsworker": logfile,
+                                "hubname": hsr.shorthost,
+                                "logfiledir": logfiledir,
+                                "alertid": timetag,
+                               })
 
         # test parser
         hsr.alert_parser(json.dumps(alert), logfile, sleep_secs=0)
@@ -1074,7 +1076,7 @@ class HsWorkerTest(LoggingTestCase):
 
     def test_span_time_gap(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -1113,19 +1115,19 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # add all expected I3Live messages
-        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
-                                         'UTCSTART': str(utcstart),
-                                         'STOP': int(stop_ticks / 10),
-                                         'UTCSTOP': str(utcstop),
-                                        })
+        hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
+        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
+                                       'UTCSTART': str(utcstart),
+                                       'STOP': int(stop_ticks / 10),
+                                       'UTCSTOP': str(utcstop),
+                                      })
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(utcstart, "lastRun", 20, 1,
-                               i3socket=hsr.i3socket(),
+                               i3socket=hsr.i3socket,
                                finaldir=None)
         hsr.add_expected_links(utcstart, "currentRun", 0, 1,
-                               i3socket=hsr.i3socket(),
+                               i3socket=hsr.i3socket,
                                finaldir=alert[0]['copy'])
 
         # reformat time string for file names
@@ -1133,25 +1135,25 @@ class HsWorkerTest(LoggingTestCase):
 
         # build copy/log directories passed to HsSender
         copydir = os.path.join(self.COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost()))
+                               "ANON_%s_%s" % (timetag, hsr.fullhost))
         logfiledir = os.path.join(self.COPY_DIR, "logs")
 
-        # initialize hsr.sender().socket and add all expected HsSender messages
-        hsr.sender().addExpected({"hubname": hsr.shorthost(),
-                                  "dataload": "TBD",
-                                  "datastart": str(utcstart),
-                                  "alertid": timetag,
-                                  "datastop": str(utcstop),
-                                  "msgtype": "rsync_sum",
-                                  "copydir_user": alert[0]['copy'],
-                                  "copydir": copydir,
-                                 })
-        hsr.sender().addExpected({"msgtype": "log_done",
-                                  "logfile_hsworker": logfile,
-                                  "hubname": hsr.shorthost(),
-                                  "logfiledir": logfiledir,
-                                  "alertid": timetag,
-                                 })
+        # initialize hsr.sender.socket and add all expected HsSender messages
+        hsr.sender.addExpected({"hubname": hsr.shorthost,
+                                "dataload": "TBD",
+                                "datastart": str(utcstart),
+                                "alertid": timetag,
+                                "datastop": str(utcstop),
+                                "msgtype": "rsync_sum",
+                                "copydir_user": alert[0]['copy'],
+                                "copydir": copydir,
+                               })
+        hsr.sender.addExpected({"msgtype": "log_done",
+                                "logfile_hsworker": logfile,
+                                "hubname": hsr.shorthost,
+                                "logfiledir": logfiledir,
+                                "alertid": timetag,
+                               })
 
         # test parser
         hsr.alert_parser(json.dumps(alert), logfile, sleep_secs=0)
@@ -1160,7 +1162,7 @@ class HsWorkerTest(LoggingTestCase):
 
     def test_span_link_fail(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
         hsr.fail_hardlink()
 
         # define alert times
@@ -1210,51 +1212,51 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("No relevant files found")
 
         # add all expected I3Live messages
-        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
-                                         'UTCSTART': str(utcstart),
-                                         'STOP': int(stop_ticks / 10),
-                                         'UTCSTOP': str(utcstop),
-                                        })
-        hsr.i3socket().addExpectedValue("ERROR: linking HitSpool-%d.dat to"
-                                        " tmp dir failed" % 20)
+        hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
+        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
+                                       'UTCSTART': str(utcstart),
+                                       'STOP': int(stop_ticks / 10),
+                                       'UTCSTOP': str(utcstop),
+                                      })
+        hsr.i3socket.addExpectedValue("ERROR: linking HitSpool-%d.dat to"
+                                      " tmp dir failed" % 20)
         for num in xrange(firstfile, firstfile + numfiles):
             errmsg = "ERROR: linking HitSpool-%d.dat to tmp dir failed" % num
-            hsr.i3socket().addExpectedValue(errmsg)
-        hsr.i3socket().addExpectedValue(" TBD [MB] HS data transferred"
-                                        " to %s " % alert[0]['copy'], prio=1)
+            hsr.i3socket.addExpectedValue(errmsg)
+        hsr.i3socket.addExpectedValue(" TBD [MB] HS data transferred"
+                                      " to %s " % alert[0]['copy'], prio=1)
 
         # reformat time string for file names
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # build copy/log directories passed to HsSender
         copydir = os.path.join(self.COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost()))
+                               "ANON_%s_%s" % (timetag, hsr.fullhost))
         logfiledir = os.path.join(self.COPY_DIR, "logs")
 
-        # initialize hsr.sender().socket and add all expected HsSender messages
-        hsr.sender().addExpected({"hubname": hsr.shorthost(),
-                                  "dataload": "TBD",
-                                  "datastart": str(utcstart),
-                                  "alertid": timetag,
-                                  "datastop": str(utcstop),
-                                  "msgtype": "rsync_sum",
-                                  "copydir_user": alert[0]['copy'],
-                                  "copydir": copydir,
-                                 })
-        hsr.sender().addExpected({"msgtype": "log_done",
-                                  "logfile_hsworker": logfile,
-                                  "hubname": hsr.shorthost(),
-                                  "logfiledir": logfiledir,
-                                  "alertid": timetag,
-                                 })
+        # initialize hsr.sender.socket and add all expected HsSender messages
+        hsr.sender.addExpected({"hubname": hsr.shorthost,
+                                "dataload": "TBD",
+                                "datastart": str(utcstart),
+                                "alertid": timetag,
+                                "datastop": str(utcstop),
+                                "msgtype": "rsync_sum",
+                                "copydir_user": alert[0]['copy'],
+                                "copydir": copydir,
+                               })
+        hsr.sender.addExpected({"msgtype": "log_done",
+                                "logfile_hsworker": logfile,
+                                "hubname": hsr.shorthost,
+                                "logfiledir": logfiledir,
+                                "alertid": timetag,
+                               })
 
         # test parser
         hsr.alert_parser(json.dumps(alert), logfile, sleep_secs=0)
 
     def test_before_last_start(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -1295,21 +1297,21 @@ class HsWorkerTest(LoggingTestCase):
                               " Buffer anymore! Abort request.")
 
         # add all expected I3Live messages
-        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
-                                         'UTCSTART': str(utcstart),
-                                         'STOP': int(stop_ticks / 10),
-                                         'UTCSTOP': str(utcstop),
-                                        })
-        hsr.i3socket().addExpectedValue("Requested data doesn't exist anymore"
-                                        " in HsBuffer. Abort request.")
+        hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
+        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
+                                       'UTCSTART': str(utcstart),
+                                       'STOP': int(stop_ticks / 10),
+                                       'UTCSTOP': str(utcstop),
+                                      })
+        hsr.i3socket.addExpectedValue("Requested data doesn't exist anymore"
+                                      " in HsBuffer. Abort request.")
 
         # test parser
         hsr.alert_parser(json.dumps(alert), logfile, sleep_secs=0)
 
     def test_case5(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -1348,16 +1350,16 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # add all expected I3Live messages
-        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
-                                         'UTCSTART': str(utcstart),
-                                         'STOP': int(stop_ticks / 10),
-                                         'UTCSTOP': str(utcstop),
-                                        })
+        hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
+        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
+                                       'UTCSTART': str(utcstart),
+                                       'STOP': int(stop_ticks / 10),
+                                       'UTCSTOP': str(utcstop),
+                                      })
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(utcstart, "currentRun", 4, 5,
-                               i3socket=hsr.i3socket(),
+                               i3socket=hsr.i3socket,
                                finaldir=alert[0]['copy'])
 
         # reformat time string for file names
@@ -1365,25 +1367,25 @@ class HsWorkerTest(LoggingTestCase):
 
         # build copy/log directories passed to HsSender
         copydir = os.path.join(self.COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost()))
+                               "ANON_%s_%s" % (timetag, hsr.fullhost))
         logfiledir = os.path.join(self.COPY_DIR, "logs")
 
-        # initialize hsr.sender().socket and add all expected HsSender messages
-        hsr.sender().addExpected({"hubname": hsr.shorthost(),
-                                  "dataload": "TBD",
-                                  "datastart": str(utcstart),
-                                  "alertid": timetag,
-                                  "datastop": str(utcstop),
-                                  "msgtype": "rsync_sum",
-                                  "copydir_user": alert[0]['copy'],
-                                  "copydir": copydir,
-                                 })
-        hsr.sender().addExpected({"msgtype": "log_done",
-                                  "logfile_hsworker": logfile,
-                                  "hubname": hsr.shorthost(),
-                                  "logfiledir": logfiledir,
-                                  "alertid": timetag,
-                                 })
+        # initialize hsr.sender.socket and add all expected HsSender messages
+        hsr.sender.addExpected({"hubname": hsr.shorthost,
+                                "dataload": "TBD",
+                                "datastart": str(utcstart),
+                                "alertid": timetag,
+                                "datastop": str(utcstop),
+                                "msgtype": "rsync_sum",
+                                "copydir_user": alert[0]['copy'],
+                                "copydir": copydir,
+                               })
+        hsr.sender.addExpected({"msgtype": "log_done",
+                                "logfile_hsworker": logfile,
+                                "hubname": hsr.shorthost,
+                                "logfiledir": logfiledir,
+                                "alertid": timetag,
+                               })
 
         # test parser
         hsr.alert_parser(json.dumps(alert), logfile, sleep_secs=0)
@@ -1392,7 +1394,7 @@ class HsWorkerTest(LoggingTestCase):
 
     def test_case5_link_fail(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
         hsr.fail_hardlink()
 
         # define alert times
@@ -1440,49 +1442,49 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("No relevant files found")
 
         # add all expected I3Live messages
-        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
-                                         'UTCSTART': str(utcstart),
-                                         'STOP': int(stop_ticks / 10),
-                                         'UTCSTOP': str(utcstop),
-                                        })
+        hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
+        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
+                                       'UTCSTART': str(utcstart),
+                                       'STOP': int(stop_ticks / 10),
+                                       'UTCSTOP': str(utcstop),
+                                      })
         for num in xrange(firstfile, firstfile + numfiles):
             errmsg = "ERROR: linking HitSpool-%d.dat to tmp dir failed" % num
-            hsr.i3socket().addExpectedValue(errmsg)
-        hsr.i3socket().addExpectedValue(" TBD [MB] HS data transferred"
-                                        " to %s " % alert[0]['copy'], prio=1)
+            hsr.i3socket.addExpectedValue(errmsg)
+        hsr.i3socket.addExpectedValue(" TBD [MB] HS data transferred"
+                                      " to %s " % alert[0]['copy'], prio=1)
 
         # reformat time string for file names
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # build copy/log directories passed to HsSender
         copydir = os.path.join(self.COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost()))
+                               "ANON_%s_%s" % (timetag, hsr.fullhost))
         logfiledir = os.path.join(self.COPY_DIR, "logs")
 
-        # initialize hsr.sender().socket and add all expected HsSender messages
-        hsr.sender().addExpected({"hubname": hsr.shorthost(),
-                                  "dataload": "TBD",
-                                  "datastart": str(utcstart),
-                                  "alertid": timetag,
-                                  "datastop": str(utcstop),
-                                  "msgtype": "rsync_sum",
-                                  "copydir_user": alert[0]['copy'],
-                                  "copydir": copydir,
-                                 })
-        hsr.sender().addExpected({"msgtype": "log_done",
-                                  "logfile_hsworker": logfile,
-                                  "hubname": hsr.shorthost(),
-                                  "logfiledir": logfiledir,
-                                  "alertid": timetag,
-                                 })
+        # initialize hsr.sender.socket and add all expected HsSender messages
+        hsr.sender.addExpected({"hubname": hsr.shorthost,
+                                "dataload": "TBD",
+                                "datastart": str(utcstart),
+                                "alertid": timetag,
+                                "datastop": str(utcstop),
+                                "msgtype": "rsync_sum",
+                                "copydir_user": alert[0]['copy'],
+                                "copydir": copydir,
+                               })
+        hsr.sender.addExpected({"msgtype": "log_done",
+                                "logfile_hsworker": logfile,
+                                "hubname": hsr.shorthost,
+                                "logfiledir": logfiledir,
+                                "alertid": timetag,
+                               })
 
         # test parser
         hsr.alert_parser(json.dumps(alert), logfile, sleep_secs=0)
 
     def test_alert_in_future(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -1522,21 +1524,21 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("alert_start is in the FUTURE ?!")
 
         # add all expected I3Live messages
-        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
-                                         'UTCSTART': str(utcstart),
-                                         'STOP': int(stop_ticks / 10),
-                                         'UTCSTOP': str(utcstop),
-                                        })
-        hsr.i3socket().addExpectedValue("Requested data is younger than most"
-                                        " recent HS data. Abort request.")
+        hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
+        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
+                                       'UTCSTART': str(utcstart),
+                                       'STOP': int(stop_ticks / 10),
+                                       'UTCSTOP': str(utcstop),
+                                      })
+        hsr.i3socket.addExpectedValue("Requested data is younger than most"
+                                      " recent HS data. Abort request.")
 
         # test parser
         hsr.alert_parser(json.dumps(alert), logfile, sleep_secs=0)
 
     def test_penultimate(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -1577,16 +1579,16 @@ class HsWorkerTest(LoggingTestCase):
                               " Assign: all HS data of lastRun instead.")
 
         # add all expected I3Live messages
-        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
-                                         'UTCSTART': str(utcstart),
-                                         'STOP': int(stop_ticks / 10),
-                                         'UTCSTOP': str(utcstop),
-                                        })
+        hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
+        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
+                                       'UTCSTART': str(utcstart),
+                                       'STOP': int(stop_ticks / 10),
+                                       'UTCSTOP': str(utcstop),
+                                      })
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(utcstart, "lastRun", 0, 1,
-                               i3socket=hsr.i3socket(),
+                               i3socket=hsr.i3socket,
                                finaldir=alert[0]['copy'])
 
         # reformat time string for file names
@@ -1594,25 +1596,25 @@ class HsWorkerTest(LoggingTestCase):
 
         # build copy/log directories passed to HsSender
         copydir = os.path.join(self.COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost()))
+                               "ANON_%s_%s" % (timetag, hsr.fullhost))
         logfiledir = os.path.join(self.COPY_DIR, "logs")
 
-        # initialize hsr.sender().socket and add all expected HsSender messages
-        hsr.sender().addExpected({"hubname": hsr.shorthost(),
-                                  "dataload": "TBD",
-                                  "datastart": str(utcstart),
-                                  "alertid": timetag,
-                                  "datastop": str(utcstop),
-                                  "msgtype": "rsync_sum",
-                                  "copydir_user": alert[0]['copy'],
-                                  "copydir": copydir,
-                                 })
-        hsr.sender().addExpected({"msgtype": "log_done",
-                                  "logfile_hsworker": logfile,
-                                  "hubname": hsr.shorthost(),
-                                  "logfiledir": logfiledir,
-                                  "alertid": timetag,
-                                 })
+        # initialize hsr.sender.socket and add all expected HsSender messages
+        hsr.sender.addExpected({"hubname": hsr.shorthost,
+                                "dataload": "TBD",
+                                "datastart": str(utcstart),
+                                "alertid": timetag,
+                                "datastop": str(utcstop),
+                                "msgtype": "rsync_sum",
+                                "copydir_user": alert[0]['copy'],
+                                "copydir": copydir,
+                               })
+        hsr.sender.addExpected({"msgtype": "log_done",
+                                "logfile_hsworker": logfile,
+                                "hubname": hsr.shorthost,
+                                "logfiledir": logfiledir,
+                                "alertid": timetag,
+                               })
 
         # test parser
         hsr.alert_parser(json.dumps(alert), logfile, sleep_secs=0)
@@ -1621,7 +1623,7 @@ class HsWorkerTest(LoggingTestCase):
 
     def test_fail_rsync(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
         hsr.fail_rsync()
 
         # define alert times
@@ -1662,38 +1664,38 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("failed rsync process:\nFakeFail")
 
         # add all expected I3Live messages
-        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
-                                         'UTCSTART': str(utcstart),
-                                         'STOP': int(stop_ticks / 10),
-                                         'UTCSTOP': str(utcstop),
-                                        })
+        hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
+        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
+                                       'UTCSTART': str(utcstart),
+                                       'STOP': int(stop_ticks / 10),
+                                       'UTCSTOP': str(utcstop),
+                                      })
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(utcstart, "currentRun", 4, 5,
-                               i3socket=hsr.i3socket(),
+                               i3socket=hsr.i3socket,
                                finaldir=None)
 
-        hsr.i3socket().addExpectedValue("ERROR in rsync. Keep tmp dir.")
-        hsr.i3socket().addExpectedValue("FakeFail")
+        hsr.i3socket.addExpectedValue("ERROR in rsync. Keep tmp dir.")
+        hsr.i3socket.addExpectedValue("FakeFail")
 
         # reformat time string for file names
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # build copy/log directories passed to HsSender
         copydir = os.path.join(self.COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost()))
+                               "ANON_%s_%s" % (timetag, hsr.fullhost))
 
-        # initialize hsr.sender().socket and add all expected HsSender messages
-        hsr.sender().addExpected({"hubname": hsr.shorthost(),
-                                  "dataload": 0,
-                                  "datastart": str(utcstart),
-                                  "alertid": timetag,
-                                  "datastop": str(utcstop),
-                                  "msgtype": "rsync_sum",
-                                  "copydir_user": alert[0]['copy'],
-                                  "copydir": copydir,
-                                 })
+        # initialize hsr.sender.socket and add all expected HsSender messages
+        hsr.sender.addExpected({"hubname": hsr.shorthost,
+                                "dataload": 0,
+                                "datastart": str(utcstart),
+                                "alertid": timetag,
+                                "datastop": str(utcstop),
+                                "msgtype": "rsync_sum",
+                                "copydir_user": alert[0]['copy'],
+                                "copydir": copydir,
+                               })
 
         # test parser
         hsr.alert_parser(json.dumps(alert), logfile, sleep_secs=0)
@@ -1702,7 +1704,7 @@ class HsWorkerTest(LoggingTestCase):
 
     def test_works(self):
         # create the worker object
-        hsr = self.create_wrapped()
+        hsr = self.wrapped_object
 
         # define alert times
         start_ticks = 157886364643994920
@@ -1741,16 +1743,16 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # add all expected I3Live messages
-        hsr.i3socket().addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket().addExpectedValue({'START': int(start_ticks / 10),
-                                         'UTCSTART': str(utcstart),
-                                         'STOP': int(stop_ticks / 10),
-                                         'UTCSTOP': str(utcstop),
-                                        })
+        hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
+        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
+                                       'UTCSTART': str(utcstart),
+                                       'STOP': int(stop_ticks / 10),
+                                       'UTCSTOP': str(utcstop),
+                                      })
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(utcstart, "currentRun", 4, 5,
-                               i3socket=hsr.i3socket(),
+                               i3socket=hsr.i3socket,
                                finaldir=alert[0]['copy'])
 
         # reformat time string for file names
@@ -1758,25 +1760,25 @@ class HsWorkerTest(LoggingTestCase):
 
         # build copy/log directories passed to HsSender
         copydir = os.path.join(self.COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost()))
+                               "ANON_%s_%s" % (timetag, hsr.fullhost))
         logfiledir = os.path.join(self.COPY_DIR, "logs")
 
-        # initialize hsr.sender().socket and add all expected HsSender messages
-        hsr.sender().addExpected({"hubname": hsr.shorthost(),
-                                  "dataload": "TBD",
-                                  "datastart": str(utcstart),
-                                  "alertid": timetag,
-                                  "datastop": str(utcstop),
-                                  "msgtype": "rsync_sum",
-                                  "copydir_user": alert[0]['copy'],
-                                  "copydir": copydir,
-                                 })
-        hsr.sender().addExpected({"msgtype": "log_done",
-                                  "logfile_hsworker": logfile,
-                                  "hubname": hsr.shorthost(),
-                                  "logfiledir": logfiledir,
-                                  "alertid": timetag,
-                                 })
+        # initialize hsr.sender.socket and add all expected HsSender messages
+        hsr.sender.addExpected({"hubname": hsr.shorthost,
+                                "dataload": "TBD",
+                                "datastart": str(utcstart),
+                                "alertid": timetag,
+                                "datastop": str(utcstop),
+                                "msgtype": "rsync_sum",
+                                "copydir_user": alert[0]['copy'],
+                                "copydir": copydir,
+                               })
+        hsr.sender.addExpected({"msgtype": "log_done",
+                                "logfile_hsworker": logfile,
+                                "hubname": hsr.shorthost,
+                                "logfiledir": logfiledir,
+                                "alertid": timetag,
+                               })
 
         # test parser
         hsr.alert_parser(json.dumps(alert), logfile, sleep_secs=0)

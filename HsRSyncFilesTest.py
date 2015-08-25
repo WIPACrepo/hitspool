@@ -74,10 +74,12 @@ class MyHsRSyncFiles(HsRSyncFiles.HsRSyncFiles):
 
 
 class HsRSyncFilesTest(HsRSyncTestCase.HsRSyncTestCase):
-    def create_real(self):
+    @property
+    def real_object(self):
         return HsRSyncFiles.HsRSyncFiles(is_test=True)
 
-    def create_wrapped(self):
+    @property
+    def wrapped_object(self):
         return MyHsRSyncFiles(is_test=True)
 
     def setUp(self):

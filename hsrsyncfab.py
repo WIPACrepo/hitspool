@@ -11,7 +11,7 @@ class HsRSyncFab(HsRSyncFiles):
         super(HsRSyncFab, self).__init__(host=host, is_test=is_test)
 
     def extract_ssh_access(self, hs_user_machinedir):
-        if self.is_cluster_sps() or self.is_cluster_spts():
+        if self.is_cluster_sps or self.is_cluster_spts:
             #for the REAL interface
             return re.sub(r':/\w+/\w+/\w+/\w+/', "", hs_user_machinedir)
 
@@ -23,7 +23,7 @@ class HsRSyncFab(HsRSyncFiles):
     def mkdir(self, host, new_dir):
         fabcmd = 'mkdir -p %s' % new_dir
         with settings(host_string=host):
-            if self.is_cluster_sps() or self.is_cluster_spts():
+            if self.is_cluster_sps or self.is_cluster_spts:
                 run(fabcmd)
             else:
                 local(fabcmd)
@@ -134,7 +134,7 @@ hitspool file indexes and ships the data to copydir.
         logging.info('')
         logging.info("NEW HS REQUEST ")
         logging.info('')
-        logging.info("REQUESTED STRING: %s", hsr.fullhost())
+        logging.info("REQUESTED STRING: %s", hsr.fullhost)
         logging.info("HS REQUEST DATA BEGIN UTC time: %s", request_begin_utc)
         logging.info("HS REQUEST DATA END UTC time: %s", request_end_utc)
         logging.info("HS REQUEST DATA BEGIN DAQ time: %s", request_start)

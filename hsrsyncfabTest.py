@@ -33,7 +33,7 @@ class MyHsRSyncFab(hsrsyncfab.HsRSyncFab):
             raise HsException("Fake Hardlink Error")
 
     def mkdir(self, host, new_dir):
-        if not self.is_cluster_local():
+        if not self.is_cluster_local:
             raise Exception("Can only simulate LOCALHOST cluster")
         os.makedirs(new_dir)
 
@@ -46,10 +46,12 @@ class MyHsRSyncFab(hsrsyncfab.HsRSyncFab):
 
 
 class HsRSyncFabTest(HsRSyncTestCase.HsRSyncTestCase):
-    def create_real(self):
+    @property
+    def real_object(self):
         return hsrsyncfab.HsRSyncFab(is_test=True)
 
-    def create_wrapped(self):
+    @property
+    def wrapped_object(self):
         return MyHsRSyncFab(is_test=True)
 
     def setUp(self):

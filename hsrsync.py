@@ -110,21 +110,21 @@ requested time range.  MUST BE RUN ON DATA SOURCE MACHINE.
         hsr = HsRSync()
 
         if logfile is None:
-            if hsr.is_cluster_sps() or hsr.is_cluster_spts():
+            if hsr.is_cluster_sps or hsr.is_cluster_spts:
                 logdir = "/mnt/data/pdaqlocal/HsInterface/logs"
             else:
                 logdir = os.path.join(hsr.TEST_HUB_DIR, "logs")
-            logfile = os.path.join(logdir, "hsrsync_%s.log" % hsr.shorthost())
+            logfile = os.path.join(logdir, "hsrsync_%s.log" % hsr.shorthost)
 
         hsr.init_logging(logfile)
 
         logging.info("This HitSpool Data Grabbing Service runs on: %s",
-                     hsr.shorthost())
+                     hsr.shorthost)
 
         logging.info('')
         logging.info("NEW HS REQUEST ")
         logging.info('')
-        logging.info("REQUESTED STRING: %s", hsr.shorthost())
+        logging.info("REQUESTED STRING: %s", hsr.shorthost)
         logging.info("HS REQUEST DATA BEGIN UTC time: %s", request_begin_utc)
         logging.info("HS REQUEST DATA END UTC time: %s", request_end_utc)
         logging.info("HS REQUEST DATA BEGIN DAQ time: %s", request_start)
