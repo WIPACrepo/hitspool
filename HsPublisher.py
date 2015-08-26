@@ -1,130 +1,19 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 
-import sys
-import zmq
-import subprocess
-import logging
-import re
-import signal
-import time
-from datetime import datetime, timedelta
 import ast
+import logging
+import os
+import signal
+import zmq
 
+from datetime import datetime, timedelta
+
+import HsBase
 import HsConstants
 
 
-# --- Clean exit when program is terminated from outside (via pkill) ---#
-def handler(signum, frame):
-    logging.warning("Signal Handler called with signal " + str( signum))
-    logging.warning( "Shutting down...\n")
-    i3live_dict = {}
-    i3live_dict["service"] = "HSiface"
-    i3live_dict["varname"] = "HsPublisher"
-    i3live_dict["value"] = "INFO: SHUT DOWN called by external signal." 
-    i3socket.send_json(i3live_dict)
-    i3live_dict2 = {}
-    i3live_dict2["service"] = "HSiface"
-    i3live_dict2["varname"] = "HsPublisher"
-    i3live_dict2["value"] = "STOPPED" 
-    i3socket.send_json(i3live_dict2)
-    socket.close()
-    publisher.close()
-    i3socket.close()
-    context.term()
-    sys.exit()
-
-signal.signal(signal.SIGTERM, handler)    #handler is called when SIGTERM is called (via pkill)
-
-class Receiver(object):
-    '''
-    Handle incoming request message from sndaq or any other process. 
-    '''
-    def reply_request(self, cluster):             
-#        forwarder = MyPublisher()
-        # We want to have a stable connection FOREVER to the client -> while True loop
-        while True:
-            #Wait for next request from client and make the alert global accessible:
-            global alert
-            try:
-                #receive for alert message:
-                alert = socket.recv()
-                logging.info("received request:\n"+ str(alert))
-                
-                
-                # alert is NOT a real JSON or dict here , because it comes from C code it is only a string:
-                # convert time-stamps to UTC with re:
-                try:
-                    alertdict = ast.literal_eval(str(alert))                
-                except ValueError, SyntaxError:
-                    sn_start_utc = "TBD"
-                    sn_stop_utc  = "TBD"
-                else:
-                    sn_start_utc = str(datetime(int(datetime.utcnow().year),1,1) + timedelta(seconds=int(alertdict['start'])*1.0E-9))  #sndaq time units are nanoseconds
-                    sn_stop_utc = str(datetime(int(datetime.utcnow().year),1,1) + timedelta(seconds=int(alertdict['stop'])*1.0E-9))  #sndaq time units are nanoseconds
-                    
-                #send JSON for moni Live page:
-                i3socket.send_json({"service": "HSiface", 
-                                    "varname": "HsPublisher", 
-                                    "value": "Received data request for [%s , %s] " %(sn_start_utc, sn_stop_utc)})
- 
-                #publish the request for the HsWorkers:
-                #forwarder.publish(alert)
-                publisher.send("["+alert+"]")
-                logging.info("Publisher published: " + str(alert))
-                
-                i3socket.send_json({"service": "HSiface", 
-                                    "varname": "HsPublisher", 
-                                    "value": "Published request to HsWorkers"})
-                # send Live alert JSON for email notification:
-#                i3socket.send_json({"service": "HSiface", 
-#                                    "varname": "alert", 
-#                                    "short_subject": "true",
-#                                    "quiet": "true",
-#                                    "value": {"condition": "DATA REQUEST HsInterface Alert: received and published to HsWorkers", 
-#                                              "prio": 1,
-#                                              "notify": HsConstants.ALERT_EMAIL_DEV,
-#                                              "vars": alert,}})
-                
-                alertmsg = str(alert) + """
-                start in UTC : %s 
-                stop  in UTC : %s 
-                (no possible leapseconds applied)
-                """ %(sn_start_utc, sn_stop_utc) 
-
-                alertjson = {"service" :   "HSiface",
-                                  "varname" :   "alert",
-                                  "prio"    :   1,
-                                  "t"    :   str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-                                  "value"   :   {"condition"    : "DATA REQUEST HsInterface Alert: " + cluster,
-                                                 "desc"         : "HsInterface Data Reuqest",
-                                                 "notifies"     : [{"receiver"      : HsConstants.ALERT_EMAIL_DEV,
-                                                                    "notifies_txt"  : alertmsg,
-                                                                    "notifies_header" : "DATA REQUEST HsInterface Alert: "+ cluster},
-                                                                   {"receiver"      : HsConstants.ALERT_EMAIL_SN,
-                                                                    "notifies_txt"  : alertmsg,
-                                                                    "notifies_header" : "DATA REQUEST HsInterface Alert: "+ cluster}],
-                                                 "short_subject": "true",
-                                                 "quiet"        : "true"}}
-
-                i3socket.send_json(alertjson)
-
-                #reply to requester:
-                answer = socket.send("DONE\0") # added \0 to fit C/C++ zmq message termination
-#                print answer
-                if answer is None:
-                    logging.info("send confirmation back to requester: DONE")
-                else:
-                    logging.error("failed sending confirmation to requester")
-
-            except KeyboardInterrupt:
-                # catch termintation signals: can be Ctrl+C (if started loacally)
-                # or another termination message from fabfile
-                logging.warning( "KeyboardInterruption received, shutting down...")
-                sys.exit()
-
-if __name__=='__main__':
-    
+class Receiver(HsBase.HsBase):
     """
     "sndaq"           "HsPublisher"      "HsWorker"           "HsSender"
     -----------        -----------
@@ -133,68 +22,235 @@ if __name__=='__main__':
     -----------        | PUB     | ------> | SUB    n|        | PULL     |
                        ----------          |PUSH     | ---->  |          |
                                             ---------          -----------
-    It receives a request from sndaq and sends log messages to I3Live.
-    It contains a REPLY Socket  for the request coming from sndaq REQUEST.
-    """    
-    
-    p = subprocess.Popen(["hostname"], stdout = subprocess.PIPE)
-    out, err = p.communicate()
-    src_mchn = out.rstrip()
-    
-    if "sps" in src_mchn:
-        src_mchn_short = re.sub(".icecube.southpole.usap.gov", "", src_mchn)
-        cluster = "SPS"
-    elif "spts" in src_mchn:
-        src_mchn_short = re.sub(".icecube.wisc.edu", "", src_mchn)
-        cluster = "SPTS"
-    else:
-        src_mchn_short = src_mchn
-        cluster = "localhost"
-        
-    if cluster == "localhost":
-        logfile = "/home/david/TESTCLUSTER/expcont/logs/hspublisher_" + src_mchn_short + ".log"    
-    else:
-        logfile = "/mnt/data/pdaqlocal/HsInterface/logs/hspublisher_" + src_mchn_short + ".log"
-    
-    logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', 
-                        level=logging.INFO, stream=sys.stdout, 
-                        datefmt= '%Y-%m-%d %H:%M:%S', 
-                        filename=logfile)    
-        
-    logging.info("HsPublisher started on " + str(src_mchn_short))    
-    # build 0MQ sockets    
-    context = zmq.Context()
-    # Socket to receive alert message
-    socket = context.socket(zmq.REP)
-    # Socket to talk to Workers
-    publisher = context.socket(zmq.PUB)
-    # Socket to receive sync signals from Workers
-#    syncservice = context.socket(zmq.PULL)
-    # Socket for I3Live on expcont
-    i3socket = context.socket(zmq.PUSH) # former ZMQ_DOWNSTREAM is depreciated in recent releases, use PUSH instead
+    Handle incoming request message from sndaq or any other process.
+    Monitors ALERT Socket for the request coming from sndaq.
+    Sends log messages to I3Live.
+    """
 
-    if cluster == "localhost":
-        socket.bind("tcp://*:55557")   
-        logging.info("bind REP socket for receiving alert messages to port 55557")
-#        publisher.setsockopt(zmq.HWM, 50) #keep up to 50 alert messages in memory,  each alert has 205 bytes
-        publisher.bind("tcp://*:55561")
-        logging.info("bind PUB socket to port 55561")
-#        syncservice.bind("tcp://*:55562")
-#        logging.info("bind PULL socket to port 55562")
-        i3socket.connect("tcp://localhost:6668") 
-        logging.info("connected to i3live socket on port 6668")    
-    
-    else:
-        socket.bind("tcp://*:55557")   
-        logging.info("bind REP socket for receiving alert messages to port 55557")
-#        publisher.setsockopt(zmq.HWM, 50) #keep up to 50 alert messages in memory,  each alert has 205 bytes
-        publisher.bind("tcp://*:55561")
-        logging.info("bind PUB socket to port 55561")
-#        syncservice.bind("tcp://*:55562")
-#        logging.info("bind PULL socket to port 55562")
-        i3socket.connect("tcp://expcont:6668") 
-        logging.info("connect PUSH socket to i3live on port 6668") 
+    def __init__(self, is_test=False):
+        super(Receiver, self).__init__(is_test=is_test)
 
-    request = Receiver()
-    request.reply_request(cluster)
+        if self.is_cluster_local:
+            expcont = "localhost"
+        else:
+            expcont = "expcont"
 
+        self.__context = zmq.Context()
+        self.__socket = self.create_alert_socket()
+        self.__publisher = self.create_publisher()
+        self.__i3socket = self.create_i3socket(expcont)
+
+    def __build_json(self, alert, sn_start_utc, sn_stop_utc, extract):
+        alertmsg = "%s\nstart in UTC : %s\nstop  in UTC : %s\n" \
+                   "(no possible leapseconds applied)" % \
+                   (alert, sn_start_utc, sn_stop_utc)
+        if extract:
+            alertmsg += "\nExtracting matching hits"
+
+        notifies = []
+        for email in (HsConstants.ALERT_EMAIL_DEV, HsConstants.ALERT_EMAIL_SN):
+            ndict = {
+                "receiver": email,
+                "notifies_txt"   : alertmsg,
+                "notifies_header": "DATA REQUEST HsInterface Alert: %s" % \
+                                   self.cluster,
+                }
+            notifies.append(ndict)
+
+        value = {"condition"    : "DATA REQUEST HsInterface Alert: %s" % \
+                                  self.cluster,
+                 "desc"         : "HsInterface Data Request",
+                 "notifies"     : notifies,
+                 "short_subject": "true",
+                 "quiet"        : "true",
+                }
+
+        return {"service":   "HSiface",
+                "varname":   "alert",
+                "prio"   :   1,
+                "t"      :   datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "value"  :   value,
+               }
+
+    def alert_socket(self):
+        return self.__socket
+
+    def close_all(self):
+        self.__socket.close()
+        self.__publisher.close()
+        self.__i3socket.close()
+        self.__context.term()
+
+    def create_alert_socket(self):
+        # Socket to receive alert message
+        sock = self.__context.socket(zmq.REP)
+        sock.bind("tcp://*:%d" % ALERT_PORT)
+        logging.info("bind REP socket for receiving alert messages to port %d",
+                     ALERT_PORT)
+        return sock
+
+    def create_i3socket(self, host):
+        # Socket for I3Live on expcont
+        sock = self.__context.socket(zmq.PUSH)
+        sock.connect("tcp://%s:%d" % (host, I3LIVE_PORT))
+        logging.info("connect PUSH socket to i3live on %s port %d", host,
+                     I3LIVE_PORT)
+        return sock
+
+    def create_publisher(self):
+        # Socket to talk to Workers
+        sock = self.__context.socket(zmq.PUB)
+        sock.bind("tcp://*:%d" % PUBLISHER_PORT)
+        logging.info("bind PUB socket to port %d", PUBLISHER_PORT)
+        return sock
+
+    def handler(self, signum, _):
+        """Clean exit when program is terminated from outside (via pkill)"""
+        logging.warning("Signal Handler called with signal %s", signum)
+        logging.warning("Shutting down...\n")
+
+        i3live_dict = {}
+        i3live_dict["service"] = "HSiface"
+        i3live_dict["varname"] = "HsPublisher"
+        i3live_dict["value"] = "INFO: SHUT DOWN called by external signal."
+        self.__i3socket.send_json(i3live_dict)
+
+        i3live_dict = {}
+        i3live_dict["service"] = "HSiface"
+        i3live_dict["varname"] = "HsPublisher"
+        i3live_dict["value"] = "STOPPED"
+        self.__i3socket.send_json(i3live_dict)
+
+        self.close_all()
+
+        raise SystemExit(0)
+
+    @property
+    def i3socket(self):
+        return self.__i3socket
+
+    @property
+    def publisher(self):
+        return self.__publisher
+
+    def reply_request(self):
+        # We want to have a stable connection FOREVER to the client
+        while True:
+            # Wait for next request from client
+            try:
+                # receive alert message:
+                alert = self.__socket.recv()
+                logging.info("received request:\n%s", alert)
+
+
+                # alert is NOT a real JSON or dict here
+                # because it comes from C code it is only a string
+                try:
+                    alertdict = ast.literal_eval(str(alert))
+                    alert_start = int(alertdict['start'])
+                    alert_stop = int(alertdict['stop'])
+                    extract = alertdict.has_key('extract')
+                except (ValueError, SyntaxError):
+                    sn_start_utc = "TBD"
+                    sn_stop_utc = "TBD"
+                    extract = False
+                else:
+                    jan1 = datetime(datetime.utcnow().year, 1, 1)
+
+                    # sndaq time units are nanoseconds
+                    sn_start_utc = jan1 + timedelta(seconds=alert_start*1.0E-9)
+                    sn_stop_utc = jan1 + timedelta(seconds=alert_stop*1.0E-9)
+
+                #send JSON for moni Live page:
+                self.__i3socket.send_json({"service": "HSiface",
+                                           "varname": "HsPublisher",
+                                           "value": "Received data request" \
+                                                    " for [%s , %s] " % \
+                                                    (sn_start_utc, sn_stop_utc),
+                                          })
+
+                #publish the request for the HsWorkers:
+                self.__publisher.send("["+alert+"]")
+                logging.info("Publisher published: %s", alert)
+
+                self.__i3socket.send_json({"service": "HSiface",
+                                           "varname": "HsPublisher",
+                                           "value": "Published request to"
+                                                    " HsWorkers"})
+                # send Live alert JSON for email notification:
+
+                alertjson = self.__build_json(alert, sn_start_utc, sn_stop_utc,
+                                              extract)
+
+                self.__i3socket.send_json(alertjson)
+
+                #reply to requester:
+                # added \0 to fit C/C++ zmq message termination
+                answer = self.__socket.send("DONE\0")
+                if answer is None:
+                    logging.info("send confirmation back to requester: DONE")
+                else:
+                    logging.error("failed sending confirmation to requester")
+
+            except KeyboardInterrupt:
+                # catch termintation signals: can be Ctrl+C (if started locally)
+                # or another termination message from fabfile
+                logging.warning("KeyboardInterruption received, shutting down...")
+                break
+            except zmq.ZMQError, zex:
+                logging.warning("Quitting: %s", zex)
+                break
+
+if __name__ == '__main__':
+    import getopt
+    import sys
+
+    from HsConstants import ALERT_PORT, I3LIVE_PORT, PUBLISHER_PORT
+
+
+    def process_args():
+        logfile = None
+
+        usage = False
+        try:
+            opts, _ = getopt.getopt(sys.argv[1:], 'hl:', ['help', 'logfile'])
+        except getopt.GetoptError, err:
+            print >>sys.stderr, str(err)
+            opts = []
+            usage = True
+
+        for opt, arg in opts:
+            if opt == '-l':
+                logfile = str(arg)
+            elif opt == '-h' or opt == '--help':
+                usage = True
+
+        if usage:
+            print >>sys.stderr, "usage :: HsPublisher.py [-l logfile]"
+            raise SystemExit(1)
+
+        return logfile
+
+    def main():
+        logfile = process_args()
+
+        receiver = Receiver()
+
+        #handler is called when SIGTERM is called (via pkill)
+        signal.signal(signal.SIGTERM, receiver.handler)
+
+        if logfile is None:
+            if receiver.is_cluster_local:
+                logdir = "/home/david/TESTCLUSTER/expcont/logs"
+            else:
+                logdir = "/mnt/data/pdaqlocal/HsInterface/logs"
+            logfile = os.path.join(logdir, "hspublisher_%s.log" %
+                                   receiver.shorthost)
+
+        receiver.init_logging(logfile)
+
+        logging.info("HsPublisher started on %s", receiver.shorthost)
+
+        receiver.reply_request()
+
+    main()

@@ -1,219 +1,281 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 #
 #
 #Hit Spool Grabber to be run on access
 #author: dheereman
 #
 
-from datetime import datetime, timedelta
+import json
+import logging
 import sys
-import getopt
 import zmq
-import subprocess
-import re
 
-  
+import HsBase
 
-#class MyGrabber(object):
-def send_alert(timeout, alert_start_sn, alert_stop_sn, alert_begin_utc, alert_end_utc, copydir):
-    should_continue = False
-
-    if (alert_start_sn == 0) and (alert_stop_sn == 0) :
-        daqyearstart = datetime.strptime(str(alert_begin_utc.year)+"-01-01", "%Y-%m-%d")
-        alert_begin_utc_delta = alert_begin_utc - daqyearstart
-        alert_end_utc_delta = alert_end_utc - daqyearstart
-        alert_start_sn = (alert_begin_utc_delta.microseconds + (alert_begin_utc_delta.seconds + alert_begin_utc_delta.days * 24 * 3600) * 10**6) * 10**3
-        alert_stop_sn = (alert_end_utc_delta.microseconds + (alert_end_utc_delta.seconds + alert_end_utc_delta.days * 24 * 3600) * 10**6) * 10**3        
-    
-    elif (alert_begin_utc == 0) and (alert_begin_utc == 0):        
-        daqyear = int(datetime.utcnow().year)
-        alert_begin_utc = datetime.strptime(str(datetime(daqyear, 1, 1) + timedelta(seconds = alert_start_sn*1.0E-9)), "%Y-%m-%d %H:%M:%S.%f")
-        alert_end_utc = datetime.strptime(str(datetime(daqyear, 1, 1) + timedelta(seconds = alert_stop_sn*1.0E-9)), "%Y-%m-%d %H:%M:%S.%f")
-        
-
-    print "HS DATA BEGIN UTC time: ", alert_begin_utc
-    print "HS DATA END UTC time: ", alert_end_utc
-    print "HS DATA BEGIN SNDAQ time: ", alert_start_sn    
-    print "HS DATA END SNDAQ time: ", alert_stop_sn
-    
-    # -- checking data range ---#
-    datarange = alert_end_utc - alert_begin_utc
-    print "requesting " , datarange , "minutes of HS data"
-    
-    stdrange = timedelta(0,95)      # 95 seconds
-    maxrange = timedelta(0, 610)    # 510 seconds
-    minrange = timedelta(0,0)
-    print "(maxrange: " , maxrange, " minutes)"
+from HsConstants import ALERT_PORT, I3LIVE_PORT
+from HsException import HsException
 
 
-    if datarange > stdrange:
-        if datarange > maxrange:
-            print "Requested time range is too huge: %s.\nHsWorker processes request only up to 610 sec.\nTry a smaller time window." % datarange
-        else:
-            answer = raw_input("Warning: You are requesting more HS data than usual (90 sec). Sure you want to proceed? [y/n] : ")
-            if answer in ["Yes", "yes", "y", "Y"]:
-                    alert_msg = "{\"start\": " + str(alert_start_sn) + " , \"stop\": " + str(alert_stop_sn) + " , \"copy\": \"" + copydir + "\"}"
-                    #print "alert_dict to string looks like: " , alert_msg
-                    grabber.send(alert_msg)
-                    print "HsGrabber sent his Request"
-                    should_continue = True
-            else:
-                print "HS data request stopped. Try a smaller time window."
-                
-    elif datarange < minrange:
-        print "Requesting negative time range: %s. Try another time window." % datarange
+STD_SECONDS = 95
+MAX_SECONDS = 610
 
-    else: # datarange in range:
-        alert_msg = "{\"start\": " + str(alert_start_sn) + " , \"stop\": " + str(alert_stop_sn) + " , \"copy\": \"" + copydir + "\"}"
-        #print "alert_dict to string looks like: " , alert_msg
-        grabber.send(alert_msg)
-        print "HsGrabber sent his request"
-        should_continue = True
 
-    
-    #--- waiting for answer from Publisher ---#
-    count = 0
-    while should_continue:
-        socks = dict(poller.poll(timeout * 100)) # poller takes msec argument
-        count += 1
-        print "."
-        if count > timeout:
-            print "no connection to expcont's HsPublisher within %s seconds.\nAbort request." % timeout
-            print "Debugging hints:"
-            print """ 
-            1. check HsPublisher's logfile on EXPCONT:
-                /mnt/data/pdaqlocal/HsInterface/trunk/hspublisher_stdout_stderr.log
-                and
-                /mnt/data/pdaqlocal/HsInterface/logs/hspublisher_expcont.log
-                
-            2. restart HsPublisher.py via fabric on ACCESS:
-               fab -f /home/pdaq/HsInterface/trunk/fabfile.py hs_stop_pub
-               fab -f /home/pdaq/HsInterface/trunk/fabfile.py hs_start_pub_bkg
-            """
-            
-            print ">>>>>> Hit CTRL + C for exiting HsGrabber now ..."
-            sys.exit()
-            
-        if grabber in socks and socks[grabber] == zmq.POLLIN:
-            message = grabber.recv()
-            print "received control command: %s" % message
-            if message == "DONE\0":
-                i3socket.send_json({"service": "HSiface", 
-                    "varname": "HsGrabber", 
-                    "value": "pushed request"})
-                print "Received DONE. Not waiting for more messages. Shutting down..." 
-                should_continue = False
-                sys.exit(1)
-                
-if __name__=="__main__":
+class HsGrabber(HsBase.HsBase):
     '''
-    For grabbing hs data from hubs independently (without sndaq providing alert).
+    Grab hs data from hubs independently (without sndaq providing alert).
     HsGrabber sends json to HsPublisher to grab hs data from hubs.
     Uses the Hs Interface infrastructure.
     '''
-    def usage():
-        print >>sys.stderr, """
-        usage :: HsGrabber.py [options]
-            -b         | [b]egin of data: "YYYY-mm-dd HH:MM:SS.[us]" OR SNDAQ timestamp [ns from beginning of the year]
-            -e         | [e]nd of data "YYYY-mm-dd HH:MM:SS.[us]"   OR SNDAQ timestamp [ns from beginning of the year]   
-            -c         | [c]opydir on 2NDBUILD as user PDAQ. Default is "pdaq@2ndbuild:/mnt/data/pdaqlocal/HsDataCopy/"
-            
-            HsGrabber reads UTC timestamps or SNDAQ timestamps.
-            It sends SNDAQ timestamps to HsInterface (HsPublisher).
-            """
-        sys.exit(1)
 
-    p = subprocess.Popen(["hostname"], stdout = subprocess.PIPE)
-    out, err = p.communicate()
-    src_mchn = out.rstrip()
-    
-    if ".usap.gov" in src_mchn:
-        src_mchn_short = re.sub(".icecube.usap.gov", "", src_mchn)
-        cluster = "SPS"
-    elif ".wisc.edu" in src_mchn:
-        src_mchn_short = re.sub(".icecube.wisc.edu", "", src_mchn)
-        cluster = "SPTS"
-    else:
-        src_mchn_short = src_mchn    
-        cluster = "localhost"
-        
-    print "This HsGrabber runs on: " , src_mchn
-        
-    ##take arguments from command line and check for correct input
-    opts, args = getopt.getopt(sys.argv[1:], 'hb:e:c:', ['help','alert='])
-    for o, a in opts:
-        if o == '-b':            
-            if not a.isdigit():
-                alert_start_sn = 0 #SNDAQ timestamp not yet defined
-                try:        
-                    alert_begin_utc = datetime.strptime(str(a), "%Y-%m-%d %H:%M:%S.%f")
-                except ValueError, e:
-                    #print "Problem with the time-stamp format: ", e
-                    try:
-                        #print "Try matching format without subsecond precision..."
-                        alert_begin_short = re.sub(".[0-9]{9}", '', str(a))
-                        alert_begin_utc = datetime.strptime(alert_begin_short, "%Y-%m-%d %H:%M:%S")
-                        #print "matched"
-                    except ValueError,e:
-                        print  "Problem with the time-stamp format: ", e
-            else:
-                alert_start_sn = int(a)
-                alert_begin_utc = 0
-        if o == '-e':
-            if not a.isdigit():
-                alert_stop_sn = 0 #SNDAQ timestamp not yet defined do that later on
-                try:        
-                    alert_end_utc = datetime.strptime(str(a), "%Y-%m-%d %H:%M:%S.%f")
-                except ValueError, e:
-                    #print "Problem with the time-stamp format: ", e
-                    try:
-                        #print "Try matching format without subsecond precision..."
-                        alert_end_short = re.sub(".[0-9]{9}", '', str(a))
-                        alert_end_utc = datetime.strptime(alert_end_short, "%Y-%m-%d %H:%M:%S")
-                        #print "matched"
-                    except ValueError,e:
-                        print  "Problem with the time-stamp format: ", e
-#                alert_end_utc = datetime.strptime(str(a), "%Y-%m-%d %H:%M:%S.%f")
-            else:
-                alert_stop_sn = int(a)
-                alert_end_utc = 0
-                
-        copydir = "pdaq@2ndbuild:/mnt/data/pdaqlocal/HsDataCopy/"
-        if o == '-c':
-            copydir = str(a)
-        elif o == '-h' or o == '--help':
-            usage()       
-    if len(sys.argv) < 5 :
-        print usage()
-        
-        
-    # build 0MQ sockets    
-    context = zmq.Context()
-    grabber = context.socket(zmq.REQ)
-    poller = zmq.Poller() # needed for handling timeout if Publisher doesnt answer
-    poller.register(grabber, zmq.POLLIN)
-    i3socket = context.socket(zmq.PUSH) # former ZMQ_DOWNSTREAM is depreciated in recent releases, use PUSH instead
+    def __init__(self):
+        super(HsGrabber, self).__init__()
 
-    timeout = 10 # number of trys to wait for answer from Publisher
-    
-    if cluster == "localhost":
+        if self.is_cluster_local:
+            expcont = "localhost"
+        else:
+            expcont = "expcont"
+
+        self.__context = zmq.Context()
+        self.__grabber = self.create_grabber(expcont)
+        self.__poller = self.create_poller(self.__grabber)
+        self.__i3socket = self.create_i3socket(expcont)
+
+    def close_all(self):
+        if self.__i3socket is not None:
+            self.__i3socket.close()
+        if self.__poller is not None:
+            self.__poller.close()
+        if self.__grabber is not None:
+            self.__grabber.close()
+        self.__context.term()
+
+    def create_grabber(self, host):
         # Socket to send alert message to HsPublisher
-        grabber.connect("tcp://localhost:55557")   #connection = tcp, host = localhost ip , port 
-        #print "connected to HsPublicher on localhost at port 55557"
-        # Socket for I3Live on expcont
-        i3socket.connect("tcp://localhost:6668") 
-        #print "connected to i3live socket on localhost at port 6668"      
+        sock = self.__context.socket(zmq.REQ)
+        sock.connect("tcp://%s:%d" % (host, ALERT_PORT))
+        return sock
 
-    else:
-        # Socket to send alert message to HsPublisher
-        grabber.connect("tcp://expcont:55557")   #connection = tcp, host = localhost ip , port 
-        #print "connected to HsPublicher on expcont at port 55557"
-        # Socket for I3Live on expcont
-        i3socket.connect("tcp://expcont:6668") 
-        #print "connected to i3live socket on expcont at port 6668" 
-    
-    
-    send_alert(timeout, alert_start_sn, alert_stop_sn, alert_begin_utc, alert_end_utc, copydir)
+    def create_poller(self, grabber):
+        # needed for handling timeout if Publisher doesnt answer
+        sock = zmq.Poller()
+        sock.register(grabber, zmq.POLLIN)
+        return sock
 
-        
-        
+    def create_i3socket(self, host):
+        # Socket for I3Live on expcont
+        sock = self.__context.socket(zmq.PUSH)
+        sock.connect("tcp://%s:%d" % (host, I3LIVE_PORT))
+        return sock
+
+    @property
+    def grabber(self):
+        return self.__grabber
+
+    @property
+    def i3socket(self):
+        return self.__i3socket
+
+    @property
+    def poller(self):
+        return self.__poller
+
+    def send_alert(self, timeout, alert_start_sn, alert_stop_sn, copydir,
+                   extract_hits=False, print_dots=True):
+        '''
+        Send request to Publisher and wait for response
+        '''
+
+        # -- checking data range ---#
+        secrange = (alert_stop_sn - alert_start_sn) / 1E9
+        logging.info("requesting %.2f seconds of HS data", secrange)
+
+        logging.info("(maxrange: %d seconds)", MAX_SECONDS)
+
+        should_continue = False
+        if secrange < 0:
+            logging.error("Requesting negative time range (%.2f)."
+                          " Try another time window.", secrange)
+        elif secrange <= STD_SECONDS:
+            # standard case
+            should_continue = True
+        elif secrange > MAX_SECONDS:
+            logging.error("Request for %.2f seconds is too huge.\n"
+                          "HsWorker processes request only up to %d sec.\n"
+                          "Try a smaller time window.", secrange, MAX_SECONDS)
+        else:
+            answer = raw_input("Warning: You are requesting more HS data"
+                               " than usual (%d sec). Sure you want to"
+                               "  proceed? [y/n] : " % STD_SECONDS)
+            if answer in ["Yes", "yes", "y", "Y"]:
+                should_continue = True
+            else:
+                logging.info("HS data request stopped."
+                             " Try a smaller time window.")
+
+        if should_continue:
+            alert = {"start": alert_start_sn,
+                     "stop": alert_stop_sn,
+                     "copy": copydir}
+
+            if extract_hits:
+                alert["extract"] = True
+
+            self.__grabber.send(json.dumps(alert))
+            logging.info("HsGrabber sent Request")
+
+        #--- waiting for answer from Publisher ---#
+        count = 0
+        while should_continue:
+            result = self.__poller.poll(timeout * 100)
+            socks = dict(result) # poller takes msec argument
+            count += 1
+            if count > timeout:
+                logging.error("no connection to expcont's HsPublisher"
+                              " within %s seconds.\nAbort request.", timeout)
+                logging.info("Debugging hints:")
+                logging.info("""
+                1. check HsPublisher's logfile on EXPCONT:
+                /mnt/data/pdaqlocal/HsInterface/trunk/hspublisher_stdout_stderr.log
+                and
+                /mnt/data/pdaqlocal/HsInterface/logs/hspublisher_expcont.log
+
+                2. restart HsPublisher.py via fabric on ACCESS:
+                fab -f /home/pdaq/HsInterface/trunk/fabfile.py hs_stop_pub
+                fab -f /home/pdaq/HsInterface/trunk/fabfile.py hs_start_pub_bkg
+                """)
+
+                logging.info(">>>>>> Hit CTRL + C for exiting HsGrabber now ...")
+                raise SystemExit(0)
+
+            if self.__grabber in socks and socks[self.__grabber] == zmq.POLLIN:
+                message = self.__grabber.recv()
+                logging.info("received control command: %s", message)
+                if message == "DONE\0":
+                    self.__i3socket.send_json({"service": "HSiface",
+                                               "varname": "HsGrabber",
+                                               "value": "pushed request"})
+                    logging.info("Received DONE. Not waiting for more messages."
+                                 " Shutting down...")
+                    should_continue = False
+                    raise SystemExit(0)
+            elif print_dots:
+                print ".",
+                sys.stdout.flush()
+
+
+if __name__ == "__main__":
+    import getopt
+
+    from HsUtil import fix_dates_or_timestamps, parse_date
+
+
+    def process_args():
+        ''''Process arguments'''
+        alert_start_sn = 0
+        alert_begin_utc = None
+        alert_stop_sn = 0
+        alert_end_utc = None
+        copydir = None
+        logfile = None
+        extract_hits = False
+
+        ##take arguments from command line and check for correct input
+        usage = False
+        try:
+            opts, _ = getopt.getopt(sys.argv[1:], 'b:c:e:hl:x',
+                                    ['begin', 'copydir', 'end', 'help',
+                                     'logfile', 'extract'])
+        except getopt.GetoptError, err:
+            print >>sys.stderr, str(err)
+            opts = []
+            usage = True
+
+        for opt, arg in opts:
+            if opt == '-b':
+                try:
+                    (alert_start_sn, alert_begin_utc) = parse_date(arg)
+                except HsException, hsex:
+                    print >>sys.stderr, str(hsex)
+                    usage = True
+            elif opt == '-e':
+                try:
+                    (alert_stop_sn, alert_end_utc) = parse_date(arg)
+                except HsException, hsex:
+                    print >>sys.stderr, str(hsex)
+                    usage = True
+            elif opt == '-c':
+                copydir = str(arg)
+            elif opt == '-l':
+                logfile = str(arg)
+            elif opt == '-x':
+                extract_hits = True
+            elif opt == '-h' or opt == '--help':
+                usage = True
+
+        if not usage:
+            # convert times to SN timestamps and/or vice versa
+            (alert_start_sn, alert_stop_sn, alert_begin_utc, alert_end_utc) \
+                = fix_dates_or_timestamps(alert_start_sn, alert_stop_sn,
+                                          alert_begin_utc, alert_end_utc,
+                                          is_sn_ns=True)
+
+            if alert_begin_utc is None:
+                print >>sys.stderr, "Please specify start time using '-b'"
+                usage = True
+            elif alert_end_utc is None:
+                print >>sys.stderr, "Please specify end time using '-e'"
+                usage = True
+
+        if usage:
+            print >>sys.stderr, """
+usage :: HsGrabber.py [options]
+  -b  |  [b]egin of data: "YYYY-mm-dd HH:MM:SS.[us]"
+      |    or SNDAQ timestamp [ns from beginning of the year]
+  -e  |  [e]nd of data "YYYY-mm-dd HH:MM:SS.[us]"
+      |    or SNDAQ timestamp [ns from beginning of the year]
+  -c  |  [c]opydir on 2NDBUILD as user PDAQ
+      |    default is "pdaq@2ndbuild:/mnt/data/pdaqlocal/HsDataCopy"
+  -l  |  logfile
+      |    e.g. /mnt/data/pdaqlocal/HsInterface/logs/hsgrabber.log
+
+HsGrabber reads UTC timestamps or SNDAQ timestamps.
+It sends SNDAQ timestamps to HsInterface (HsPublisher).
+"""
+            raise SystemExit(1)
+
+        return (alert_start_sn, alert_begin_utc, alert_stop_sn, alert_end_utc,
+                copydir, logfile, extract_hits)
+
+    def main():
+        (alert_start_sn, alert_begin_utc, alert_stop_sn, alert_end_utc, copydir,
+         logfile, extract_hits) = process_args()
+
+        hsg = HsGrabber()
+
+        hsg.init_logging(logfile, level=logging.INFO)
+
+        logging.info("This HsGrabber runs on: %s", hsg.fullhost)
+
+        if copydir is None:
+            if hsg.is_cluster_local:
+                import getpass
+
+                sec_bldr = "localhost"
+                user = getpass.getuser()
+            else:
+                sec_bldr = "2ndbuild"
+                user = "pdaq"
+
+            copydir = "%s@%s:/mnt/data/pdaqlocal/HsDataCopy" % (user, sec_bldr)
+
+        timeout = 10 # number of tries to wait for answer from Publisher
+
+        logging.info("HS DATA BEGIN UTC time: %s", alert_begin_utc)
+        logging.info("HS DATA END UTC time: %s", alert_end_utc)
+        logging.info("HS DATA BEGIN SNDAQ time: %s", alert_start_sn)
+        logging.info("HS DATA END SNDAQ time: %s", alert_stop_sn)
+
+        hsg.send_alert(timeout, alert_start_sn, alert_stop_sn, copydir,
+                       extract_hits=extract_hits)
+
+    main()

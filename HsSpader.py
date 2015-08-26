@@ -1,31 +1,35 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 #
 #Hit Spool SPADE-ing to be run on access
 #author: dheereman
 #
-from datetime import datetime, timedelta
-import sys
-import getopt
-import zmq
-import subprocess
-import re
-import logging
 import glob
+import logging
 import os
-import errno
 
-def log(msg):
-    print msg
-    logging.info(msg)
+import HsBase
 
-def make_sure_path_exists(path):
-    try:
-        os.makedirs(path)
-    except OSError as exception:
-        if exception.errno != errno.EEXIST:
-            raise
 
-def spade_pickup_data(indir, pattern, outdir):
+class HsSpader(HsBase.HsBase):
+    '''
+    Copy the HS data to the SPADE queue on sps-2ndbuild.
+    Create tarballs and semafore files for each hub's data
+    and move it to SPADE directory
+    '''
+
+    def __init__(self):
+        super(HsSpader, self).__init__()
+
+    def find_matching_files(self, basedir, alertname):
+        "This wrapper exists only so tests can override it"
+        return glob.glob(os.path.join(basedir, "*" + alertname + "*"))
+
+    def makedirs(self, path):
+        "This wrapper exists only so tests can override it"
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+    def spade_pickup_data(self, basedir, alertname, spadedir):
         '''
         Create subdir for folder related to the alert
         Move folder in subdir
@@ -33,83 +37,111 @@ def spade_pickup_data(indir, pattern, outdir):
         create semaphore file for folder
         move .sem & .dat.tar file in Spade directory
         '''
-        log("Preparation for SPADE Pickup of HS datastarted amnually via HsSpader...")
-        basedir     = indir
-        alertname   = pattern
-        datalist    = glob.glob(indir + "*" + alertname + "*")
-        log("found HS data:\n" + str(datalist))
-        datalistlocal = [re.sub(indir, "", s) for s in datalist]
-        spadedir    = outdir
-        hubnamelist = ["ichub%0.2d" %i for i in range(87)[1::]] + ["ithub%0.2d" %i for i in range(12)[1::]]
-        
-        #if outdir doen't exist:
-        make_sure_path_exists(outdir)
-        
-        
-        if len(datalist) != 0:
-            for hub in hubnamelist:
-                tarname     = "HS_SNALERT_" + alertname + "_" + hub + ".dat.tar.bz2"
-                semname     = "HS_SNALERT_" + alertname + "_" + hub + ".sem"
-                data    = [s for s in datalistlocal if hub in s]
-                if len(data) == 1:
-                    dataname = data[0]
-                    log("data: " + str(dataname) + " will be tarred to: " + str(tarname))
-                    subprocess.check_call(['nice', 'tar', '-jcvf', tarname, dataname ], cwd=basedir)
-                    log("done")
-                    try:
-                        move =  subprocess.check_call(['mv', '-v', tarname, spadedir], cwd=basedir)
-                        log("moved " + str(tarname) + " to SPADE dir " + str(spadedir))
-                        if move == 0:
-                            log("create .sem file")
-                            subprocess.check_call(["touch", semname], cwd=spadedir)
-                            log("Preparation for SPADE Pickup of " + str(tarname) + " DONE")
-                        else:
-                            log("failed moving the tarred data.")
-                            log("Please put the data manually in the SPADE directory")
+        logging.info("Preparation for SPADE Pickup of HS data started"
+                     " manually via HsSpader...")
 
-                    except (IOError,OSError,subprocess.CalledProcessError):
-                        log("Loading data in SPADE directory failed")
-                        log("Please put the data manually in the SPADE directory")                                     
-                else:
-                    log("no or ambiguous HS data found in this directory.")
-        else:
-            log("no HS data found for this alert time pattern.")
+        # create spadedir if it doen't exist
+        self.makedirs(spadedir)
 
-if __name__=="__main__":
-    '''
-    Putting manually the HS data in the SPADE Q n sps-2ndbuild. 
-    Creates tarballs and smafore files for each hub's data and moves it to Spade directory /mnt/data/HitSpool/
-    '''
-    def usage():
-        print >>sys.stderr, """
-        usage :: HsSpader.py [options]
-            -i         | Input dir where hs data is located, e.g. /mnt/data/pdaqlocal/HsDataCopy/
-            -p         | time pattern of HS data alert:<yyyymmdd>_<hhmmss> e.g. 20131101_045126
-            -o         | Output directory: default is /mnt/data/HitSpool/
-            -l         | logfile, e.g. topath HsSenders log: /mnt/data/pdaqlocal/HsInterface/logs/hssender_2ndbuild.sps.log
-            """
-        sys.exit(1)
-    #take arguments from command line and check for correct input
-    opts, args = getopt.getopt(sys.argv[1:], 'hi:o:p:l:', ['help','alert='])
-    for o, a in opts:    
-        if o == "-i":
-            indir = str(a)
-            print indir
-        if o == "-p":
-            pattern = str(a)
-            print pattern
-        if o == "-o":
-            outdir = str(a)
-            print outdir
-        if o == "-l":
-            logfile = str(a)
-            print logfile
-    if len(sys.argv) < 5:
-        print usage()
-    logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', 
-                level=logging.INFO, stream=sys.stdout, 
-                datefmt= '%Y-%m-%d %H:%M:%S', 
-                filename=logfile)
-    
-    spade_pickup_data(indir, pattern, outdir)
-    
+        datalist = self.find_matching_files(basedir, alertname)
+        if len(datalist) == 0:
+            logging.info("no HS data found for this alert time pattern.")
+            return
+
+        logging.info("found HS data:\n%s", datalist)
+
+        datalistlocal = [os.path.basename(s) for s in datalist]
+
+        hubnamelist = ["ichub%02d" %i for i in xrange(1, 87)] + \
+                      ["ithub%02d" %i for i in xrange(1, 12)]
+        for hub in hubnamelist:
+            tarname = "HS_SNALERT_" + alertname + "_" + hub + ".dat.tar.bz2"
+            semname = "HS_SNALERT_" + alertname + "_" + hub + ".sem"
+            data = [s for s in datalistlocal if hub in s]
+            if len(data) != 1:
+                logging.info("no or ambiguous HS data found"
+                             " for %s in this directory.", hub)
+                continue
+
+            dataname = data[0]
+            logging.info("data: %s will be tarred to: %s", dataname, tarname)
+
+            if not self.queue_for_spade(basedir, dataname, spadedir, tarname,
+                                        semname):
+                logging.info("Please put the data manually in"
+                             " the SPADE directory")
+                continue
+
+            logging.info("Preparation for SPADE Pickup of %s DONE", tarname)
+
+if __name__ == "__main__":
+    import getopt
+    import sys
+
+
+    def process_args():
+        indir = None
+        pattern = None
+        outdir = None
+        logfile = None
+
+        #take arguments from command line and check for correct input
+        usage = False
+        try:
+            opts, _ = getopt.getopt(sys.argv[1:], 'hi:l:o:p:',
+                                    ['help', 'indir=', 'log=', 'outdir=',
+                                     'pattern='])
+        except getopt.GetoptError, err:
+            print >>sys.stderr, str(err)
+            opts = []
+            usage = True
+
+        for opt, arg in opts:
+            if opt == "-i" or opt == "--indir":
+                indir = str(arg)
+            elif opt == "-p" or opt == "--pattern":
+                pattern = str(arg)
+            elif opt == "-o" or opt == "--outdir":
+                outdir = str(arg)
+            elif opt == "-l" or opt == "--log":
+                logfile = str(arg)
+            elif opt == '-h' or opt == '--help':
+                usage = True
+
+        if not usage:
+            if indir is None:
+                print >>sys.stderr, "Please specify input directory with \"-i\""
+                usage = True
+            elif pattern is None:
+                print >>sys.stderr, "Please specify time pattern with \"-p\""
+                usage = True
+            elif outdir is None:
+                print >>sys.stderr, "Please specify output directory with \"-o\""
+                usage = True
+
+        if usage:
+            print >>sys.stderr, """
+usage :: HsSpader.py [options]
+  -i  |  Input dir where hs data is located
+      |    e.g. /mnt/data/pdaqlocal/HsDataCopy/
+  -p  |  time pattern of HS data alert:<yyyymmdd>_<hhmmss>
+      |    e.g. 20131101_045126
+  -o  |  Output directory
+      |    default is /mnt/data/HitSpool/
+  -l  |  logfile
+      |    e.g. /mnt/data/pdaqlocal/HsInterface/logs/hssender.log
+"""
+            raise SystemExit(1)
+
+        return indir, pattern, outdir, logfile
+
+    def main():
+        indir, pattern, outdir, logfile = process_args()
+
+        hsp = HsSpader()
+
+        hsp.init_logging(logfile)
+
+        hsp.spade_pickup_data(indir, pattern, outdir)
+
+    main()
