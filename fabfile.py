@@ -444,7 +444,9 @@ def hs_deploy_to_host(host):
         hs_mk_dir_on_host(host)
         _log("Deploying (rsyncing) HSiface to " + host + "...")
         with hide("running", "stdout"):
-            rsync_project(HSIFACE_PATH, CHECKOUT_PATH, exclude=exclude_list)
+            # XXX add '--delete' at some point
+            rsync_project(HSIFACE_PATH + "/", CHECKOUT_PATH + "/",
+                          exclude=exclude_list, extra_opts="-Dglo")
         _log("done.\n")
 
 
