@@ -59,7 +59,7 @@ with settings(hide('running')):
 if  SYSTEM_NAME == "SPTS":
 
     SVN_PATH = "http://code.icecube.wisc.edu/svn/sandbox/dheereman/HitSpoolScripts/trunk"
-    CHECKOUT_PATH = "/scratch/dheereman/HsInterface/trunk"
+    CHECKOUT_PATH = HsConstants.SANDBOX_SPTS
     HSIFACE_PATH = "/mnt/data/pdaqlocal/HsInterface/trunk"
     DEPLOY_TARGET = ["2ndbuild", "ichub21", "expcont"]
     CRONTAB_NAME = "spts"
@@ -77,7 +77,7 @@ if  SYSTEM_NAME == "SPTS":
 elif SYSTEM_NAME == "SPS":
 
     SVN_PATH = "http://code.icecube.wisc.edu/daq/projects/hitspool/trunk"
-    CHECKOUT_PATH = "/home/pdaq/HsInterface/trunk"
+    CHECKOUT_PATH = HsConstants.SANDBOX_SPS
     HSIFACE_PATH = "/mnt/data/pdaqlocal/HsInterface/trunk"
     DEPLOY_TARGET = ["ichub%0.2d" % i for i in range(1, 87)] + \
                       ["ithub%0.2d" % i for i in range(1, 12)] + \
