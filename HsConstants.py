@@ -5,6 +5,10 @@ ALERT_EMAIL_DEV = "i3.hsinterface@gmail.com"
 # Email address which received email for the Supernova group
 ALERT_EMAIL_SN = "icecube-sn-dev@lists.uni-mainz.de"
 
+# Location of development sandbox on SPTS
+SANDBOX_SPTS = "/scratch/dheereman/HsInterface/trunk"
+# Location of release sandbox on SPS
+SANDBOX_SPS = "/home/pdaq/HsInterface/trunk"
 
 # Common 0MQ ports
 ALERT_PORT = 55557
