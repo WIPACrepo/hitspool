@@ -41,7 +41,11 @@ def handler(signum, frame):
 signal.signal(signal.SIGTERM, handler)    #handler is called when SIGTERM is called (via pkill)
 
 
-
+def parse_date(datestr):
+    try:
+        return datetime.strptime(datestr,"%Y-%m-%d %H:%M:%S.%f")
+    except ValueError:
+        return datetime.strptime(datestr,"%Y-%m-%d %H:%M:%S")
 
 
 class MyAlert(object):
@@ -94,10 +98,7 @@ class MyAlert(object):
             utc_now = datetime.utcnow()
             sn_start_utc = str(datetime(int(utc_now.year),1,1) + timedelta(seconds=sn_start*1.0E-9))  #sndaq time units are nanoseconds
             logging.info( "SN START [UTC]: " + str(sn_start_utc))
-            try:
-                ALERTSTART = datetime.strptime(sn_start_utc,"%Y-%m-%d %H:%M:%S.%f")
-            except ValueError:
-                ALERTSTART = datetime.strptime(sn_start_utc,"%Y-%m-%d %H:%M:%S")
+            ALERTSTART = parse_date(sn_start_utc)
             logging.info( "ALERTSTART = " + str(ALERTSTART))            
             TRUETRIGGER = ALERTSTART + timedelta(0,30)          # time window around trigger is [-30,+60] -> TRUETRIGGER = ALERTSTART + 30seconds 
             logging.info( "TRUETRIGGER = sndaq trigger time: " + str(TRUETRIGGER))
@@ -118,10 +119,7 @@ class MyAlert(object):
             logging.info( "SN STOP [ns] = " + str(sn_stop))
             sn_stop_utc = str(datetime(int(utc_now.year),1,1) + timedelta(seconds=sn_stop*1.0E-9))  #sndaq time units are nanosecond
             logging.info( "SN STOP [UTC]: " + str(sn_stop_utc))
-            try:
-                ALERTSTOP = datetime.strptime(sn_stop_utc,"%Y-%m-%d %H:%M:%S.%f")
-            except ValueError:
-                ALERTSTOP = datetime.strptime(sn_stop_utc,"%Y-%m-%d %H:%M:%S")
+            ALERTSTOP = parse_date(sn_stop_utc)
             logging.info( "ALERTSTOP = " + str(ALERTSTOP))
             alertParse2 = True
         except Exception, err:
@@ -299,11 +297,11 @@ class MyAlert(object):
     
             #converting the INFO dict's first entry into a datetime object:
             startrun_utc = str(datetime(int(utc_now.year),1,1) + timedelta(seconds=startrun*1.0E-10))    #PDAQ TIME UNITS ARE 0.1 NANOSECONDS
-            RUNSTART = datetime.strptime(startrun_utc,"%Y-%m-%d %H:%M:%S.%f")
+            RUNSTART = parse_date(startrun_utc)
             startdata_utc = str(datetime(int(utc_now.year),1,1) + timedelta(seconds=startdata*1.0E-10))  #PDAQ TIME UNITS ARE 0.1 NANOSECONDS
-            BUFFSTART = datetime.strptime(startdata_utc,"%Y-%m-%d %H:%M:%S.%f")
+            BUFFSTART = parse_date(startdata_utc)
             stopdata_utc = str(datetime(int(utc_now.year),1,1) + timedelta(seconds=CURT*1.0E-10))        #PDAQ TIME UNITS ARE 0.1 NANOSECONDS
-            BUFFSTOP = datetime.strptime(stopdata_utc,"%Y-%m-%d %H:%M:%S.%f")
+            BUFFSTOP = parse_date(stopdata_utc)
             #outputstring1 = "first HIT ever in this Run on this String in nanoseconds: %d\noldest HIT's time-stamp existing in buffer in nanoseconds: %d\noldest HIT's time-stamp in UTC:%s\nnewest HIT's timestamp in nanoseconds: %d\nnewest HIT's time-stamp in UTC: %s\neach hit spool file contains %d * E-10 seconds of data\nduration per file in integer seconds: %d\nhit spooling writes to %d files per cycle \nHitSpooling writes to newest file: HitSpool-%d since %d DAQ units\nThe Hit Spooler is currently writing iteration loop: %d\nThe oldest file is: HitSpool-%s\n"
             logging.info( "first HIT ever in current Run on this String in nanoseconds: " + str(startrun) + "\n" +
             "oldest HIT's time-stamp existing in buffer in nanoseconds: " + str(startdata) +"\n" + 
@@ -332,11 +330,11 @@ class MyAlert(object):
     
             #converting the INFO dict's first entry into a datetime object:
             last_startrun_utc = str(datetime(int(utc_now.year),1,1) + timedelta(seconds=last_startrun*1.0E-10))    #PDAQ TIME UNITS ARE 0.1 NANOSECONDS
-            LAST_RUNSTART = datetime.strptime(last_startrun_utc,"%Y-%m-%d %H:%M:%S.%f")
+            LAST_RUNSTART = parse_date(last_startrun_utc)
             last_startdata_utc = str(datetime(int(utc_now.year),1,1) + timedelta(seconds=last_startdata*1.0E-10))  #PDAQ TIME UNITS ARE 0.1 NANOSECONDS
-            LAST_BUFFSTART = datetime.strptime(last_startdata_utc,"%Y-%m-%d %H:%M:%S.%f")
+            LAST_BUFFSTART = parse_date(last_startdata_utc)
             last_stopdata_utc = str(datetime(int(utc_now.year),1,1) + timedelta(seconds=LAST_CURT*1.0E-10))        #PDAQ TIME UNITS ARE 0.1 NANOSECONDS
-            LAST_BUFFSTOP = datetime.strptime(last_stopdata_utc,"%Y-%m-%d %H:%M:%S.%f")
+            LAST_BUFFSTOP = parse_date(last_stopdata_utc)
             #outputstring1 = "first HIT ever in this Run on this String in nanoseconds: %d\noldest HIT's time-stamp existing in buffer in nanoseconds: %d\noldest HIT's time-stamp in UTC:%s\nnewest HIT's timestamp in nanoseconds: %d\nnewest HIT's time-stamp in UTC: %s\neach hit spool file contains %d * E-10 seconds of data\nduration per file in integer seconds: %d\nhit spooling writes to %d files per cycle \nHitSpooling writes to newest file: HitSpool-%d since %d DAQ units\nThe Hit Spooler is currently writing iteration loop: %d\nThe oldest file is: HitSpool-%s\n"
             logging.info( "first HIT ever in last Run on this String in nanoseconds: " + str(last_startrun) + "\n" +
             "oldest HIT's time-stamp existing in buffer in nanoseconds: " + str(last_startdata) +"\n" + 

@@ -11,6 +11,7 @@ import time
 from datetime import datetime, timedelta
 import ast
 
+import HsConstants
 
 
 # --- Clean exit when program is terminated from outside (via pkill) ---#
@@ -82,7 +83,7 @@ class Receiver(object):
 #                                    "quiet": "true",
 #                                    "value": {"condition": "DATA REQUEST HsInterface Alert: received and published to HsWorkers", 
 #                                              "prio": 1,
-#                                              "notify": "i3.hsinterface@gmail.com",
+#                                              "notify": HsConstants.ALERT_EMAIL_DEV,
 #                                              "vars": alert,}})
                 
                 alertmsg = str(alert) + """
@@ -97,10 +98,10 @@ class Receiver(object):
                                   "t"    :   str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
                                   "value"   :   {"condition"    : "DATA REQUEST HsInterface Alert: " + cluster,
                                                  "desc"         : "HsInterface Data Reuqest",
-                                                 "notifies"     : [{"receiver"      : "i3.hsinterface@gmail.com",
+                                                 "notifies"     : [{"receiver"      : HsConstants.ALERT_EMAIL_DEV,
                                                                     "notifies_txt"  : alertmsg,
                                                                     "notifies_header" : "DATA REQUEST HsInterface Alert: "+ cluster},
-                                                                   {"receiver"      : "icecube-sn-dev@lists.uni-mainz.de",
+                                                                   {"receiver"      : HsConstants.ALERT_EMAIL_SN,
                                                                     "notifies_txt"  : alertmsg,
                                                                     "notifies_header" : "DATA REQUEST HsInterface Alert: "+ cluster}],
                                                  "short_subject": "true",

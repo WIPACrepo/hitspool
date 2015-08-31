@@ -63,7 +63,8 @@ with settings(hide('running')):
 if  SystemName ==  "SPTS" :
 
     SVN_PATH        = "http://code.icecube.wisc.edu/svn/sandbox/dheereman/HitSpoolScripts/trunk"
-    CHECKOUT_PATH   = "/scratch/dheereman/HsInterface/trunk/"
+    #CHECKOUT_PATH   = "/scratch/dheereman/HsInterface/trunk/"
+    CHECKOUT_PATH = "/home/dglo/prj/hitspool/"
     HSiface_PATH    = "/mnt/data/pdaqlocal/HsInterface/trunk/"
     DEPLOY_TARGET   = [ "2ndbuild" , "ichub21", "expcont"]
 #    DEPLOY_TARGET   = [ "2ndbuild" , "ichub21", "ichub29", "expcont"]

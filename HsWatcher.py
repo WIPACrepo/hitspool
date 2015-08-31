@@ -14,6 +14,9 @@ import logging
 import zmq
 from datetime import datetime
 
+import HsConstants
+
+
 class MyWatcher(object):
     def get_host(self):
         """
@@ -219,7 +222,7 @@ class MyWatcher(object):
                                   "time"    :   str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
                                   "value"   :   {"condition"    : "STOPPED HsInterface Alert: " + mywatch_short + "@" + host_short,
                                                  "desc"         : "HsInterface service stopped",
-                                                 "notifies"     : [{"receiver"      : "i3.hsinterface@gmail.com",
+                                                 "notifies"     : [{"receiver"      : HsConstants.ALERT_EMAIL_DEV,
                                                                     "notifies_txt"  : alertmsg1,
                                                                     "notifies_header" : "RECOVERY HsInterface Alert: " + mywatch_short + "@" + host_short}],
                                                  "short_subject": "true",
@@ -239,7 +242,7 @@ class MyWatcher(object):
                                   "time"    :   str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
                                   "value"   :   {"condition"    : "STOPPED HsInterface Alert: " + mywatch_short + "@" + host_short,
                                                  "desc"         : "HsInterface service stopped",
-                                                 "notifies"     : [{"receiver"      : "i3.hsinterface@gmail.com",
+                                                 "notifies"     : [{"receiver"      : HsConstants.ALERT_EMAIL_DEV,
                                                                     "notifies_txt"  : alertmsg3,
                                                                     "notifies_header" : "STOPPED HsInterface Alert: " + mywatch_short + "@" + host_short}],
                                                  "short_subject": "true",
@@ -258,10 +261,10 @@ class MyWatcher(object):
                                       "time"    :   str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
                                       "value"   :   {"condition"    : "RECOVERY HsInterface Alert: " + mywatch_short + "@" + host_short,
                                                      "desc"         : "HsInterface service recovery notice",
-                                                     "notifies"     : [{"receiver"      : "i3.hsinterface@gmail.com",
+                                                     "notifies"     : [{"receiver"      : HsConstants.ALERT_EMAIL_DEV,
                                                                         "notifies_txt"  : alertmsg2,
                                                                         "notifies_header" : "RECOVERY HsInterface Alert: " + mywatch_short + "@" + host_short},
-                                                                       {"receiver"      : "icecube-sn-dev@lists.uni-mainz.de",
+                                                                       {"receiver"      : HsConstants.ALERT_EMAIL_SN,
                                                                         "notifies_txt"  : alertmsg2,
                                                                         "notifies_header" : "RECOVERY HsInterface Alert: " + mywatch_short + "@" + host_short}],
                                                      "short_subject": "true",
