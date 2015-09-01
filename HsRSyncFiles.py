@@ -39,10 +39,11 @@ class RunInfo(object):
         # try max 10 times to parse info.txt to dictionary
         retries_max = 10
 
+        filename = os.path.join(hs_sourcedir, rundir, 'info.txt')
+
         parsed = False
         for _ in range(1, retries_max):
             try:
-                filename = os.path.join(hs_sourcedir, rundir, 'info.txt')
                 fin = open(filename, "r")
                 logging.info("read %s", filename)
             except IOError:
@@ -672,9 +673,19 @@ class HsRSyncFiles(HsBase.HsBase):
                                                            stop_ticks,
                                                            hs_sourcedir,
                                                            sleep_secs)
-            if src_tuples_list is None:
-                logging.error("No data found between %s and %s", alert_start,
-                              alert_stop)
+            if src_tuples_list is None or len(src_tuples_list) == 0:
+                # if it wasn't in the hitspool cache, check the old directories
+                curRunDir = os.path.join(hs_sourcedir, "currentRun")
+                if os.path.isdir(curRunDir):
+                    src_tuples_list = self.__find_requested_files(alert_start,
+                                                                  alert_stop,
+                                                                  hs_sourcedir,
+                                                                  sleep_secs)
+
+            if src_tuples_list is None or len(src_tuples_list) == 0:
+                logging.error("No data found between %s and %s",
+                              alert_start, alert_stop)
+                return None
         else:
             src_tuples_list = self.__find_requested_files(alert_start,
                                                           alert_stop,
