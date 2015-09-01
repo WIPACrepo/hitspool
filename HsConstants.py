@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
 # Email address which received email for the hitspool developer(s)
-ALERT_EMAIL_DEV = "i3.hsinterface@gmail.com"
+ALERT_EMAIL_DEV = "dglo+hsdev@icecube.wisc.edu"
 # Email address which received email for the Supernova group
 ALERT_EMAIL_SN = "icecube-sn-dev@lists.uni-mainz.de"
 
 # Location of development sandbox on SPTS
-SANDBOX_SPTS = "/scratch/dheereman/HsInterface/trunk"
+SANDBOX_SPTS = "/home/dglo/prj/hitspool"
 # Location of release sandbox on SPS
 SANDBOX_SPS = "/home/pdaq/HsInterface/trunk"
 
