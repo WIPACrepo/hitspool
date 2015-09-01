@@ -478,7 +478,9 @@ class HsRSyncTestCase(LoggingTestCase):
                                   self.INTERVAL, use_db=use_db)
 
         # add all expected log messages
-        self.expectLogMessage("No relevant files found")
+        self.expectLogMessage("No data found between %s and %s" %
+                              (HsTestUtil.get_time(start_ticks),
+                               HsTestUtil.get_time(stop_ticks)))
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -814,7 +816,9 @@ class HsRSyncTestCase(LoggingTestCase):
                                   self.INTERVAL, use_db=use_db)
 
         # add all expected log messages
-        self.expectLogMessage("No relevant files found")
+        self.expectLogMessage("No data found between %s and %s" %
+                              (HsTestUtil.get_time(start_ticks),
+                               HsTestUtil.get_time(stop_ticks)))
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -1020,7 +1024,9 @@ class HsRSyncTestCase(LoggingTestCase):
                                   self.INTERVAL, use_db=use_db)
 
         # add all expected log messages
-        self.expectLogMessage("No relevant files found")
+        self.expectLogMessage("No data found between %s and %s" %
+                              (HsTestUtil.get_time(start_ticks),
+                               HsTestUtil.get_time(stop_ticks)))
 
         tstrun.run(start_ticks, stop_ticks)
 
