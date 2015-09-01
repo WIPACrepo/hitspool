@@ -237,6 +237,7 @@ usage :: HsGrabber.py [options]
       |    default is "pdaq@2ndbuild:/mnt/data/pdaqlocal/HsDataCopy"
   -l  |  logfile
       |    e.g. /mnt/data/pdaqlocal/HsInterface/logs/hsgrabber.log
+  -x  |  don't copy files directory, extract hits into a new file
 
 HsGrabber reads UTC timestamps or SNDAQ timestamps.
 It sends SNDAQ timestamps to HsInterface (HsPublisher).
