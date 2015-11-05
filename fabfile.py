@@ -241,14 +241,13 @@ def set_up_cronjobs_for_host(host, do_local=False):
     with settings(host_string=host):
         _log("Setting up HSiface cronjobs on " + host + "...")
         if "2ndbuild" in host:
-            suffix = "_2ndbuild"
+            suffix = "2ndbuild"
         elif "expcont" in host:
-            suffix = "_expcont"
+            suffix = "expcont"
         else:
             suffix = ""
 
-        cronfile = os.path.join(HSIFACE_PATH, "hs_crontabs_%s%s.txt" %
-                                (CRONTAB_NAME, suffix))
+        cronfile = os.path.join(HSIFACE_PATH, "hs_crontabs_%s.txt" % suffix)
         with hide("running"):
             frun("(cat %s; echo; crontab -l |grep -v HSiface | grep -v '^$')"
                  " | crontab -" % cronfile)
