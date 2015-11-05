@@ -3,8 +3,7 @@
 # Email address which received email for the hitspool developer(s)
 ALERT_EMAIL_DEV = "dglo+hsdev@icecube.wisc.edu"
 # Email address which received email for the Supernova group
-#ALERT_EMAIL_SN = "icecube-sn-dev@lists.uni-mainz.de"
-ALERT_EMAIL_SN = "dglo+sndev@icecube.wisc.edu"
+ALERT_EMAIL_SN = "icecube-sn-dev@lists.uni-mainz.de"
 
 # Location of development sandbox on SPTS
 SANDBOX_SPTS = "/home/dglo/prj/hitspool"
