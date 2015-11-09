@@ -13,7 +13,6 @@ import os
 import random
 import re
 import signal
-import sys
 import time
 import traceback
 
@@ -248,7 +247,7 @@ class Worker(HsRSyncFiles):
         if self.is_cluster_sps or self.is_cluster_spts:
             return hs_ssh_access + '::hitspool/' + timetag_dir
 
-        return self.__copydir_dft + timetag_dir
+        return os.path.join(self.__copydir_dft, timetag_dir)
 
     def send_alert(self, value, prio=None):
         if self.i3socket is not None:
@@ -278,6 +277,7 @@ class Worker(HsRSyncFiles):
 
 if __name__ == '__main__':
     import getopt
+    import sys
 
 
     def process_args():
