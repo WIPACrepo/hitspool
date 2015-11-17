@@ -254,6 +254,9 @@ class Worker(HsRSyncFiles):
         logging.info("start processing alert...")
         try:
             self.alert_parser(message, logfile)
+        except KeyboardInterrupt:
+            # allow keyboard interrupts to pass through
+            raise
         except:
             logging.error("Request failed:\n%s\n%s" %
                           (message, traceback.format_exc()))
