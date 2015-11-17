@@ -18,8 +18,8 @@ def get_daq_ticks(start_time, end_time, is_sn_ns=False):
 
     delta = end_time - start_time
 
-    return ((delta.days * 24 * 3600 + delta.seconds) * 1E6 +
-            delta.microseconds) * multiplier
+    return int(((delta.days * 24 * 3600 + delta.seconds) * 1E6 +
+                delta.microseconds) * multiplier)
 
 
 def fix_dates_or_timestamps(start_tick, stop_tick, start_time, stop_time,
@@ -58,6 +58,9 @@ def parse_date(arg):
     """
     Parse string as either a timestamp or a date string
     """
+    if arg is None:
+        raise HsException("Cannot parse None")
+
     if arg.isdigit():
         timestamp = int(arg)
         utc = None
