@@ -19,6 +19,8 @@ import traceback
 
 from datetime import datetime, timedelta
 
+import HsUtil
+
 from HsException import HsException
 from HsRSyncFiles import HsRSyncFiles
 
@@ -67,7 +69,7 @@ class Worker(HsRSyncFiles):
         # XXX do json.loads() translation before calling alert_parser()
         try:
             alert_info = json.loads(alert)
-        except Exception:
+        except:
             raise HsException("Cannot load \"%s\": %s" %
                               (alert, traceback.format_exc()))
 
@@ -80,12 +82,21 @@ class Worker(HsRSyncFiles):
 
         try:
             # timestamp in ns as a string
-            sn_start = int(alert_info[0]['start'])
-            # timestamp in ns as a string
-            sn_stop = int(alert_info[0]['stop'])
-        except Exception:
+            sn_start, start_utc = HsUtil.parse_date(alert_info[0]['start'])
+        except:
             raise HsException("Bad start time \"%s\": %s" %
                               (alert, traceback.format_exc()))
+
+        try:
+            # timestamp in ns as a string
+            sn_stop, stop_utc = HsUtil.parse_date(alert_info[0]['stop'])
+        except:
+            raise HsException("Bad stop time \"%s\": %s" %
+                              (alert, traceback.format_exc()))
+
+        (sn_start, sn_stop, start_utc, stop_utc) \
+            = HsUtil.fix_dates_or_timestamps(sn_start, sn_stop, start_utc,
+                                             stop_utc, is_sn_ns=True)
 
         # should we extract only the matching hits to a new file?
         extract_hits = alert_info[0].has_key('extract')
@@ -241,7 +252,11 @@ class Worker(HsRSyncFiles):
         logging.info("HsWorker received alert message:\n"
                      "%s\nfrom Publisher", message)
         logging.info("start processing alert...")
-        self.alert_parser(message, logfile)
+        try:
+            self.alert_parser(message, logfile)
+        except:
+            logging.error("Request failed:\n%s\n%s" %
+                          (message, traceback.format_exc()))
 
     def rsync_target(self, hs_user_machinedir, hs_ssh_access, timetag_dir,
                      hs_copydest):
