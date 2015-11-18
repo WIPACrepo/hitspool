@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 
+import numbers
 import re
 
 from datetime import datetime, timedelta
@@ -61,7 +62,10 @@ def parse_date(arg):
     if arg is None:
         raise HsException("Cannot parse None")
 
-    if arg.isdigit():
+    if isinstance(arg, numbers.Number):
+        timestamp = int(arg)
+        utc = None
+    elif (isinstance(arg, str) or isinstance(arg, unicode)) and arg.isdigit():
         timestamp = int(arg)
         utc = None
     else:
