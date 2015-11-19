@@ -180,10 +180,12 @@ class HsSender(HsBase.HsBase):
                 logging.info("HS data \"%s\" is located in \"%s\"",
                              data_dir_name, hs_basedir)
             else:
+                # strip rsync hostname if present
+                target_base = copydir_user.split(":")[-1]
                 # move files to requested directory
-                targetdir = os.path.join(copydir_user, data_dir_name)
+                targetdir = os.path.join(target_base, data_dir_name)
                 if self.movefiles(copydir, targetdir):
-                    hs_basedir = copydir_user
+                    hs_basedir = targetdir
                 else:
                     no_spade = True
 
