@@ -226,18 +226,18 @@ class Worker(HsRSyncFiles):
         logging.warning("Signal Handler called with signal %s", signum)
         logging.warning("Shutting down...\n")
 
-        if self.__i3socket is not None:
+        if self.i3socket is not None:
             i3live_dict = {}
             i3live_dict["service"] = "HSiface"
             i3live_dict["varname"] = "HsWorker@%s" % self.shorthost
             i3live_dict["value"] = "INFO: SHUT DOWN called by external signal."
-            self.__i3socket.send_json(i3live_dict)
+            self.i3socket.send_json(i3live_dict)
 
             i3live_dict = {}
             i3live_dict["service"] = "HSiface"
             i3live_dict["varname"] = "HsWorker@%s" % self.shorthost
             i3live_dict["value"] = "STOPPED"
-            self.__i3socket.send_json(i3live_dict)
+            self.i3socket.send_json(i3live_dict)
 
         self.close_all()
 
