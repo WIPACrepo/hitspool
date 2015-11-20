@@ -181,7 +181,14 @@ class HsSender(HsBase.HsBase):
                              data_dir_name, hs_basedir)
             else:
                 # strip rsync hostname if present
-                target_base = copydir_user.split(":")[-1]
+                parts = copydir_user.split(":", 1)
+                if len(parts) > 1 and parts[0].find("/") < 0:
+                    # strip off "hostname:"
+                    target_base = parts[1]
+                else:
+                    # no embedded colons or colons are part of the path
+                    target_base = copydir_user
+
                 # move files to requested directory
                 targetdir = os.path.join(target_base, data_dir_name)
                 if self.movefiles(copydir, targetdir):
