@@ -233,7 +233,7 @@ class DeltaCompressedHit(Payload):
     TYPE_ID = 3
     MIN_LENGTH = 54 - Payload.ENVELOPE_LENGTH
 
-    def __init__(self, mbid, data, keep_data=True):
+    def __init__(self, mbid, data, keep_data=True, little_endian=False):
         """
         Extract delta-compressed hit data from the buffer
         """
@@ -241,7 +241,12 @@ class DeltaCompressedHit(Payload):
             raise PayloadException("Expected at least %d data bytes, got %d" %
                                    (self.MIN_LENGTH, len(data)))
 
-        hdr = struct.unpack(">8xQ3HQ", data[:30])
+        if little_endian:
+            order = "<"
+        else:
+            order = ">"
+
+        hdr = struct.unpack("%s8xQ3HQ" % order, data[:30])
 
         if hdr[1] != 1:
             raise PayloadException(("Bad order-check %d for DeltaSenderHit "
@@ -254,7 +259,7 @@ class DeltaCompressedHit(Payload):
         self.__version = hdr[2]
         self.__pedestal = hdr[3]
         self.__domclk = hdr[4]
-        self.__word0, self.__word2 = struct.unpack(">2I", data[30:38])
+        self.__word0, self.__word2 = struct.unpack("%s2I" % order, data[30:38])
 
         self.__decoded = False
         self.__fadc = None
@@ -288,7 +293,9 @@ class DeltaCompressedHit(Payload):
         return "A" if self.atwd_chip == 0 else "B"
 
     def atwd(self, channel):
-        "ATWD values"
+        """
+        ATWD values (note that these are in time-reversed order)
+        """
         if not self.has_atwd:
             raise PayloadException("No available ATWD channels")
 
