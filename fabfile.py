@@ -62,7 +62,6 @@ if  SYSTEM_NAME == "SPTS":
     CHECKOUT_PATH = HsConstants.SANDBOX_SPTS
     HSIFACE_PATH = "/mnt/data/pdaqlocal/HsInterface/trunk"
     DEPLOY_TARGET = ["2ndbuild", "ichub21", "expcont"]
-    CRONTAB_NAME = "spts"
     env.parallel = True
     env.disable_known_hosts = True
     env.roledefs = {
@@ -82,7 +81,6 @@ elif SYSTEM_NAME == "SPS":
     DEPLOY_TARGET = ["ichub%0.2d" % i for i in range(1, 87)] + \
                       ["ithub%0.2d" % i for i in range(1, 12)] + \
                       ["expcont", "2ndbuild"]
-    CRONTAB_NAME = "sps"
 
     env.parallel = True
     env.disable_known_hosts = True
@@ -107,7 +105,6 @@ elif SYSTEM_NAME == "LOCALHOST":
     SVN_PATH = "http://code.icecube.wisc.edu/svn/sandbox/dheereman/HitSpoolScripts/trunk"
     CHECKOUT_PATH = HSIFACE_PATH = str(raw_input("Your local path to the HitSpool Interface: "))
     DEPLOY_TARGET = ["localhost"]
-    CRONTAB_NAME = "test"
 
     env.use_ssh_config = True
     env.parallel = True
@@ -247,8 +244,7 @@ def set_up_cronjobs_for_host(host, do_local=False):
         else:
             suffix = ""
 
-        cronfile = os.path.join(HSIFACE_PATH, "hs_crontabs_%s%s.txt" %
-                                (CRONTAB_NAME, suffix))
+        cronfile = os.path.join(HSIFACE_PATH, "hs_crontabs%s.txt" % suffix)
         with hide("running"):
             frun("(cat %s; echo; crontab -l |grep -v HSiface | grep -v '^$')"
                  " | crontab -" % cronfile)
