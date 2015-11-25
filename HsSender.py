@@ -297,30 +297,30 @@ if __name__ == "__main__":
     def main():
         (logfile, force_spade, spadedir) = process_args()
 
-        newmsg = HsSender()
+        sender = HsSender()
 
         #handler is called when SIGTERM is called (via pkill)
-        signal.signal(signal.SIGTERM, newmsg.handler)
+        signal.signal(signal.SIGTERM, sender.handler)
 
         # override some defaults (generally only used for debugging)
         if spadedir is not None:
-            newmsg.HS_SPADE_DIR = spadedir
+            sender.HS_SPADE_DIR = spadedir
 
         if logfile is None:
-            if newmsg.is_cluster_local:
+            if sender.is_cluster_local:
                 logdir = "/home/david/TESTCLUSTER/2ndbuild/logs"
             else:
                 logdir = "/mnt/data/pdaqlocal/HsInterface/logs"
-            logfile = os.path.join(logdir, "hssender_%s.log" % newmsg.shorthost)
+            logfile = os.path.join(logdir, "hssender_%s.log" % sender.shorthost)
 
-        newmsg.init_logging(logfile)
+        sender.init_logging(logfile)
 
-        logging.info("HsSender starts on %s", newmsg.shorthost)
+        logging.info("HsSender starts on %s", sender.shorthost)
 
         while True:
             logging.info("HsSender waits for new reports from HsWorkers...")
             try:
-                newmsg.mainloop(force_spade=force_spade)
+                sender.mainloop(force_spade=force_spade)
             except KeyboardInterrupt:
                 logging.warning("Interruption received, shutting down...")
                 raise SystemExit(0)
