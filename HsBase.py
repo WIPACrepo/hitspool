@@ -23,7 +23,7 @@ class HsBase(object):
         if len(hdnm) == 2:
             hostname, domainname = hdnm
         else:
-            hostname = hdnm[1]
+            hostname = fullname
             domainname = ""
 
         # determine cluster based on host/domain name
