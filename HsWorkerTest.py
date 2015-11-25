@@ -51,8 +51,8 @@ class MyWorker(HsWorker.Worker):
                 errmsg = "linked %s to tmp dir" % frompath
                 i3socket.addExpectedValue(errmsg)
         if i3socket is not None and finaldir is not None:
-            i3socket.addExpectedValue(" TBD [MB] HS data transferred"
-                                      " to %s " % finaldir, prio=1)
+            i3socket.addExpectedValue(" TBD [MB] HS data transferred to %s " %
+                                      finaldir, prio=1)
 
     def check_for_unused_links(self):
         llen = len(self.__link_paths)
@@ -204,8 +204,9 @@ class HsWorkerTest(LoggingTestCase):
             hsr.alert_parser(json.dumps(alert), logfile)
             self.fail("This method should fail")
         except HsException, hse:
-            if str(hse).find("TypeError: ") >= 0:
-                self.fail("Unexpected exception: " + str(hse))
+            hsestr = str(hse)
+            if hsestr.find("TypeError: ") >= 0:
+                self.fail("Unexpected exception: " + hsestr)
 
     def test_bad_alert_str(self):
         # create the worker object
@@ -229,8 +230,9 @@ class HsWorkerTest(LoggingTestCase):
             hsr.alert_parser(json.dumps(alert), logfile)
             self.fail("This method should fail")
         except HsException, hse:
-            if str(hse).find("ValueError: ") >= 0:
-                self.fail("Unexpected exception: " + str(hse))
+            hsestr = str(hse)
+            if hsestr.find("ValueError: ") >= 0:
+                self.fail("Unexpected exception: " + hsestr)
 
     def test_bad_alert_empty(self):
         # create the worker object
@@ -250,8 +252,9 @@ class HsWorkerTest(LoggingTestCase):
             hsr.alert_parser(json.dumps(alert), logfile)
             self.fail("This method should fail")
         except HsException, hse:
-            if str(hse).find("IndexError: ") < 0:
-                self.fail("Unexpected exception: " + str(hse))
+            hsestr = str(hse)
+            if hsestr.find("IndexError: ") < 0:
+                self.fail("Unexpected exception: " + hsestr)
 
     def test_bad_alert_dict(self):
         # create the worker object
@@ -271,18 +274,20 @@ class HsWorkerTest(LoggingTestCase):
             hsr.alert_parser(json.dumps(alert), logfile)
             self.fail("This method should fail")
         except HsException, hse:
-            if str(hse).find("KeyError: ") < 0:
-                self.fail("Unexpected exception: " + str(hse))
+            hsestr = str(hse)
+            if hsestr.find("KeyError: ") < 0:
+                self.fail("Unexpected exception: " + hsestr)
 
     def test_alert_start_none(self):
         # create the worker object
         hsr = self.wrapped_object
 
         # create the alert
-        alert = [{'start': None,
-                  'stop': None,
-                  'copy': None,
-                 },]
+        alert = [{
+            'start': None,
+            'stop': None,
+            'copy': None,
+        },]
 
         # initialize i3socket
 
@@ -297,8 +302,9 @@ class HsWorkerTest(LoggingTestCase):
             hsr.alert_parser(json.dumps(alert), logfile)
             self.fail("This method should fail")
         except HsException, hse:
-            if str(hse).find("Cannot parse None") < 0:
-                self.fail("Unexpected exception: " + str(hse))
+            hsestr = str(hse)
+            if hsestr.find("Cannot parse None") < 0:
+                self.fail("Unexpected exception: " + hsestr)
 
     def test_alert_stop_none(self):
         # create the worker object
@@ -308,10 +314,11 @@ class HsWorkerTest(LoggingTestCase):
         start_ticks = 1234567890
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': None,
-                  'copy': None,
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': None,
+            'copy': None,
+        },]
 
         # initialize i3socket
 
@@ -326,18 +333,20 @@ class HsWorkerTest(LoggingTestCase):
             hsr.alert_parser(json.dumps(alert), logfile)
             self.fail("This method should fail")
         except HsException, hse:
-            if str(hse).find("Cannot parse None") < 0:
-                self.fail("Unexpected exception: " + str(hse))
+            hsestr = str(hse)
+            if hsestr.find("Cannot parse None") < 0:
+                self.fail("Unexpected exception: " + hsestr)
 
     def test_alert_start_bad(self):
         # create the worker object
         hsr = self.wrapped_object
 
         # create the alert
-        alert = [{'start': "ABC",
-                  'stop': None,
-                  'copy': None,
-                 },]
+        alert = [{
+            'start': "ABC",
+            'stop': None,
+            'copy': None,
+        },]
 
         # initialize i3socket
 
@@ -352,8 +361,9 @@ class HsWorkerTest(LoggingTestCase):
             hsr.alert_parser(json.dumps(alert), logfile)
             self.fail("This method should fail")
         except HsException, hse:
-            if str(hse).find("Problem with the time-stamp format") < 0:
-                self.fail("Unexpected exception: " + str(hse))
+            hsestr = str(hse)
+            if hsestr.find("Problem with the time-stamp format") < 0:
+                self.fail("Unexpected exception: " + hsestr)
 
     def test_alert_stop_bad(self):
         # create the worker object
@@ -363,10 +373,11 @@ class HsWorkerTest(LoggingTestCase):
         start_ticks = 1234567890
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': "ABC",
-                  'copy': None,
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': "ABC",
+            'copy': None,
+        },]
 
         # initialize i3socket
 
@@ -381,8 +392,9 @@ class HsWorkerTest(LoggingTestCase):
             hsr.alert_parser(json.dumps(alert), logfile)
             self.fail("This method should fail")
         except HsException, hse:
-            if str(hse).find("Problem with the time-stamp format") < 0:
-                self.fail("Unexpected exception: " + str(hse))
+            hsestr = str(hse)
+            if hsestr.find("Problem with the time-stamp format") < 0:
+                self.fail("Unexpected exception: " + hsestr)
 
     def test_alert_bad_copy(self):
         # create the worker object
@@ -393,10 +405,11 @@ class HsWorkerTest(LoggingTestCase):
         stop_ticks = 157886964643994920
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': str(stop_ticks / 10),
-                  'copy': None,
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': str(stop_ticks / 10),
+            'copy': None,
+        },]
 
         # initialize i3socket
 
@@ -411,8 +424,9 @@ class HsWorkerTest(LoggingTestCase):
             hsr.alert_parser(json.dumps(alert), logfile, sleep_secs=0)
             self.fail("This method should fail")
         except HsException, hse:
-            if str(hse).find("Copy directory must be set") < 0:
-                self.fail("Unexpected exception: " + str(hse))
+            hsestr = str(hse)
+            if hsestr.find("Copy directory must be set") < 0:
+                self.fail("Unexpected exception: " + hsestr)
 
     def test_huge_time_range(self):
         # create the worker object
@@ -424,10 +438,11 @@ class HsWorkerTest(LoggingTestCase):
                      (HsWorker.MAX_REQUEST_SECONDS + 1)
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': str(stop_ticks / 10),
-                  'copy': "/foo/bar",
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': str(stop_ticks / 10),
+            'copy': "/foo/bar",
+        },]
 
         errmsg = "Request for %.2fs exceeds limit of allowed data time range" \
                  " of %.2fs. Abort request..." % \
@@ -457,10 +472,11 @@ class HsWorkerTest(LoggingTestCase):
         stop_ticks = start_ticks + self.ONE_MINUTE
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': str(stop_ticks / 10),
-                  'copy': "/foo/bar",
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': str(stop_ticks / 10),
+            'copy': "/foo/bar",
+        },]
 
         # initialize formatted start/stop times
         utcstart = HsTestUtil.get_time(start_ticks)
@@ -475,11 +491,12 @@ class HsWorkerTest(LoggingTestCase):
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
-                                       'UTCSTART': str(utcstart),
-                                       'STOP': int(stop_ticks / 10),
-                                       'UTCSTOP': str(utcstop),
-                                      })
+        hsr.i3socket.addExpectedValue({
+            'START': int(start_ticks / 10),
+            'UTCSTART': str(utcstart),
+            'STOP': int(stop_ticks / 10),
+            'UTCSTOP': str(utcstop),
+        })
         hsr.i3socket.addExpectedValue('ERROR: Current Run info.txt'
                                       ' reading/parsing failed')
 
@@ -498,10 +515,11 @@ class HsWorkerTest(LoggingTestCase):
         stop_ticks = start_ticks + self.ONE_MINUTE
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': str(stop_ticks / 10),
-                  'copy': "/foo/bar",
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': str(stop_ticks / 10),
+            'copy': "/foo/bar",
+        },]
 
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
@@ -530,11 +548,12 @@ class HsWorkerTest(LoggingTestCase):
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
-                                       'UTCSTART': str(utcstart),
-                                       'STOP': int(stop_ticks / 10),
-                                       'UTCSTOP': str(utcstop),
-                                      })
+        hsr.i3socket.addExpectedValue({
+            'START': int(start_ticks / 10),
+            'UTCSTART': str(utcstart),
+            'STOP': int(stop_ticks / 10),
+            'UTCSTOP': str(utcstop),
+        })
         hsr.i3socket.addExpectedValue('ERROR: Last Run info.txt'
                                       ' reading/parsing failed')
 
@@ -553,10 +572,11 @@ class HsWorkerTest(LoggingTestCase):
         stop_ticks = start_ticks + self.ONE_MINUTE
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': str(stop_ticks / 10),
-                  'copy': "/foo/bar",
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': str(stop_ticks / 10),
+            'copy': "/foo/bar",
+        },]
 
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
@@ -586,11 +606,12 @@ class HsWorkerTest(LoggingTestCase):
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
-                                       'UTCSTART': str(utcstart),
-                                       'STOP': int(stop_ticks / 10),
-                                       'UTCSTOP': str(utcstop),
-                                      })
+        hsr.i3socket.addExpectedValue({
+            'START': int(start_ticks / 10),
+            'UTCSTART': str(utcstart),
+            'STOP': int(stop_ticks / 10),
+            'UTCSTOP': str(utcstop),
+        })
         hsr.i3socket.addExpectedValue('ERROR: Current Run info.txt'
                                       ' reading/parsing failed')
 
@@ -609,10 +630,11 @@ class HsWorkerTest(LoggingTestCase):
         stop_ticks = start_ticks + self.ONE_MINUTE
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': str(stop_ticks / 10),
-                  'copy': "/foo/bar",
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': str(stop_ticks / 10),
+            'copy': "/foo/bar",
+        },]
 
         # create lastRun directory
         last_start = start_ticks - self.ONE_MINUTE
@@ -643,11 +665,12 @@ class HsWorkerTest(LoggingTestCase):
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
-                                       'UTCSTART': str(utcstart),
-                                       'STOP': int(stop_ticks / 10),
-                                       'UTCSTOP': str(utcstop),
-                                      })
+        hsr.i3socket.addExpectedValue({
+            'START': int(start_ticks / 10),
+            'UTCSTART': str(utcstart),
+            'STOP': int(stop_ticks / 10),
+            'UTCSTOP': str(utcstop),
+        })
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(utcstart, "lastRun", 4, 5,
@@ -693,10 +716,11 @@ class HsWorkerTest(LoggingTestCase):
         stop_ticks = start_ticks + self.ONE_MINUTE
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': str(stop_ticks / 10),
-                  'copy': "/foo/bar",
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': str(stop_ticks / 10),
+            'copy': "/foo/bar",
+        },]
 
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
@@ -727,11 +751,12 @@ class HsWorkerTest(LoggingTestCase):
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
-                                       'UTCSTART': str(utcstart),
-                                       'STOP': int(stop_ticks / 10),
-                                       'UTCSTOP': str(utcstop),
-                                      })
+        hsr.i3socket.addExpectedValue({
+            'START': int(start_ticks / 10),
+            'UTCSTART': str(utcstart),
+            'STOP': int(stop_ticks / 10),
+            'UTCSTOP': str(utcstop),
+        })
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(utcstart, "currentRun", 4, 5,
@@ -777,10 +802,11 @@ class HsWorkerTest(LoggingTestCase):
         stop_ticks = start_ticks - self.ONE_MINUTE
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': str(stop_ticks / 10),
-                  'copy': "/foo/bar",
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': str(stop_ticks / 10),
+            'copy': "/foo/bar",
+        },]
 
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
@@ -808,11 +834,12 @@ class HsWorkerTest(LoggingTestCase):
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
-                                       'UTCSTART': str(utcstart),
-                                       'STOP': int(stop_ticks / 10),
-                                       'UTCSTOP': str(utcstop),
-                                      })
+        hsr.i3socket.addExpectedValue({
+            'START': int(start_ticks / 10),
+            'UTCSTART': str(utcstart),
+            'STOP': int(stop_ticks / 10),
+            'UTCSTOP': str(utcstop),
+        })
         hsr.i3socket.addExpectedValue("alert_stop < alert_start."
                                       " Abort request.")
 
@@ -828,10 +855,11 @@ class HsWorkerTest(LoggingTestCase):
         stop_ticks = start_ticks + self.ONE_MINUTE
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': str(stop_ticks / 10),
-                  'copy': "/foo/bar",
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': str(stop_ticks / 10),
+            'copy': "/foo/bar",
+        },]
 
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
@@ -864,11 +892,12 @@ class HsWorkerTest(LoggingTestCase):
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
-                                       'UTCSTART': str(utcstart),
-                                       'STOP': int(stop_ticks / 10),
-                                       'UTCSTOP': str(utcstop),
-                                      })
+        hsr.i3socket.addExpectedValue({
+            'START': int(start_ticks / 10),
+            'UTCSTART': str(utcstart),
+            'STOP': int(stop_ticks / 10),
+            'UTCSTOP': str(utcstop),
+        })
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(utcstart, "currentRun", 0, 4,
@@ -914,10 +943,11 @@ class HsWorkerTest(LoggingTestCase):
         stop_ticks = start_ticks + self.ONE_MINUTE
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': str(stop_ticks / 10),
-                  'copy': "/foo/bar",
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': str(stop_ticks / 10),
+            'copy': "/foo/bar",
+        },]
 
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
@@ -949,11 +979,12 @@ class HsWorkerTest(LoggingTestCase):
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
-                                       'UTCSTART': str(utcstart),
-                                       'STOP': int(stop_ticks / 10),
-                                       'UTCSTOP': str(utcstop),
-                                      })
+        hsr.i3socket.addExpectedValue({
+            'START': int(start_ticks / 10),
+            'UTCSTART': str(utcstart),
+            'STOP': int(stop_ticks / 10),
+            'UTCSTOP': str(utcstop),
+        })
         hsr.i3socket.addExpectedValue("Requested data doesn't exist anymore"
                                       " in HsBuffer. Abort request.")
 
@@ -969,10 +1000,11 @@ class HsWorkerTest(LoggingTestCase):
         stop_ticks = start_ticks + self.ONE_MINUTE
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': str(stop_ticks / 10),
-                  'copy': "/foo/bar",
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': str(stop_ticks / 10),
+            'copy': "/foo/bar",
+        },]
 
         # create lastRun directory
         last_start = start_ticks + (self.TICKS_PER_SECOND * 5)
@@ -1005,11 +1037,12 @@ class HsWorkerTest(LoggingTestCase):
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
-                                       'UTCSTART': str(utcstart),
-                                       'STOP': int(stop_ticks / 10),
-                                       'UTCSTOP': str(utcstop),
-                                      })
+        hsr.i3socket.addExpectedValue({
+            'START': int(start_ticks / 10),
+            'UTCSTART': str(utcstart),
+            'STOP': int(stop_ticks / 10),
+            'UTCSTOP': str(utcstop),
+        })
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(utcstart, "lastRun", 0, 4,
@@ -1055,10 +1088,11 @@ class HsWorkerTest(LoggingTestCase):
         stop_ticks = start_ticks + self.ONE_MINUTE
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': str(stop_ticks / 10),
-                  'copy': "/foo/bar",
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': str(stop_ticks / 10),
+            'copy': "/foo/bar",
+        },]
 
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 5)
@@ -1088,11 +1122,12 @@ class HsWorkerTest(LoggingTestCase):
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
-                                       'UTCSTART': str(utcstart),
-                                       'STOP': int(stop_ticks / 10),
-                                       'UTCSTOP': str(utcstop),
-                                      })
+        hsr.i3socket.addExpectedValue({
+            'START': int(start_ticks / 10),
+            'UTCSTART': str(utcstart),
+            'STOP': int(stop_ticks / 10),
+            'UTCSTOP': str(utcstop),
+        })
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(utcstart, "lastRun", 20, 1,
@@ -1138,10 +1173,11 @@ class HsWorkerTest(LoggingTestCase):
         stop_ticks = start_ticks + self.ONE_MINUTE
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': str(stop_ticks / 10),
-                  'copy': "/foo/bar",
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': str(stop_ticks / 10),
+            'copy': "/foo/bar",
+        },]
 
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 5)
@@ -1171,11 +1207,12 @@ class HsWorkerTest(LoggingTestCase):
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
-                                       'UTCSTART': str(utcstart),
-                                       'STOP': int(stop_ticks / 10),
-                                       'UTCSTOP': str(utcstop),
-                                      })
+        hsr.i3socket.addExpectedValue({
+            'START': int(start_ticks / 10),
+            'UTCSTART': str(utcstart),
+            'STOP': int(stop_ticks / 10),
+            'UTCSTOP': str(utcstop),
+        })
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(utcstart, "lastRun", 20, 1,
@@ -1225,10 +1262,11 @@ class HsWorkerTest(LoggingTestCase):
         stop_ticks = start_ticks + self.ONE_MINUTE
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': str(stop_ticks / 10),
-                  'copy': "/foo/bar",
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': str(stop_ticks / 10),
+            'copy': "/foo/bar",
+        }]
 
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 5)
@@ -1268,11 +1306,12 @@ class HsWorkerTest(LoggingTestCase):
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
-                                       'UTCSTART': str(utcstart),
-                                       'STOP': int(stop_ticks / 10),
-                                       'UTCSTOP': str(utcstop),
-                                      })
+        hsr.i3socket.addExpectedValue({
+            'START': int(start_ticks / 10),
+            'UTCSTART': str(utcstart),
+            'STOP': int(stop_ticks / 10),
+            'UTCSTOP': str(utcstop),
+        })
         hsr.i3socket.addExpectedValue("ERROR: linking HitSpool-%d.dat to"
                                       " tmp dir failed" % 20)
         for num in xrange(firstfile, firstfile + numfiles):
@@ -1318,10 +1357,11 @@ class HsWorkerTest(LoggingTestCase):
         stop_ticks = start_ticks + self.ONE_MINUTE
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': str(stop_ticks / 10),
-                  'copy': "/foo/bar",
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': str(stop_ticks / 10),
+            'copy': "/foo/bar",
+        },]
 
         # create lastRun directory
         last_start = start_ticks + (self.ONE_MINUTE * 2)
@@ -1353,11 +1393,12 @@ class HsWorkerTest(LoggingTestCase):
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
-                                       'UTCSTART': str(utcstart),
-                                       'STOP': int(stop_ticks / 10),
-                                       'UTCSTOP': str(utcstop),
-                                      })
+        hsr.i3socket.addExpectedValue({
+            'START': int(start_ticks / 10),
+            'UTCSTART': str(utcstart),
+            'STOP': int(stop_ticks / 10),
+            'UTCSTOP': str(utcstop),
+        })
         hsr.i3socket.addExpectedValue("Requested data doesn't exist anymore"
                                       " in HsBuffer. Abort request.")
 
@@ -1373,10 +1414,11 @@ class HsWorkerTest(LoggingTestCase):
         stop_ticks = start_ticks + self.ONE_MINUTE
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': str(stop_ticks / 10),
-                  'copy': "/foo/bar",
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': str(stop_ticks / 10),
+            'copy': "/foo/bar",
+        },]
 
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
@@ -1406,11 +1448,12 @@ class HsWorkerTest(LoggingTestCase):
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
-                                       'UTCSTART': str(utcstart),
-                                       'STOP': int(stop_ticks / 10),
-                                       'UTCSTOP': str(utcstop),
-                                      })
+        hsr.i3socket.addExpectedValue({
+            'START': int(start_ticks / 10),
+            'UTCSTART': str(utcstart),
+            'STOP': int(stop_ticks / 10),
+            'UTCSTOP': str(utcstop),
+        })
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(utcstart, "currentRun", 4, 5,
@@ -1457,10 +1500,11 @@ class HsWorkerTest(LoggingTestCase):
         stop_ticks = start_ticks + self.ONE_MINUTE
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': str(stop_ticks / 10),
-                  'copy': "/foo/bar",
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': str(stop_ticks / 10),
+            'copy': "/foo/bar",
+        },]
 
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
@@ -1498,11 +1542,12 @@ class HsWorkerTest(LoggingTestCase):
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
-                                       'UTCSTART': str(utcstart),
-                                       'STOP': int(stop_ticks / 10),
-                                       'UTCSTOP': str(utcstop),
-                                      })
+        hsr.i3socket.addExpectedValue({
+            'START': int(start_ticks / 10),
+            'UTCSTART': str(utcstart),
+            'STOP': int(stop_ticks / 10),
+            'UTCSTOP': str(utcstop),
+        })
         for num in xrange(firstfile, firstfile + numfiles):
             errmsg = "ERROR: linking HitSpool-%d.dat to tmp dir failed" % num
             hsr.i3socket.addExpectedValue(errmsg)
@@ -1546,10 +1591,11 @@ class HsWorkerTest(LoggingTestCase):
         stop_ticks = start_ticks + self.ONE_MINUTE
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': str(stop_ticks / 10),
-                  'copy': "/foo/bar",
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': str(stop_ticks / 10),
+            'copy': "/foo/bar",
+        },]
 
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 10)
@@ -1580,11 +1626,12 @@ class HsWorkerTest(LoggingTestCase):
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
-                                       'UTCSTART': str(utcstart),
-                                       'STOP': int(stop_ticks / 10),
-                                       'UTCSTOP': str(utcstop),
-                                      })
+        hsr.i3socket.addExpectedValue({
+            'START': int(start_ticks / 10),
+            'UTCSTART': str(utcstart),
+            'STOP': int(stop_ticks / 10),
+            'UTCSTOP': str(utcstop),
+        })
         hsr.i3socket.addExpectedValue("Requested data is younger than most"
                                       " recent HS data. Abort request.")
 
@@ -1600,10 +1647,11 @@ class HsWorkerTest(LoggingTestCase):
         stop_ticks = start_ticks + (self.TICKS_PER_SECOND * 3)
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': str(stop_ticks / 10),
-                  'copy': "/foo/bar",
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': str(stop_ticks / 10),
+            'copy': "/foo/bar",
+        },]
 
         # create lastRun directory
         last_start = start_ticks + (self.TICKS_PER_SECOND * 1)
@@ -1635,11 +1683,12 @@ class HsWorkerTest(LoggingTestCase):
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
-                                       'UTCSTART': str(utcstart),
-                                       'STOP': int(stop_ticks / 10),
-                                       'UTCSTOP': str(utcstop),
-                                      })
+        hsr.i3socket.addExpectedValue({
+            'START': int(start_ticks / 10),
+            'UTCSTART': str(utcstart),
+            'STOP': int(stop_ticks / 10),
+            'UTCSTOP': str(utcstop),
+        })
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(utcstart, "lastRun", 0, 1,
@@ -1686,10 +1735,11 @@ class HsWorkerTest(LoggingTestCase):
         stop_ticks = start_ticks + self.ONE_MINUTE
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': str(stop_ticks / 10),
-                  'copy': "/foo/bar",
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': str(stop_ticks / 10),
+            'copy': "/foo/bar",
+        },]
 
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 10)
@@ -1720,11 +1770,12 @@ class HsWorkerTest(LoggingTestCase):
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
-                                       'UTCSTART': str(utcstart),
-                                       'STOP': int(stop_ticks / 10),
-                                       'UTCSTOP': str(utcstop),
-                                      })
+        hsr.i3socket.addExpectedValue({
+            'START': int(start_ticks / 10),
+            'UTCSTART': str(utcstart),
+            'STOP': int(stop_ticks / 10),
+            'UTCSTOP': str(utcstop),
+        })
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(utcstart, "currentRun", 4, 5,
@@ -1766,10 +1817,11 @@ class HsWorkerTest(LoggingTestCase):
         stop_ticks = start_ticks + self.ONE_MINUTE
 
         # create the alert
-        alert = [{'start': str(start_ticks / 10),
-                  'stop': str(stop_ticks / 10),
-                  'copy': "/foo/bar",
-                 },]
+        alert = [{
+            'start': str(start_ticks / 10),
+            'stop': str(stop_ticks / 10),
+            'copy': "/foo/bar",
+        },]
 
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 10)
@@ -1799,11 +1851,12 @@ class HsWorkerTest(LoggingTestCase):
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
-                                       'UTCSTART': str(utcstart),
-                                       'STOP': int(stop_ticks / 10),
-                                       'UTCSTOP': str(utcstop),
-                                      })
+        hsr.i3socket.addExpectedValue({
+            'START': int(start_ticks / 10),
+            'UTCSTART': str(utcstart),
+            'STOP': int(stop_ticks / 10),
+            'UTCSTOP': str(utcstop),
+        })
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(utcstart, "currentRun", 4, 5,
@@ -1859,10 +1912,11 @@ class HsWorkerTest(LoggingTestCase):
         utcstop = HsTestUtil.get_time(stop_ticks)
 
         # create the alert
-        alert = [{'start': str(utcstart),
-                  'stop': str(utcstop),
-                  'copy': "/foo/bar",
-                 },]
+        alert = [{
+            'start': str(utcstart),
+            'stop': str(utcstop),
+            'copy': "/foo/bar",
+        },]
 
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 10)
@@ -1888,11 +1942,12 @@ class HsWorkerTest(LoggingTestCase):
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
-        hsr.i3socket.addExpectedValue({'START': int(start_ticks / 10),
-                                       'UTCSTART': str(utcstart),
-                                       'STOP': int(stop_ticks / 10),
-                                       'UTCSTOP': str(utcstop),
-                                      })
+        hsr.i3socket.addExpectedValue({
+            'START': int(start_ticks / 10),
+            'UTCSTART': str(utcstart),
+            'STOP': int(stop_ticks / 10),
+            'UTCSTOP': str(utcstop),
+        })
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(utcstart, "currentRun", 4, 5,

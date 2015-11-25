@@ -305,17 +305,21 @@ class MockI3Socket(Mock0MQSocket):
         self.__varname = varname
 
     def addExpectedAlert(self, value, prio=1):
-        edict = {'service': self.__service,
-                 'varname': "alert",
-                 'value': value}
+        edict = {
+            'service': self.__service,
+            'varname': "alert",
+            'value': value,
+        }
         if prio is not None:
             edict['prio'] = prio
         self.addExpected(edict)
 
     def addExpectedValue(self, value, prio=None):
-        edict = {'service': self.__service,
-                 'varname': self.__varname,
-                 'value': value}
+        edict = {
+            'service': self.__service,
+            'varname': self.__varname,
+            'value': value,
+        }
         if prio is not None:
             edict['prio'] = prio
         self.addExpected(edict)
