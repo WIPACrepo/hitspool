@@ -123,7 +123,7 @@ hitspool file indexes and ships the data to copydir.
         hsr = HsRSyncFab(host=myhost)
 
         if logfile is None:
-            if hsr.is_cluster_sps() or hsr.is_cluster_spts():
+            if hsr.is_cluster_sps or hsr.is_cluster_spts:
                 logdir = "/home/pdaq/HsInterface/logs"
             else:
                 logfile = os.path.join(hsr.TEST_HUB_DIR, "logs")
