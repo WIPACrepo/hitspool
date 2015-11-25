@@ -428,8 +428,8 @@ class IntegrationTest(LoggingTestCase):
                   (start_ticks / 10, stop_ticks / 10, copydir)
 
         # initialize incoming socket and add expected message(s)
-        publisher.alert_socket().addIncoming(req_str)
-        publisher.alert_socket().addExpected("DONE\0")
+        publisher.alert_socket.addIncoming(req_str)
+        publisher.alert_socket.addExpected("DONE\0")
 
         # notification message strings
         notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % publisher.cluster

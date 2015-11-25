@@ -61,8 +61,8 @@ class HsPublisherTest(LoggingTestCase):
         req_str = ""
 
         # initialize incoming socket and add expected message(s)
-        rcvr.alert_socket().addIncoming(req_str)
-        rcvr.alert_socket().addExpected("DONE\0")
+        rcvr.alert_socket.addIncoming(req_str)
+        rcvr.alert_socket.addExpected("DONE\0")
 
         # notification message strings
         notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % rcvr.cluster
@@ -116,8 +116,8 @@ class HsPublisherTest(LoggingTestCase):
         req_str = "XXX"
 
         # initialize incoming socket and add expected message(s)
-        rcvr.alert_socket().addIncoming(req_str)
-        rcvr.alert_socket().addExpected("DONE\0")
+        rcvr.alert_socket.addIncoming(req_str)
+        rcvr.alert_socket.addExpected("DONE\0")
 
         # notification message strings
         notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % rcvr.cluster
@@ -170,8 +170,8 @@ class HsPublisherTest(LoggingTestCase):
         req_str = "{'start': \"XXX\", 'stop': \"%s\"}" % stop_utc
 
         # initialize incoming socket and add expected message(s)
-        rcvr.alert_socket().addIncoming(req_str)
-        rcvr.alert_socket().addExpected("DONE\0")
+        rcvr.alert_socket.addIncoming(req_str)
+        rcvr.alert_socket.addExpected("DONE\0")
 
         # notification message strings
         notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % rcvr.cluster
@@ -226,8 +226,8 @@ class HsPublisherTest(LoggingTestCase):
         req_str = "{'start': %d, 'stop': \"%s\"}" % (start_ticks / 10, stop_utc)
 
         # initialize incoming socket and add expected message(s)
-        rcvr.alert_socket().addIncoming(req_str)
-        rcvr.alert_socket().addExpected("DONE\0")
+        rcvr.alert_socket.addIncoming(req_str)
+        rcvr.alert_socket.addExpected("DONE\0")
 
         # notification message strings
         notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % rcvr.cluster
@@ -284,8 +284,8 @@ class HsPublisherTest(LoggingTestCase):
                  (start_ticks / 10, stop_ticks / 10)
 
         # initialize incoming socket and add expected message(s)
-        rcvr.alert_socket().addIncoming(req_str)
-        rcvr.alert_socket().addExpected("DONE\0", answer="XXX")
+        rcvr.alert_socket.addIncoming(req_str)
+        rcvr.alert_socket.addExpected("DONE\0", answer="XXX")
 
         # notification message strings
         notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % rcvr.cluster
@@ -342,8 +342,8 @@ class HsPublisherTest(LoggingTestCase):
                  (start_ticks / 10, stop_ticks / 10)
 
         # initialize incoming socket and add expected message(s)
-        rcvr.alert_socket().addIncoming(req_str)
-        rcvr.alert_socket().addExpected("DONE\0")
+        rcvr.alert_socket.addIncoming(req_str)
+        rcvr.alert_socket.addExpected("DONE\0")
 
         # notification message strings
         notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % rcvr.cluster

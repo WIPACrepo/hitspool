@@ -72,6 +72,7 @@ class Receiver(HsBase.HsBase):
                 "value"  :   value,
                }
 
+    @property
     def alert_socket(self):
         return self.__socket
 
