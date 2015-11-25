@@ -13,7 +13,6 @@ import os
 import random
 import re
 import signal
-import sys
 import time
 import traceback
 
@@ -22,6 +21,7 @@ from datetime import datetime, timedelta
 import HsUtil
 
 from HsException import HsException
+from HsPrefix import HsPrefix
 from HsRSyncFiles import HsRSyncFiles
 
 
@@ -205,18 +205,13 @@ class Worker(HsRSyncFiles):
         return os.path.join(self.__copydir_dft, timetag_dir)
 
     def get_timetag_tuple(self, hs_copydir, starttime):
-        if hs_copydir == self.__copydir_dft:
+        prefix = HsPrefix.guess_from_dir(hs_copydir)
+        if prefix == HsPrefix.SNALERT:
             #this is a SNDAQ request -> SNALERT tag
             # time window around trigger is [-30,+60], so add 30 seconds
-            prefix = "SNALERT"
             plus30 = starttime + timedelta(0, 30)
             timetag = plus30.strftime("%Y%m%d_%H%M%S")
-        elif 'hese' in hs_copydir:
-            #this is a HESE request -> HESE tag
-            prefix = "HESE"
-            timetag = starttime.strftime("%Y%m%d_%H%M%S")
         else:
-            prefix = "ANON"
             timetag = starttime.strftime("%Y%m%d_%H%M%S")
 
         return prefix, timetag
@@ -296,6 +291,7 @@ class Worker(HsRSyncFiles):
 
 if __name__ == '__main__':
     import getopt
+    import sys
 
 
     def process_args():

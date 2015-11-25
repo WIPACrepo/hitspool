@@ -13,6 +13,7 @@ import zmq
 import HsBase
 
 from HsConstants import I3LIVE_PORT, SENDER_PORT
+from HsPrefix import HsPrefix
 
 
 class HsSender(HsBase.HsBase):
@@ -164,8 +165,7 @@ class HsSender(HsBase.HsBase):
         no_spade = False
         if not force_spade:
             match = re.match(r'(\S+)_[0-9]{8}_[0-9]{6}', data_dir_name)
-            prefixes = ("SNALERT", "HESE", "ANON")
-            if match is None or not match.group(1) in prefixes:
+            if match is None or not HsPrefix.is_valid(match.group(1)):
                 logging.error("Naming scheme validation failed.")
                 logging.error("Please put the data manually in the desired"
                               " location: %s", copydir_user)
@@ -211,7 +211,7 @@ class HsSender(HsBase.HsBase):
 
         hs_basedir, data_dir = os.path.split(copydir)
         match = re.match(r'(\S+)_[0-9]{8}_[0-9]{6}_\S+', data_dir)
-        if match is None or not match.group(1) in ["SNALERT", "HESE", "ANON"]:
+        if match is None or not HsPrefix.is_valid(match.group(1)):
             logging.error("Naming scheme validation failed.")
             logging.error("Please put the data manually in the SPADE"
                           " directory. Use HsSpader.py, for example.")
@@ -299,7 +299,7 @@ if __name__ == "__main__":
 
         sender = HsSender()
 
-        #handler is called when SIGTERM is called (via pkill)
+        # handler is called when SIGTERM is called (via pkill)
         signal.signal(signal.SIGTERM, sender.handler)
 
         # override some defaults (generally only used for debugging)
