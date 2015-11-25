@@ -179,7 +179,7 @@ if __name__ == "__main__":
         logfile = None
         extract_hits = False
 
-        ##take arguments from command line and check for correct input
+        # take arguments from command line and check for correct input
         usage = False
         try:
             opts, _ = getopt.getopt(sys.argv[1:], 'b:c:e:hl:x',
@@ -267,7 +267,8 @@ It sends SNDAQ timestamps to HsInterface (HsPublisher).
                 sec_bldr = "localhost"
                 user = getpass.getuser()
 
-            copydir = "%s@%s:/mnt/data/pdaqlocal/HsDataCopy" % (user, sec_bldr)
+            copydir = "%s@%s:/mnt/data/pdaqlocal/HsDataCopy" % \
+                      (user, sec_bldr)
 
         timeout = 10 # number of tries to wait for answer from Publisher
 
