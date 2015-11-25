@@ -30,10 +30,10 @@ class Receiver(HsBase.HsBase):
     def __init__(self, is_test=False):
         super(Receiver, self).__init__(is_test=is_test)
 
-        if self.is_cluster_local:
-            expcont = "localhost"
-        else:
+        if self.is_cluster_sps or self.is_cluster_spts:
             expcont = "expcont"
+        else:
+            expcont = "localhost"
 
         self.__context = zmq.Context()
         self.__socket = self.create_alert_socket()
@@ -241,10 +241,10 @@ if __name__ == '__main__':
         signal.signal(signal.SIGTERM, receiver.handler)
 
         if logfile is None:
-            if receiver.is_cluster_local:
-                logdir = "/home/david/TESTCLUSTER/expcont/logs"
-            else:
+            if receiver.is_cluster_sps or receiver.is_cluster_spts:
                 logdir = "/mnt/data/pdaqlocal/HsInterface/logs"
+            else:
+                logdir = "/home/david/TESTCLUSTER/expcont/logs"
             logfile = os.path.join(logdir, "hspublisher_%s.log" %
                                    receiver.shorthost)
 

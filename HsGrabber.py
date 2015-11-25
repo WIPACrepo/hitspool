@@ -30,10 +30,10 @@ class HsGrabber(HsBase.HsBase):
     def __init__(self):
         super(HsGrabber, self).__init__()
 
-        if self.is_cluster_local:
-            expcont = "localhost"
-        else:
+        if self.is_cluster_sps or self.is_cluster_spts:
             expcont = "expcont"
+        else:
+            expcont = "localhost"
 
         self.__context = zmq.Context()
         self.__grabber = self.create_grabber(expcont)
@@ -258,14 +258,14 @@ It sends SNDAQ timestamps to HsInterface (HsPublisher).
         logging.info("This HsGrabber runs on: %s", hsg.fullhost)
 
         if copydir is None:
-            if hsg.is_cluster_local:
+            if hsg.is_cluster_sps or hsg.is_cluster_spts:
+                sec_bldr = "2ndbuild"
+                user = "pdaq"
+            else:
                 import getpass
 
                 sec_bldr = "localhost"
                 user = getpass.getuser()
-            else:
-                sec_bldr = "2ndbuild"
-                user = "pdaq"
 
             copydir = "%s@%s:/mnt/data/pdaqlocal/HsDataCopy" % (user, sec_bldr)
 

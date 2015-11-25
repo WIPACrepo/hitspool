@@ -307,10 +307,10 @@ if __name__ == "__main__":
             sender.HS_SPADE_DIR = spadedir
 
         if logfile is None:
-            if sender.is_cluster_local:
-                logdir = "/home/david/TESTCLUSTER/2ndbuild/logs"
-            else:
+            if sender.is_cluster_sps or sender.is_cluster_spts:
                 logdir = "/mnt/data/pdaqlocal/HsInterface/logs"
+            else:
+                logdir = "/home/david/TESTCLUSTER/2ndbuild/logs"
             logfile = os.path.join(logdir, "hssender_%s.log" % sender.shorthost)
 
         sender.init_logging(logfile)
