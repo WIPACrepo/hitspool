@@ -55,21 +55,23 @@ def fix_dates_or_timestamps(start_tick, stop_tick, start_time, stop_time,
     return (start_tick, stop_tick, start_time, stop_time)
 
 
-def parse_date(arg):
+def parse_sntime(arg):
     """
-    Parse string as either a timestamp or a date string
+    Parse string as either a timestamp (in nanoseconds) or a date string.
+    Return a tuple containing the nanosecond timestamp and a date string,
+    deriving one value from the other.
     """
     if arg is None:
-        raise HsException("Cannot parse None")
+        raise HsException("No date/time specified")
 
     if isinstance(arg, numbers.Number):
-        timestamp = int(arg)
+        nsec = int(arg)
         utc = None
     elif (isinstance(arg, str) or isinstance(arg, unicode)) and arg.isdigit():
-        timestamp = int(arg)
+        nsec = int(arg)
         utc = None
     else:
-        timestamp = 0
+        nsec = 0
         dstr = str(arg)
         try:
             utc = datetime.strptime(dstr, "%Y-%m-%d %H:%M:%S.%f")
@@ -81,4 +83,4 @@ def parse_date(arg):
                 raise HsException("Problem with the time-stamp format"
                                   " \"%s\": %s" % (arg, err))
 
-    return timestamp, utc
+    return nsec, utc

@@ -82,14 +82,14 @@ class Worker(HsRSyncFiles):
 
         try:
             # timestamp in ns as a string
-            sn_start, start_utc = HsUtil.parse_date(alert_info[0]['start'])
+            sn_start, start_utc = HsUtil.parse_sntime(alert_info[0]['start'])
         except:
             raise HsException("Bad start time \"%s\": %s" %
                               (alert, traceback.format_exc()))
 
         try:
             # timestamp in ns as a string
-            sn_stop, stop_utc = HsUtil.parse_date(alert_info[0]['stop'])
+            sn_stop, stop_utc = HsUtil.parse_sntime(alert_info[0]['stop'])
         except:
             raise HsException("Bad stop time \"%s\": %s" %
                               (alert, traceback.format_exc()))

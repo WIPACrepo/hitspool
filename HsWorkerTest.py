@@ -303,7 +303,7 @@ class HsWorkerTest(LoggingTestCase):
             self.fail("This method should fail")
         except HsException, hse:
             hsestr = str(hse)
-            if hsestr.find("Cannot parse None") < 0:
+            if hsestr.find("No date/time specified") < 0:
                 self.fail("Unexpected exception: " + hsestr)
 
     def test_alert_stop_none(self):
@@ -334,7 +334,7 @@ class HsWorkerTest(LoggingTestCase):
             self.fail("This method should fail")
         except HsException, hse:
             hsestr = str(hse)
-            if hsestr.find("Cannot parse None") < 0:
+            if hsestr.find("No date/time specified") < 0:
                 self.fail("Unexpected exception: " + hsestr)
 
     def test_alert_start_bad(self):

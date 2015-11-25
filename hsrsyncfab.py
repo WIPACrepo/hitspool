@@ -39,7 +39,7 @@ if __name__ == "__main__":
     import sys
 
     from HsException import HsException
-    from HsUtil import fix_dates_or_timestamps, parse_date
+    from HsUtil import fix_dates_or_timestamps, parse_sntime
 
 
     def process_args():
@@ -65,13 +65,13 @@ if __name__ == "__main__":
         for opt, arg in opts:
             if opt == '-b':
                 try:
-                    (request_start, request_begin_utc) = parse_date(arg)
+                    (request_start, request_begin_utc) = parse_sntime(arg)
                 except HsException, hsex:
                     print >>sys.stderr, str(hsex)
                     usage = True
             elif opt == '-e':
                 try:
-                    (request_stop, request_end_utc) = parse_date(arg)
+                    (request_stop, request_end_utc) = parse_sntime(arg)
                 except HsException, hsex:
                     print >>sys.stderr, str(hsex)
                     usage = True
