@@ -1,17 +1,14 @@
 #!/usr/bin/env python
 
-#import json
 import logging
 import os
 import shutil
-#import tarfile
 import tempfile
 import unittest
 
 import HsSpader
 
 from HsException import HsException
-
 from LoggingTestCase import LoggingTestCase
 
 
