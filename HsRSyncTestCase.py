@@ -139,7 +139,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
         tstrun.populate(self, use_db=use_db)
 
-        # initialize lasttRun/info.txt path
+        # initialize lastRun/info.txt path
         last_info = os.path.join(hsr.TEST_HUB_DIR, "lastRun", "info.txt")
 
         # add all expected log messages
