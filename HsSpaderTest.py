@@ -9,6 +9,7 @@ import unittest
 import HsSpader
 
 from HsException import HsException
+from HsTestUtil import MockHitspool
 from LoggingTestCase import LoggingTestCase
 
 
@@ -54,38 +55,6 @@ class MySpader(HsSpader.HsSpader):
 
 
 class HsSpaderTest(LoggingTestCase):
-    COPY_DIR = None
-
-    def __create_copydir(self, real_stuff=False):
-        """create temporary copy directory"""
-        if self.COPY_DIR is None:
-            if real_stuff:
-                self.COPY_DIR = tempfile.mkdtemp()
-            else:
-                self.COPY_DIR = "/cloud/cuckoo/land"
-        return self.COPY_DIR
-
-    def __create_hitspool_copy(self, prefix, timetag, host, startnum, numfiles,
-                               real_stuff=False):
-        """create copy directory and fill with fake hitspool files"""
-        copydir = self.__create_copydir(real_stuff=real_stuff)
-
-        # create copy directory
-        path = os.path.join(copydir, "%s_%s_%s" % (prefix, timetag, host))
-
-        # if caller wants actual directory and files, create them
-        if real_stuff:
-            if not os.path.exists(path):
-                os.makedirs(path)
-
-            # create all fake hitspool files
-            for num in xrange(startnum, startnum + numfiles):
-                fpath = os.path.join(path, "HitSpool-%d" % num)
-                with open(fpath, "w") as fout:
-                    print >>fout, "Fake#%d" % num
-
-        return path
-
     def setUp(self):
         super(HsSpaderTest, self).setUp()
         # by default, check all log messages
@@ -95,9 +64,11 @@ class HsSpaderTest(LoggingTestCase):
         try:
             super(HsSpaderTest, self).tearDown()
         finally:
-            if self.COPY_DIR is not None and os.path.exists(self.COPY_DIR):
-                # clear lingering files
-                shutil.rmtree(self.COPY_DIR)
+            # clear lingering files
+            try:
+                MockHitspool.destroy()
+            except:
+                pass
 
     def test_real_spade_pickup_data_empty_dir(self):
         hsp = HsSpader.HsSpader()
@@ -112,8 +83,8 @@ class HsSpaderTest(LoggingTestCase):
         numfiles = 3
 
         # create directory and files
-        self.__create_hitspool_copy(category, timetag, host, firstnum, numfiles,
-                                    real_stuff=True)
+        MockHitspool.create_copy_files(category, timetag, host, firstnum,
+                                       numfiles, real_stuff=True)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.INFO)
@@ -140,8 +111,8 @@ class HsSpaderTest(LoggingTestCase):
         numfiles = 3
 
         # create directory and files
-        self.__create_hitspool_copy(category, timetag, host, firstnum, numfiles,
-                                    real_stuff=True)
+        MockHitspool.create_copy_files(category, timetag, host, firstnum,
+                                       numfiles, real_stuff=True)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.INFO)
@@ -175,8 +146,9 @@ class HsSpaderTest(LoggingTestCase):
         numfiles = 3
 
         # create directory and files
-        hsdir = self.__create_hitspool_copy(category, timetag, host, firstnum,
-                                            numfiles, real_stuff=True)
+        hsdir = MockHitspool.create_copy_files(category, timetag, host,
+                                               firstnum, numfiles,
+                                               real_stuff=True)
 
         # don't check DEBUG log messages
         self.setLogLevel(logging.INFO)
@@ -199,7 +171,7 @@ class HsSpaderTest(LoggingTestCase):
             self.expectLogMessage("no or ambiguous HS data found for ithub%02d"
                                   " in this directory." % hub)
 
-        hsp.spade_pickup_data(self.COPY_DIR, timetag, outdir)
+        hsp.spade_pickup_data(MockHitspool.COPY_DIR, timetag, outdir)
 
     def test_fake_spade_pickup_data_no_data(self):
         hsp = MySpader()
