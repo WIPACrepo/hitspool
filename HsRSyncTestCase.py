@@ -73,6 +73,9 @@ class HsRSyncTestCase(LoggingTestCase):
         copypath = "/one/two/three"
         copydir = "%s@%s:%s" % (copyuser, copyhost, copypath)
 
+        # initialize currentRun/info.txt path
+        cur_info = os.path.join(hsr.TEST_HUB_DIR, "currentRun", "info.txt")
+
         # check all log messages
         self.setLogLevel(0)
 
@@ -81,7 +84,7 @@ class HsRSyncTestCase(LoggingTestCase):
         self.expectLogMessage("HS COPYDIR = %s" % copypath)
         self.expectLogMessage("HS DESTINATION HOST: %s" % copyhost)
         self.expectLogMessage("HsInterface running on: %s" % hsr.cluster)
-        self.expectLogMessage("CurrentRun info.txt reading/parsing failed")
+        self.expectLogMessage("%s reading/parsing failed" % cur_info)
 
         # test parser
         try:
@@ -98,8 +101,11 @@ class HsRSyncTestCase(LoggingTestCase):
         hsr = self.real_object
         hsr.TEST_HUB_DIR = "/this/directory/does/not/exist"
 
+        # initialize currentRun/info.txt path
+        cur_info = os.path.join(hsr.TEST_HUB_DIR, "currentRun", "info.txt")
+
         # add all expected log messages
-        self.expectLogMessage("CurrentRun info.txt reading/parsing failed")
+        self.expectLogMessage("%s reading/parsing failed" % cur_info)
 
         copydir = "me@host:/a/b/c"
 
@@ -133,8 +139,11 @@ class HsRSyncTestCase(LoggingTestCase):
 
         tstrun.populate(self, use_db=use_db)
 
+        # initialize lasttRun/info.txt path
+        last_info = os.path.join(hsr.TEST_HUB_DIR, "lastRun", "info.txt")
+
         # add all expected log messages
-        self.expectLogMessage("LastRun info.txt reading/parsing failed")
+        self.expectLogMessage("%s reading/parsing failed" % last_info)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -163,8 +172,11 @@ class HsRSyncTestCase(LoggingTestCase):
 
         tstrun.populate(self, use_db=use_db)
 
+        # initialize currentRun/info.txt path
+        cur_info = os.path.join(hsr.TEST_HUB_DIR, "currentRun", "info.txt")
+
         # add all expected log messages
-        self.expectLogMessage("CurrentRun info.txt reading/parsing failed")
+        self.expectLogMessage("%s reading/parsing failed" % cur_info)
 
         tstrun.run(start_ticks, stop_ticks)
 
