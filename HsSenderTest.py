@@ -11,7 +11,7 @@ import unittest
 import HsSender
 
 from HsException import HsException
-from HsTestUtil import Mock0MQSocket, MockI3Socket
+from HsTestUtil import Mock0MQSocket, MockI3Socket, MockHitspool
 from LoggingTestCase import LoggingTestCase
 
 
@@ -82,7 +82,6 @@ class HsSenderTest(LoggingTestCase):
     # pylint: disable=too-many-public-methods
     # Really?!?!  In a test class?!?!  Shut up, pylint!
 
-    COPY_DIR = None
     SENDER = None
 
     def __check_hitspool_file_list(self, flist, firstnum, numfiles):
@@ -101,55 +100,26 @@ class HsSenderTest(LoggingTestCase):
         if len(flist) != 0:
             self.fail("%d extra files were copied (%s)", (len(flist), flist))
 
-    def __create_copydir(self, real_stuff=False):
-        """create temporary copy directory"""
-        if self.COPY_DIR is None:
-            if real_stuff:
-                self.COPY_DIR = tempfile.mkdtemp()
-            else:
-                self.COPY_DIR = "/cloud/cuckoo/land"
-        return self.COPY_DIR
-
-    def __create_hitspool_copy(self, prefix, timetag, host, startnum,
-                               numfiles, real_stuff=False):
-        """create copy directory and fill with fake hitspool files"""
-        copydir = self.__create_copydir(real_stuff=real_stuff)
-
-        # create copy directory
-        path = os.path.join(copydir, "%s_%s_%s" % (prefix, timetag, host))
-
-        # if caller wants actual directory and files, create them
-        if real_stuff:
-            if not os.path.exists(path):
-                os.makedirs(path)
-
-            # create all fake hitspool files
-            for num in xrange(startnum, startnum + numfiles):
-                fpath = os.path.join(path, "HitSpool-%d" % num)
-                with open(fpath, "w") as fout:
-                    print >>fout, "Fake#%d" % num
-
-        return path
-
     def __full_test(self, category, timetag, host, target, rsync_prefix,
                     firstnum, numfiles):
         sender = MySender()
         self.SENDER = sender
 
         # create real directories
-        hsdir = self.__create_hitspool_copy(category, timetag, host, firstnum,
-                                            numfiles, real_stuff=True)
-        copydir = self.__create_copydir(real_stuff=True)
-        usrdir = os.path.join(copydir, target)
+        hsdir = MockHitspool.create_copy_files(category, timetag, host,
+                                               firstnum, numfiles,
+                                               real_stuff=True)
+        usrdir = os.path.join(MockHitspool.COPY_DIR, target)
 
         # initialize message
-        msg = {"msgtype": "rsync_sum",
-               "copydir": hsdir,
-               "copydir_user": rsync_prefix + usrdir,
-              }
+        rcv_msg = {
+            "msgtype": "rsync_sum",
+            "copydir": hsdir,
+            "copydir_user": rsync_prefix + usrdir,
+        }
 
         # add all expected JSON messages
-        sender.reporter.addIncoming(json.dumps(msg))
+        sender.reporter.addIncoming(json.dumps(rcv_msg))
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -193,12 +163,11 @@ class HsSenderTest(LoggingTestCase):
         try:
             super(HsSenderTest, self).tearDown()
         finally:
-            if self.COPY_DIR is not None and os.path.exists(self.COPY_DIR):
-                # clear lingering files
-                try:
-                    shutil.rmtree(self.COPY_DIR)
-                except:
-                    pass
+            # clear lingering files
+            try:
+                MockHitspool.destroy()
+            except:
+                pass
             if self.SENDER is not None:
                 try:
                     self.SENDER.close_all()
@@ -215,11 +184,10 @@ class HsSenderTest(LoggingTestCase):
         numfiles = 3
 
         # create fake directory paths
-        hsdir = self.__create_hitspool_copy("XXX", "12345678_987654", "ichub01",
-                                            firstnum, numfiles,
-                                            real_stuff=True)
-        copydir = self.__create_copydir(real_stuff=True)
-        usrdir = os.path.join(copydir, "UserCopy")
+        hsdir = MockHitspool.create_copy_files("XXX", "12345678_987654",
+                                               "ichub01", firstnum, numfiles,
+                                               real_stuff=True)
+        usrdir = os.path.join(MockHitspool.COPY_DIR, "UserCopy")
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -247,9 +215,9 @@ class HsSenderTest(LoggingTestCase):
         numfiles = 3
 
         # create fake directory paths
-        hsdir = self.__create_hitspool_copy("ANON", "12345678_987654",
-                                            "ichub01", firstnum, numfiles,
-                                            real_stuff=True)
+        hsdir = MockHitspool.create_copy_files("ANON", "12345678_987654",
+                                               "ichub01", firstnum, numfiles,
+                                               real_stuff=True)
         if hsdir.endswith('/'):
             usrdir = os.path.dirname(hsdir[:-1])
         else:
@@ -276,11 +244,10 @@ class HsSenderTest(LoggingTestCase):
         numfiles = 3
 
         # create fake directory paths
-        hsdir = self.__create_hitspool_copy("HESE", "12345678_987654",
-                                            "ichub01", firstnum, numfiles,
-                                            real_stuff=True)
-        copydir = self.__create_copydir(real_stuff=True)
-        usrdir = os.path.join(copydir, "UserCopy")
+        hsdir = MockHitspool.create_copy_files("HESE", "12345678_987654",
+                                               "ichub01", firstnum, numfiles,
+                                               real_stuff=True)
+        usrdir = os.path.join(MockHitspool.COPY_DIR, "UserCopy")
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -308,10 +275,10 @@ class HsSenderTest(LoggingTestCase):
         numfiles = 3
 
         # create real directories
-        hsdir = self.__create_hitspool_copy(category, timetag, host, firstnum,
-                                            numfiles, real_stuff=True)
-        copydir = self.__create_copydir(real_stuff=True)
-        usrdir = os.path.join(copydir, "UserCopy")
+        hsdir = MockHitspool.create_copy_files(category, timetag, host,
+                                               firstnum, numfiles,
+                                               real_stuff=True)
+        usrdir = os.path.join(MockHitspool.COPY_DIR, "UserCopy")
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -360,8 +327,9 @@ class HsSenderTest(LoggingTestCase):
         numfiles = 3
 
         # create bad directory name
-        hsdir = self.__create_hitspool_copy(category, timetag, host, firstnum,
-                                            numfiles, real_stuff=False)
+        hsdir = MockHitspool.create_copy_files(category, timetag, host,
+                                               firstnum, numfiles,
+                                               real_stuff=False)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -399,8 +367,9 @@ class HsSenderTest(LoggingTestCase):
         numfiles = 3
 
         # create bad directory name
-        hsdir = self.__create_hitspool_copy(category, timetag, host, firstnum,
-                                            numfiles, real_stuff=False)
+        hsdir = MockHitspool.create_copy_files(category, timetag, host,
+                                               firstnum, numfiles,
+                                               real_stuff=False)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -438,8 +407,9 @@ class HsSenderTest(LoggingTestCase):
         numfiles = 3
 
         # create bad directory name
-        hsdir = self.__create_hitspool_copy(category, timetag, host, firstnum,
-                                            numfiles, real_stuff=False)
+        hsdir = MockHitspool.create_copy_files(category, timetag, host,
+                                               firstnum, numfiles,
+                                               real_stuff=False)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -477,8 +447,9 @@ class HsSenderTest(LoggingTestCase):
         numfiles = 3
 
         # create bad directory name
-        hsdir = self.__create_hitspool_copy(category, timetag, host, firstnum,
-                                            numfiles, real_stuff=False)
+        hsdir = MockHitspool.create_copy_files(category, timetag, host,
+                                               firstnum, numfiles,
+                                               real_stuff=False)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -514,8 +485,9 @@ class HsSenderTest(LoggingTestCase):
         numfiles = 3
 
         # create real directories
-        hsdir = self.__create_hitspool_copy(category, timetag, host, firstnum,
-                                            numfiles, real_stuff=True)
+        hsdir = MockHitspool.create_copy_files(category, timetag, host,
+                                               firstnum, numfiles,
+                                               real_stuff=True)
 
         # add all expected I3Live messages
         sender.i3socket.addExpectedValue("SPADE-ing of %s done" % hsdir)
@@ -580,13 +552,14 @@ class HsSenderTest(LoggingTestCase):
         msg = None
 
         # add all expected JSON messages
-        sender.reporter.addIncoming(msg)
+        sender.reporter.addIncoming(json.dumps(msg))
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
         # add all expected log messages
-        self.expectLogMessage("Cannot load JSON message \"%s\"" % msg)
+        self.expectLogMessage("Ignoring bad message \"%s\"<%s>" %
+                              (None, type(None)))
 
         # run it!
         sender.mainloop()
@@ -670,18 +643,19 @@ class HsSenderTest(LoggingTestCase):
         self.SENDER = sender
 
         # initialize message
-        msg = json.dumps({"msgtype": "xxx",
-                          "copydir": "yyy",
-                          "copydir_user": "zzz"})
+        rcv_msg = {
+            "msgtype": "xxx",
+            "copydir": "yyy",
+            "copydir_user": "zzz",
+        }
 
         # add all expected JSON messages
-        sender.reporter.addIncoming(msg)
+        sender.reporter.addIncoming(json.dumps(rcv_msg))
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
         # add all expected log messages
-        rcv_msg = json.loads(msg)
         self.expectLogMessage("Ignoring message type \"%s\"" %
                               rcv_msg["msgtype"])
 
