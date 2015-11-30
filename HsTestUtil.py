@@ -3,6 +3,8 @@
 
 import datetime
 import os
+import re
+import shutil
 import sqlite3
 import struct
 import tempfile
@@ -10,7 +12,10 @@ import threading
 import zmq
 
 
+# January 1 of this year
 JAN1 = None
+# DAQ ticks per second (0.1 ns)
+TICKS_PER_SECOND = 10000000000
 
 
 def create_hits(filename, start_tick, stop_tick, interval):
@@ -44,13 +49,9 @@ def get_time(tick, is_sn_ns=False):
     Convert a DAQ tick to a Python `datetime`
     NOTE: this conversion does not include leapseconds!!!
     """
-    global JAN1
+    global TICKS_PER_SECOND
 
-    if JAN1 is None:
-        now = datetime.datetime.utcnow()
-        JAN1 = datetime.datetime(now.year, 1, 1)
-
-    ticks_per_sec = 1E10
+    ticks_per_sec = TICKS_PER_SECOND
     if is_sn_ns:
         ticks_per_sec /= 10
     ticks_per_ms = ticks_per_sec / 1000000
@@ -58,7 +59,127 @@ def get_time(tick, is_sn_ns=False):
     secs = int(tick / ticks_per_sec)
     msecs = int(((tick - secs * ticks_per_sec) + (ticks_per_ms / 2)) /
                 ticks_per_ms)
-    return JAN1 + datetime.timedelta(seconds=secs, microseconds=msecs)
+    return jan1() + datetime.timedelta(seconds=secs, microseconds=msecs)
+
+
+def jan1():
+    """
+    Date/time info for January 1 00:00:00 of this year
+    """
+    global JAN1
+
+    if JAN1 is None:
+        now = datetime.datetime.utcnow()
+        JAN1 = datetime.datetime(now.year, 1, 1)
+
+    return JAN1
+
+
+class CompareException(Exception):
+    pass
+
+
+class CompareObjects(object):
+    def __init__(self, obj, exp):
+        self.__compare_objects(obj, exp)
+
+    def __compare_dicts(self, json, jexp):
+        if not isinstance(json, dict):
+            raise CompareException("Expected dict %s<%s>, not %s<%s>" %
+                                   (jexp, type(jexp), json, type(json)))
+
+        extra = {}
+        badval = {}
+        for key, val in json.iteritems():
+            val = self.__unicode_to_ascii(val)
+
+            if not jexp.has_key(key):
+                extra[key] = val
+            else:
+                expval = self.__unicode_to_ascii(jexp[key])
+
+                try:
+                    self.__compare_objects(val, expval)
+                except CompareException, ce:
+                    badval[key] = str(ce)
+
+                del jexp[key]
+
+        errstr = None
+        if len(jexp) > 0:
+            if errstr is None:
+                errstr = ""
+            else:
+                errstr += ","
+            errstr += " missing " + str(jexp)
+        if len(badval) > 0:
+            if errstr is None:
+                errstr = ""
+            else:
+                errstr += ","
+            errstr += " bad values " + str(badval)
+        if len(extra) > 0:
+            if errstr is None:
+                errstr = ""
+            else:
+                errstr += ","
+            errstr += " extra values " + str(extra)
+
+        if errstr is not None:
+            raise CompareException(errstr)
+
+    def __compare_lists(self, obj, exp):
+        if not isinstance(obj, list):
+            raise CompareException("Expected list %s<%s>, not %s<%s>" %
+                                   (exp, type(exp), obj, type(obj)))
+
+        if len(obj) != len(exp):
+            raise CompareException("Expected %d list entries, not %d in %s" %
+                                   (len(exp), len(obj), obj))
+
+        for i in range(len(obj)):
+            try:
+                self.__compare_objects(obj[i], exp[i])
+            except CompareException, ce:
+                raise CompareException("List#%d: %s" % (i, ce))
+
+    def __compare_objects(self, obj, exp):
+        if isinstance(exp, list):
+            self.__compare_lists(obj, exp)
+        elif isinstance(exp, dict):
+            self.__compare_dicts(obj, exp)
+        else:
+            #elif isinstance(val, type(expval)):
+            #    if expval != val:
+            #        badval[key] = "'%s' != expected '%s'" % (val, expval)
+            #else:
+
+            if hasattr(exp, 'flags') and hasattr(exp, 'pattern'):
+                # try to match regular expression
+                if exp.match(str(obj)) is None:
+                        raise CompareException("'%s' does not match '%s'" %
+                                               (obj, exp.pattern))
+
+            else:
+                expstr = self.__unicode_to_ascii(exp)
+                objstr = self.__unicode_to_ascii(obj)
+                if isinstance(objstr, type(expstr)):
+                    if objstr != expstr:
+                        raise CompareException("Expected str \"%s\"<%s>, not"
+                                               " \"%s\"<%s>" %
+                                               (expstr, type(exp), objstr,
+                                                type(obj)))
+                else:
+                    #import traceback
+                    #traceback.print_exc()
+                    raise CompareException("Expected obj %s<%s> not %s<%s>" %
+                                           (exp, type(exp), obj, type(obj)))
+
+    def __unicode_to_ascii(self, xstr):
+        if isinstance(xstr, unicode):
+            return xstr.encode('ascii', 'ignore')
+
+        return xstr
 
 
 class Mock0MQSocket(object):
@@ -101,19 +222,19 @@ class Mock0MQSocket(object):
     def recv_json(self):
         return self.recv()
 
-    def send(self, msgstr):
+    def send(self, msgjson):
         if len(self.__expected) == 0:
-            raise Exception("Unexpected %s message: %s" %
-                            (self.__name, msgstr))
+            raise CompareException("Unexpected %s message: %s" %
+                                   (self.__name, msgstr))
 
         expmsg = self.__expected.pop(0)
 
-        if expmsg != msgstr:
-            raise Exception("Expected \"%s\" not \"%s\"" % (expmsg, msgstr))
+        CompareObjects(msgjson, expmsg)
 
-        if self.__answer.has_key(expmsg):
-            resp = self.__answer[expmsg]
-            del self.__answer[expmsg]
+        expkey = str(expmsg)
+        if self.__answer.has_key(expkey):
+            resp = self.__answer[expkey]
+            del self.__answer[expkey]
             return resp
 
     def send_json(self, json):
@@ -121,73 +242,7 @@ class Mock0MQSocket(object):
             raise Exception("Unexpected %s JSON message: %s" %
                             (self.__name, json))
 
-        jexp = self.__expected.pop(0)
-
-        extra = {}
-        badval = {}
-        for key, val in json.iteritems():
-            if key == "t":
-                # ignore times
-                continue
-
-            if isinstance(val, unicode):
-                val = val.encode('ascii', 'ignore')
-            if not jexp.has_key(key):
-                extra[key] = val
-            else:
-                expval = jexp[key]
-                if isinstance(expval, unicode):
-                    expval = expval.encode('ascii', 'ignore')
-
-                if isinstance(expval, dict) and isinstance(val, dict):
-                    badstr = None
-                    for xkey in expval:
-                        if val[xkey] != expval[xkey]:
-                            if badstr is None:
-                                badstr = ""
-                            else:
-                                badstr += ", "
-                            badstr += "[%s] %s<%s> != expected %s<%s>" % \
-                                      (xkey, val[xkey], type(val[xkey]),
-                                       expval[xkey], type(expval[xkey]))
-                    if badstr is not None:
-                        badval[key] = badstr
-                elif isinstance(val, type(expval)):
-                    if expval != val:
-                        badval[key] = "'%s' != expected '%s'" % (val, expval)
-                else:
-                    try:
-                        if expval.match(val) is None:
-                            badval[key] = "'%s' does not match '%s'" % \
-                                          (val, expval.pattern)
-                    except:
-                        badval[key] = "%s<%s> is not expected %s<%s>" % \
-                                      (val, type(val), expval, type(expval))
-
-                del jexp[key]
-
-        errstr = None
-        if len(jexp) > 0:
-            if errstr is None:
-                errstr = ""
-            else:
-                errstr += ","
-            errstr += " missing " + str(jexp)
-        if len(badval) > 0:
-            if errstr is None:
-                errstr = ""
-            else:
-                errstr += ","
-            errstr += " bad values " + str(badval)
-        if len(extra) > 0:
-            if errstr is None:
-                errstr = ""
-            else:
-                errstr += ","
-            errstr += " extra values " + str(extra)
-
-        if errstr is not None:
-            raise Exception(self.__name + " JSON has" + errstr)
+        CompareObjects(json, self.__expected.pop(0))
 
     def validate(self):
         if len(self.__outqueue) > 0:
@@ -299,30 +354,41 @@ class MockHitspool(object):
 
 
 class MockI3Socket(Mock0MQSocket):
+    TIME_PAT = re.compile(r"\d+-\d+-\d+ +\d+:\d+:\d+(.\d+)?")
+
     def __init__(self, varname):
-        super(MockI3Socket, self).__init__("I3Socket")
+        super(MockI3Socket, self).__init__(varname)
         self.__service = "HSiface"
         self.__varname = varname
 
     def addExpectedAlert(self, value, prio=1):
+        self.addExpectedMessage(value, service=self.__service,
+                                varname="alert", prio=prio, t=self.TIME_PAT)
+
+    def addExpectedMessage(self, value, service=None, varname=None, prio=None,
+                           t=None, time=None):
+        if service is None:
+            service = self.__service
+        if varname is None:
+            varname = self.__varname
         edict = {
-            'service': self.__service,
-            'varname': "alert",
+            'service': service,
+            'varname': varname,
             'value': value,
         }
+
         if prio is not None:
             edict['prio'] = prio
+        if t is not None:
+            edict['t'] = t
+        if time is not None:
+            edict['time'] = time
+
         self.addExpected(edict)
 
     def addExpectedValue(self, value, prio=None):
-        edict = {
-            'service': self.__service,
-            'varname': self.__varname,
-            'value': value,
-        }
-        if prio is not None:
-            edict['prio'] = prio
-        self.addExpected(edict)
+        self.addExpectedMessage(value, service=self.__service,
+                                varname=self.__varname, prio=prio)
 
 
 class RunParam(object):
@@ -361,10 +427,7 @@ class HsTestRunner(object):
 
     MAX_FILES = 1000
 
-    HUB_DIR = None
     INFODB_PATH = None
-
-    #JAN1 = None
 
     def __init__(self, hsr, last_start, last_stop, cur_start, cur_stop,
                  interval):
@@ -516,7 +579,7 @@ class HsTestRunner(object):
     def populate(self, testobj, use_db=False):
         if testobj.HUB_DIR is None:
             # create temporary hub directory and set in HsRSyncFiles
-            testobj.HUB_DIR = tempfile.mkdtemp()
+            testobj.HUB_DIR = tempfile.mkdtemp(prefix="HubDir_")
             self.__hsr.TEST_HUB_DIR = testobj.HUB_DIR
 
         for is_last in (False, True):
