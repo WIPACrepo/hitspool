@@ -386,8 +386,6 @@ class IntegrationTest(LoggingTestCase):
     TICKS_PER_SECOND = 10000000000
     INTERVAL = 15 * TICKS_PER_SECOND
 
-    RCV_REQ_PAT = re.compile(r"received request at \S+ \S+")
-
     def __create_hsdir(self, workers, start_ticks, stop_ticks):
         HsTestUtil.MockHitspool.create_copy_dir(workers[0])
         HsTestUtil.MockHitspool.create(workers[0], "currentRun",
@@ -464,7 +462,6 @@ class IntegrationTest(LoggingTestCase):
         })
 
         # add all expected log messages
-        # self.expectLogMessage("received request:\n%s" % req_str)
         # self.expectLogMessage("Publisher published: %s" % req_str)
         # self.expectLogMessage("send confirmation back to requester: DONE")
         self.expectLogMessage("Quitting: Incoming message queue is empty")
@@ -480,7 +477,6 @@ class IntegrationTest(LoggingTestCase):
         utcstop = HsTestUtil.get_time(stop_ticks)
 
         # add all expected I3Live messages
-        worker.i3socket.addExpectedValue(self.RCV_REQ_PAT)
         worker.i3socket.addExpectedValue({
             'START': int(start_ticks / 10),
             'UTCSTART': str(utcstart),

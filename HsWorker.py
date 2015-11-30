@@ -110,8 +110,6 @@ class Worker(HsRSyncFiles):
         hs_user_machinedir = alert_info[0]['copy']
         logging.info("HS machinedir = %s", hs_user_machinedir)
 
-        self.send_alert("received request at %s " % utc_now)
-
         logging.info("SN START [ns] = %d", sn_start)
         #sndaq time units are nanoseconds
         alertstart = jan1 + timedelta(seconds=sn_start*1.0E-9)
