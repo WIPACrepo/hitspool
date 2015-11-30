@@ -463,7 +463,7 @@ class EventV5(Payload):
     def __load_trig_records(base_time, data, offset):
         "Return all the trigger records"
 
-        #extract the number of trigger records
+        # extract the number of trigger records
         num_recs = struct.unpack(">I", data[offset:offset+4])[0]
         offset += 4
 
@@ -477,6 +477,9 @@ class EventV5(Payload):
             offset += len(rec)
 
         return recs, offset
+
+    def hits(self):
+        return self.__hit_records[:]
 
     @property
     def start_time(self):
@@ -515,8 +518,8 @@ class BaseHitRecord(object):
 
     def __init__(self, base_time, hdr, data, offset):
         self.__flags = hdr[2]
-        self.__chan_id = hdr[2]
-        self.__utime = base_time + hdr[3]
+        self.__chan_id = hdr[3]
+        self.__utime = base_time + hdr[4]
         if hdr[0] == self.HEADER_LEN:
             self.__data = []
         else:
@@ -524,6 +527,18 @@ class BaseHitRecord(object):
 
     def __len__(self):
         return self.HEADER_LEN + len(self.__data)
+
+    @property
+    def channel_id(self):
+        return self.__chan_id
+
+    @property
+    def flags(self):
+        return self.__flags
+
+    @property
+    def timestamp(self):
+        return self.__utime
 
 
 class DeltaHitRecord(BaseHitRecord):
