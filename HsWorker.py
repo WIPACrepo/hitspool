@@ -68,21 +68,27 @@ class Worker(HsRSyncFiles):
         # --- Parsing alert message JSON ----- :
         # XXX do json.loads() translation before calling alert_parser()
         try:
-            alert_info = json.loads(alert)
+            alert_list = json.loads(alert)
         except:
             raise HsException("Cannot load \"%s\": %s" %
                               (alert, traceback.format_exc()))
 
-        if alert_info is None:
-            raise HsException("JSON message \"%s\" cannot be parsed" % alert)
+        if not isinstance(alert_list, list):
+            raise HsException("Alert \"%s\" is not valid" % alert)
 
-        if len(alert_info) > 1:
+        if len(alert_list) > 1:
             logging.error("Ignoring all but first of %d alerts",
-                          len(alert_info))
+                          len(alert_list))
+        elif len(alert_list) == 0:
+            raise HsException("Alert \"%s\" contains empty list" % alert)
+
+        alert_info = alert_list[0]
+        if not isinstance(alert_info, dict):
+            raise HsException("Alert \"%s\" does not contain a dict" % alert)
 
         try:
             # timestamp in ns as a string
-            sn_start, start_utc = HsUtil.parse_sntime(alert_info[0]['start'])
+            sn_start, start_utc = HsUtil.parse_sntime(alert_info['start'])
         except:
             raise HsException("Bad start time \"%s\": %s" %
                               (alert, traceback.format_exc()))
@@ -92,7 +98,7 @@ class Worker(HsRSyncFiles):
 
         try:
             # timestamp in ns as a string
-            sn_stop, stop_utc = HsUtil.parse_sntime(alert_info[0]['stop'])
+            sn_stop, stop_utc = HsUtil.parse_sntime(alert_info['stop'])
         except:
             raise HsException("Bad stop time \"%s\": %s" %
                               (alert, traceback.format_exc()))
@@ -101,13 +107,13 @@ class Worker(HsRSyncFiles):
             = HsUtil.fix_date_or_timestamp(sn_stop, stop_utc, is_sn_ns=True)
 
         # should we extract only the matching hits to a new file?
-        extract_hits = alert_info[0].has_key('extract')
+        extract_hits = alert_info.has_key('extract')
 
-        if not alert_info[0].has_key('copy') or alert_info[0]['copy'] is None:
+        if not alert_info.has_key('copy') or alert_info['copy'] is None:
             raise HsException("Copy directory must be set")
 
         # should be something like: pdaq@expcont:/mnt/data/pdaqlocal/HsDataCopy
-        hs_user_machinedir = alert_info[0]['copy']
+        hs_user_machinedir = alert_info['copy']
         logging.info("HS machinedir = %s", hs_user_machinedir)
 
         logging.info("SN START [ns] = %d", sn_start)

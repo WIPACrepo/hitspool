@@ -147,13 +147,13 @@ class HsWorkerTest(LoggingTestCase):
         self.setLogLevel(0)
 
         # test parser
+        jmsg = json.dumps(alert)
         try:
-            hsr.alert_parser(json.dumps(alert), logfile)
+            hsr.alert_parser(jmsg, logfile)
             self.fail("This method should fail")
         except HsException, hse:
             hsestr = str(hse)
-            if not hsestr.startswith("JSON message ") or \
-               not hsestr.endswith("cannot be parsed"):
+            if hsestr.find("Alert \"%s\" is not valid" % jmsg) < 0:
                 self.fail("Unexpected exception: " + hsestr)
 
     def test_bad_alert_str(self):
@@ -166,10 +166,6 @@ class HsWorkerTest(LoggingTestCase):
         # check all log messages
         self.setLogLevel(0)
 
-        # add all expected log messages
-        self.expectLogMessage("Ignoring all but first of %d alerts" %
-                              len(alert))
-
         # initialize remaining values
         logfile = None
 
@@ -179,7 +175,7 @@ class HsWorkerTest(LoggingTestCase):
             self.fail("This method should fail")
         except HsException, hse:
             hsestr = str(hse)
-            if hsestr.find("TypeError: ") < 0:
+            if hsestr.find("Alert \"\"foo\"\" is not valid") < 0:
                 self.fail("Unexpected exception: " + hsestr)
 
     def test_bad_alert_empty(self):
@@ -201,7 +197,7 @@ class HsWorkerTest(LoggingTestCase):
             self.fail("This method should fail")
         except HsException, hse:
             hsestr = str(hse)
-            if hsestr.find("IndexError: ") < 0:
+            if hsestr.find("Alert \"%s\" contains empty list" % alert) < 0:
                 self.fail("Unexpected exception: " + hsestr)
 
     def test_bad_alert_dict(self):
@@ -223,7 +219,7 @@ class HsWorkerTest(LoggingTestCase):
             self.fail("This method should fail")
         except HsException, hse:
             hsestr = str(hse)
-            if hsestr.find("KeyError: ") < 0:
+            if hsestr.find("Alert \"%s\" is not valid" % alert) < 0:
                 self.fail("Unexpected exception: " + hsestr)
 
     def test_alert_start_none(self):
