@@ -29,16 +29,19 @@ class HsUtilTest(TestCasePlus):
         good_tm_start = HsTestUtil.get_time(good_tk_start, is_sn_ns=is_sn_ns)
         good_tm_stop = HsTestUtil.get_time(good_tk_stop, is_sn_ns=is_sn_ns)
 
-        (tk_start, tk_stop, tm_start, tm_stop) \
-            = HsUtil.fix_dates_or_timestamps(good_tk_start if use_start
-                                             else None,
-                                             good_tk_stop if use_stop
-                                             else None,
-                                             good_tm_start if not use_start
-                                             else None,
-                                             good_tm_stop if not use_stop
-                                             else None,
-                                             is_sn_ns=is_sn_ns)
+        (tk_start, tm_start) \
+            = HsUtil.fix_date_or_timestamp(good_tk_start if use_start
+                                           else None,
+                                           good_tm_start if not use_start
+                                           else None,
+                                           is_sn_ns=is_sn_ns)
+
+        (tk_stop, tm_stop) \
+            = HsUtil.fix_date_or_timestamp(good_tk_stop if use_stop
+                                           else None,
+                                           good_tm_stop if not use_stop
+                                           else None,
+                                           is_sn_ns=is_sn_ns)
 
         if is_sn_ns:
             ms_mult = 1000
@@ -91,9 +94,10 @@ class HsUtilTest(TestCasePlus):
             elif i == 3:
                 start_time = HsTestUtil.get_time(15789006796024623)
 
-            (start_tick, stop_tick, start_time, stop_time) \
-                = HsUtil.fix_dates_or_timestamps(start_tick, stop_tick,
-                                                 start_time, stop_time)
+            (start_tick, start_time) \
+                = HsUtil.fix_date_or_timestamp(start_tick, start_time)
+            (stop_tick, stop_time) \
+                = HsUtil.fix_date_or_timestamp(stop_tick, stop_time)
 
             if i == 0 or i == 2:
                 self.assertIsNone(start_tick, "start_tick should not be set")

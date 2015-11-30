@@ -166,7 +166,7 @@ class HsGrabber(HsBase.HsBase):
 if __name__ == "__main__":
     import getopt
 
-    from HsUtil import fix_dates_or_timestamps, parse_sntime
+    from HsUtil import fix_date_or_timestamp, parse_sntime
 
 
     def process_args():
@@ -214,17 +214,17 @@ if __name__ == "__main__":
 
         if not usage:
             # convert times to SN timestamps and/or vice versa
-            (alert_start_sn, alert_stop_sn, alert_begin_utc, alert_end_utc) \
-                = fix_dates_or_timestamps(alert_start_sn, alert_stop_sn,
-                                          alert_begin_utc, alert_end_utc,
-                                          is_sn_ns=True)
-
+            (alert_start_sn, alert_begin_utc) \
+                = fix_date_or_timestamp(alert_start_sn, alert_begin_utc)
             if alert_begin_utc is None:
                 print >>sys.stderr, "Please specify start time using '-b'"
                 usage = True
-            elif alert_end_utc is None:
-                print >>sys.stderr, "Please specify end time using '-e'"
-                usage = True
+            else:
+                (alert_stop_sn, alert_end_utc) \
+                    = fix_date_or_timestamp(alert_stop_sn, alert_end_utc)
+                if alert_end_utc is None:
+                    print >>sys.stderr, "Please specify end time using '-e'"
+                    usage = True
 
         if usage:
             print >>sys.stderr, """

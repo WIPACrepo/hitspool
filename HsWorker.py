@@ -87,6 +87,9 @@ class Worker(HsRSyncFiles):
             raise HsException("Bad start time \"%s\": %s" %
                               (alert, traceback.format_exc()))
 
+        (sn_start, start_utc) \
+            = HsUtil.fix_date_or_timestamp(sn_start, start_utc, is_sn_ns=True)
+
         try:
             # timestamp in ns as a string
             sn_stop, stop_utc = HsUtil.parse_sntime(alert_info[0]['stop'])
@@ -94,9 +97,8 @@ class Worker(HsRSyncFiles):
             raise HsException("Bad stop time \"%s\": %s" %
                               (alert, traceback.format_exc()))
 
-        (sn_start, sn_stop, start_utc, stop_utc) \
-            = HsUtil.fix_dates_or_timestamps(sn_start, sn_stop, start_utc,
-                                             stop_utc, is_sn_ns=True)
+        (sn_stop, stop_utc) \
+            = HsUtil.fix_date_or_timestamp(sn_stop, stop_utc, is_sn_ns=True)
 
         # should we extract only the matching hits to a new file?
         extract_hits = alert_info[0].has_key('extract')

@@ -12,7 +12,7 @@ class HsRSyncFab(HsRSyncFiles):
 
     def extract_ssh_access(self, hs_user_machinedir):
         if self.is_cluster_sps or self.is_cluster_spts:
-            #for the REAL interface
+            # for the REAL interface
             return re.sub(r':/\w+/\w+/\w+/\w+/', "", hs_user_machinedir)
 
         return re.sub(r':/[\w+/]*', "", hs_user_machinedir)
@@ -39,7 +39,7 @@ if __name__ == "__main__":
     import sys
 
     from HsException import HsException
-    from HsUtil import fix_dates_or_timestamps, parse_sntime
+    from HsUtil import fix_date_or_timestamp, parse_sntime
 
 
     def process_args():
@@ -51,7 +51,7 @@ if __name__ == "__main__":
         logfile = None
         myhost = None
 
-        ##take arguments from command line and check for correct input
+        # take arguments from command line and check for correct input
         usage = False
         try:
             opts, _ = getopt.getopt(sys.argv[1:], 'b:d:e:hl:s:',
@@ -86,16 +86,20 @@ if __name__ == "__main__":
 
         if not usage:
             # convert times to SN timestamps and/or vice versa
-            (request_start, request_stop, request_begin_utc, request_end_utc) \
-                = fix_dates_or_timestamps(request_start, request_stop,
-                                          request_begin_utc, request_end_utc)
-
+            (request_start, request_begin_utc) \
+                = fix_date_or_timestamp(request_start, request_begin_utc)
             if request_begin_utc is None:
                 print >>sys.stderr, "Please specify start time using '-b'"
                 usage = True
-            elif request_end_utc is None:
-                print >>sys.stderr, "Please specify end time using '-e'"
-                usage = True
+            else:
+                (request_stop, request_end_utc) \
+                    = fix_date_or_timestamp(request_stop, request_end_utc)
+                if request_end_utc is None:
+                    print >>sys.stderr, "Please specify end time using '-e'"
+                    usage = True
+                elif copydir is None:
+                    print >>sys.stderr, \
+                        "Please specify copy directory using '-c'"
 
         if usage:
             print >>sys.stderr, """

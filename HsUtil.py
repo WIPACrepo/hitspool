@@ -1,12 +1,17 @@
 #!/usr/bin/env python
 
 
+import datetime
 import numbers
 import re
 
 from datetime import datetime, timedelta
 
 from HsException import HsException
+
+
+# dictionary of year->datetime("Jan 1 %d" % year)
+JAN1 = {}
 
 
 def get_daq_ticks(start_time, end_time, is_sn_ns=False):
@@ -23,36 +28,43 @@ def get_daq_ticks(start_time, end_time, is_sn_ns=False):
                 delta.microseconds) * multiplier)
 
 
-def fix_dates_or_timestamps(start_tick, stop_tick, start_time, stop_time,
-                            is_sn_ns=False):
+def jan1_by_year(self, year_index=None):
+    """
+    Return the datetime value for January 1 of the specified year.
+    If year is None, return January 1 for the current year.
+    """
+    if not year_index in JAN1:
+        if year_index is not None:
+            year = year_index
+        else:
+            year = datetime.utcnow().year
+
+        JAN1[year_index] = datetime(year, 1, 1)
+
+    return JAN1[year_index]
+
+
+def fix_date_or_timestamp(ticks, time, is_sn_ns=False):
     """
     convert to UTC or DAQ whatever direction is needed
     """
-    if start_time is not None:
-        daqyear = start_time.year
-    elif stop_time is not None:
-        daqyear = stop_time.year
+    if time is not None:
+        jan1 = jan1_by_year(time.year)
     else:
-        daqyear = datetime.utcnow().year
+        jan1 = jan1_by_year(None)
 
-    jan1 = datetime(daqyear, 1, 1)
-
-    if (start_tick is None or start_tick == 0) and start_time is not None:
-        start_tick = get_daq_ticks(jan1, start_time, is_sn_ns=is_sn_ns)
-    if (stop_tick is None or stop_tick == 0) and stop_time is not None:
-        stop_tick = get_daq_ticks(jan1, stop_time, is_sn_ns=is_sn_ns)
+    if (ticks is None or ticks == 0) and time is not None:
+        ticks = get_daq_ticks(jan1, time, is_sn_ns=is_sn_ns)
 
     if is_sn_ns:
         multiplier = 1E9
     else:
         multiplier = 1E10
 
-    if start_time is None and (start_tick is not None and start_tick > 0):
-        start_time = jan1 + timedelta(seconds=start_tick / multiplier)
-    if stop_time is None and (stop_tick is not None and stop_tick > 0):
-        stop_time = jan1 + timedelta(seconds=stop_tick / multiplier)
+    if time is None and (ticks is not None and ticks > 0):
+        time = jan1 + timedelta(seconds=ticks / multiplier)
 
-    return (start_tick, stop_tick, start_time, stop_time)
+    return (ticks, time)
 
 
 def parse_sntime(arg):
@@ -65,7 +77,7 @@ def parse_sntime(arg):
         raise HsException("No date/time specified")
 
     if isinstance(arg, numbers.Number):
-        nsec = int(arg)
+        nsec = arg
         utc = None
     elif (isinstance(arg, str) or isinstance(arg, unicode)) and arg.isdigit():
         nsec = int(arg)
@@ -83,4 +95,4 @@ def parse_sntime(arg):
                 raise HsException("Problem with the time-stamp format"
                                   " \"%s\": %s" % (arg, err))
 
-    return nsec, utc
+    return fix_date_or_timestamp(nsec, utc, is_sn_ns=True)
