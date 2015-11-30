@@ -2,6 +2,7 @@
 
 
 import logging
+import sys
 
 
 class MockLoggingHandler(logging.Handler):
@@ -12,6 +13,13 @@ class MockLoggingHandler(logging.Handler):
     def __init__(self, *args, **kwargs):
         self.__expected = []
         self.__verbose = False
+
+        if kwargs.has_key("out_of_order") and kwargs["out_of_order"]:
+            out_of_order = True
+            del kwargs["out_of_order"]
+        else:
+            out_of_order = False
+        self.__out_of_order = out_of_order
 
         try:
             super(MockLoggingHandler, self).__init__(*args, **kwargs)
@@ -25,30 +33,65 @@ class MockLoggingHandler(logging.Handler):
             recmsg = str(record.msg) % record.args
 
         if self.__verbose:
-            print "LOG>> %s" % recmsg
+            print >>sys.stderr, "LOG>> \"%s\"<%s> (Exp#%d)" % \
+                (recmsg, type(recmsg), len(self.__expected))
 
-        if len(self.__expected) == 0:
-            raise Exception("Unexpected log message: %s[%s]%s" %
-                            (record.name, record.levelname, recmsg))
+        if len(self.__expected) > 0:
+            if not self.__out_of_order:
+                xmsg = self.__expected.pop(0)
+                if self.__verbose:
+                    print >>sys.stderr, "CMP#pop>> %s<%s>" % \
+                        (xmsg, type(xmsg))
+                errmsg = self.__validate(recmsg, xmsg)
+                if errmsg is not None:
+                    raise Exception(errmsg)
+                return
 
-        xmsg = self.__expected.pop(0)
+            for i in range(len(self.__expected)):
+                if self.__verbose:
+                    print >>sys.stderr, "CMP#%d>> %s<%s>" % \
+                        (i, self.__expected[i], type(self.__expected[i]))
+                errmsg = self.__validate(recmsg, self.__expected[i])
+                if errmsg is None:
+                    del self.__expected[i]
+                    return
+                #if self.__verbose:
+                #    print >>sys.stderr, "ERR#%d>> %s" % (i, errmsg)
+
+        raise Exception("Unexpected log message: %s[%s]%s" %
+                        (record.name, record.levelname, recmsg))
+
+    def __validate(self, recmsg, xmsg):
         if isinstance(xmsg, str) or isinstance(xmsg, unicode):
-            if recmsg != xmsg:
-                raise Exception("Got log message \"%s\", expected \"%s\"" %
-                                (recmsg, xmsg))
+            if recmsg == xmsg:
+                return None
+
+            return "Got log message \"%s\", expected \"%s\"" % \
+                (recmsg, xmsg)
         else:
             try:
-                if xmsg.match(recmsg) is None:
-                    raise Exception("Log message \"%s\" does not match \"%s\"" %
-                                    (recmsg, xmsg.pattern))
+                if xmsg.match(recmsg) is not None:
+                    return None
+
+                return "Log message \"%s\" does not match \"%s\"" % \
+                    (recmsg, xmsg.pattern)
             except:
-                raise Exception("Log message \"%s\"<%s> != \"%s\"<%s>" %
-                                (recmsg, type(recmsg), xmsg,
-                                 type(xmsg)))
+                pass
+
+        return "Log message \"%s\"<%s> != \"%s\"<%s>" % \
+            (recmsg, type(recmsg), xmsg, type(xmsg))
 
     # pylint: disable=invalid-name
     # match other test methods
     def addExpected(self, msg):
+        if self.__verbose:
+            if hasattr(msg, 'flags') and hasattr(msg, 'pattern'):
+                logmsg = "%s (pattern)" % msg.pattern
+            else:
+                logmsg = str(msg)
+            print >>sys.stderr, "ADDLOG#%d>> %s" % \
+                (len(self.__expected), logmsg)
+
         self.__expected.append(msg)
 
     def emit(self, record):
