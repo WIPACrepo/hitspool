@@ -219,18 +219,19 @@ class HsRSyncFiles(HsBase.HsBase):
             cur_info = RunInfo(hs_sourcedir, 'currentRun',
                                sleep_secs=sleep_secs)
         except RunInfoException:
-            self.send_alert("ERROR: Current Run info.txt"
-                            " reading/parsing failed")
-            logging.error("CurrentRun info.txt reading/parsing failed")
+            logging.error("%s reading/parsing failed" %
+                          os.path.join(hs_sourcedir, 'currentRun', 'info.txt'))
+            self.send_alert("ERROR: Current Run info.txt reading/parsing"
+                            " failed")
             return None
 
         # for lastRun:
         try:
             last_info = RunInfo(hs_sourcedir, 'lastRun', sleep_secs=sleep_secs)
         except RunInfoException:
-            self.send_alert("ERROR: Last Run info.txt"
-                            " reading/parsing failed")
-            logging.error("LastRun info.txt reading/parsing failed")
+            logging.error("%s reading/parsing failed" %
+                          os.path.join(hs_sourcedir, 'lastRun', 'info.txt'))
+            self.send_alert("ERROR: Last Run info.txt reading/parsing failed")
             return None
 
         spoolname = None
@@ -297,7 +298,6 @@ class HsRSyncFiles(HsBase.HsBase):
                 logging.info("SN_START & SN_STOP distributed over lastRun"
                              " and currentRun")
                 logging.info("add relevant files from currentRun directory...")
-                #in currentRun:
                 spoolname2 = 'currentRun'
                 sn_start_file2 = cur_info.oldest_file
                 sn_stop_file2 = cur_info.file_num(alert_stop)
@@ -360,7 +360,7 @@ class HsRSyncFiles(HsBase.HsBase):
             return None
 
         # ---- HitSpool Data Access and Copy ----:
-        #how many files do we have to move and copy:
+        # how many files do we have to move and copy:
         logging.info("Start & Stop File: %s and %s", sn_start_file,
                      sn_stop_file)
 
@@ -386,7 +386,7 @@ class HsRSyncFiles(HsBase.HsBase):
         for src_dir, filename in src_tuples_list:
             next_file = os.path.join(src_dir, filename)
 
-            #preserve file to prevent being overwritten on next hs cycle
+            # preserve file to prevent being overwritten on next hs cycle
             try:
                 self.hardlink(next_file, tmp_dir)
             except HsException, hsex:
@@ -545,7 +545,7 @@ class HsRSyncFiles(HsBase.HsBase):
         if self.is_cluster_sps or self.is_cluster_spts:
             tmpdir = "/mnt/data/pdaqlocal/tmp"
         else:
-            tmpdir = os.path.join(self.TEST_HUB_DIR)
+            tmpdir = self.TEST_HUB_DIR
 
         return tempfile.mkdtemp(suffix=timetag, dir=tmpdir)
 

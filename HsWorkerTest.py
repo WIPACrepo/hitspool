@@ -205,7 +205,8 @@ class HsWorkerTest(LoggingTestCase):
             self.fail("This method should fail")
         except HsException, hse:
             hsestr = str(hse)
-            if hsestr.find("TypeError: ") >= 0:
+            if not hsestr.startswith("JSON message ") or \
+               not hsestr.endswith("cannot be parsed"):
                 self.fail("Unexpected exception: " + hsestr)
 
     def test_bad_alert_str(self):
@@ -231,7 +232,7 @@ class HsWorkerTest(LoggingTestCase):
             self.fail("This method should fail")
         except HsException, hse:
             hsestr = str(hse)
-            if hsestr.find("ValueError: ") >= 0:
+            if hsestr.find("TypeError: ") < 0:
                 self.fail("Unexpected exception: " + hsestr)
 
     def test_bad_alert_empty(self):
@@ -482,12 +483,15 @@ class HsWorkerTest(LoggingTestCase):
         utcstart = HsTestUtil.get_time(start_ticks)
         utcstop = HsTestUtil.get_time(stop_ticks)
 
+        # initialize currentRun/info.txt path
+        cur_info = os.path.join(hsr.TEST_HUB_DIR, "currentRun", "info.txt")
+
         # add all expected log messages
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
                               hsr.TEST_COPY_DIR)
-        self.expectLogMessage("CurrentRun info.txt reading/parsing failed")
+        self.expectLogMessage("%s reading/parsing failed" % cur_info)
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
@@ -539,12 +543,15 @@ class HsWorkerTest(LoggingTestCase):
         utcstart = HsTestUtil.get_time(start_ticks)
         utcstop = HsTestUtil.get_time(stop_ticks)
 
+        # initialize lastRun/info.txt path
+        last_info = os.path.join(hsr.TEST_HUB_DIR, "lastRun", "info.txt")
+
         # add all expected log messages
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
                               hsr.TEST_COPY_DIR)
-        self.expectLogMessage("LastRun info.txt reading/parsing failed")
+        self.expectLogMessage("%s reading/parsing failed" % last_info)
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue(self.RCV_REQ_PAT)
@@ -596,12 +603,15 @@ class HsWorkerTest(LoggingTestCase):
         utcstart = HsTestUtil.get_time(start_ticks)
         utcstop = HsTestUtil.get_time(stop_ticks)
 
+        # initialize currentRun/info.txt path
+        cur_info = os.path.join(hsr.TEST_HUB_DIR, "currentRun", "info.txt")
+
         # add all expected log messages
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
                               hsr.TEST_COPY_DIR)
-        self.expectLogMessage("CurrentRun info.txt reading/parsing failed")
+        self.expectLogMessage("%s reading/parsing failed" % cur_info)
 
 
         # add all expected I3Live messages
