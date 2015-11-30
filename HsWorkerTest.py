@@ -113,53 +113,7 @@ class HsWorkerTest(LoggingTestCase):
     INTERVAL = 15 * TICKS_PER_SECOND
     ONE_MINUTE = 60 * TICKS_PER_SECOND
 
-    HUB_DIR = None
-    COPY_DIR = None
-
-    JAN1 = None
-
     RCV_REQ_PAT = re.compile(r"received request at \S+ \S+")
-
-    def __create_copydir(self, hsr):
-        if self.COPY_DIR is None:
-            # create temporary copy directory and set in HsWorker
-            self.COPY_DIR = tempfile.mkdtemp()
-            hsr.TEST_COPY_DIR = self.COPY_DIR
-
-    def __populate_run(self, hsr, subdir, t0, t_cur, interval=INTERVAL,
-                       max_f=1000, make_bad=False, debug=False):
-        if self.HUB_DIR is None:
-            # create temporary hub directory and set in HsRSyncFiles
-            self.HUB_DIR = tempfile.mkdtemp()
-            hsr.TEST_HUB_DIR = self.HUB_DIR
-
-        # create subdir if necessary
-        path = os.path.join(self.HUB_DIR, subdir)
-        if not os.path.exists(path):
-            os.makedirs(path)
-
-        # compute "current file"
-        cur_f = int((t_cur - t0) / interval)
-
-        # create info.txt
-        infopath = os.path.join(path, "info.txt")
-        with open(infopath, "w") as fout:
-            if not make_bad:
-                print >>fout, "T0 %d" % t0
-            print >>fout, "CURT %d" % t_cur
-            print >>fout, "IVAL %d" % interval
-            print >>fout, "CURF %d" % cur_f
-            print >>fout, "MAXF %d" % max_f
-
-        if debug:
-            print >>sys.stderr, "=== %s" % infopath
-            print >>sys.stderr, "=== start %d :: %s" % \
-                (t0, HsTestUtil.get_time(t0))
-            print >>sys.stderr, "=== stop  %d :: %s" % \
-                (t_cur, HsTestUtil.get_time(t_cur))
-            with open(infopath, "r") as fin:
-                for line in fin:
-                    print >>sys.stderr, line,
 
     @property
     def real_object(self):
@@ -179,12 +133,7 @@ class HsWorkerTest(LoggingTestCase):
         try:
             super(HsWorkerTest, self).tearDown()
         finally:
-            if self.COPY_DIR is not None:
-                # clear lingering files
-                shutil.rmtree(self.COPY_DIR)
-            if self.HUB_DIR is not None:
-                # clear lingering files
-                shutil.rmtree(self.HUB_DIR)
+            HsTestUtil.MockHitspool.destroy()
 
     def test_nothing(self):
         # create the worker object
@@ -528,16 +477,17 @@ class HsWorkerTest(LoggingTestCase):
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
         last_stop = start_ticks - (self.ONE_MINUTE * 60)
-        self.__populate_run(hsr, "lastRun", last_start, last_stop,
-                            make_bad=True)
+        HsTestUtil.MockHitspool.create(hsr, "lastRun", last_start, last_stop,
+                                       interval=self.INTERVAL, make_bad=True)
 
         # create currentRun directory
         cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
-        self.__populate_run(hsr, "currentRun", cur_start, cur_stop)
+        HsTestUtil.MockHitspool.create(hsr, "currentRun", cur_start, cur_stop,
+                                       interval=self.INTERVAL)
 
         # create copy directory
-        self.__create_copydir(hsr)
+        HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # initialize formatted start/stop times
         utcstart = HsTestUtil.get_time(start_ticks)
@@ -588,16 +538,17 @@ class HsWorkerTest(LoggingTestCase):
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
         last_stop = start_ticks - (self.ONE_MINUTE * 60)
-        self.__populate_run(hsr, "lastRun", last_start, last_stop)
+        HsTestUtil.MockHitspool.create(hsr, "lastRun", last_start, last_stop,
+                                       interval=self.INTERVAL)
 
         # create currentRun directory
         cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
-        self.__populate_run(hsr, "currentRun", cur_start, cur_stop,
-                            make_bad=True)
+        HsTestUtil.MockHitspool.create(hsr, "currentRun", cur_start, cur_stop,
+                                       interval=self.INTERVAL, make_bad=True)
 
         # create copy directory
-        self.__create_copydir(hsr)
+        HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # initialize formatted start/stop times
         utcstart = HsTestUtil.get_time(start_ticks)
@@ -649,16 +600,17 @@ class HsWorkerTest(LoggingTestCase):
         # create lastRun directory
         last_start = start_ticks - self.ONE_MINUTE
         last_stop = stop_ticks + (self.ONE_MINUTE * 5)
-        self.__populate_run(hsr, "lastRun", last_start, last_stop)
+        HsTestUtil.MockHitspool.create(hsr, "lastRun", last_start, last_stop,
+                                       interval=self.INTERVAL)
 
         # create currentRun directory
         cur_stop = start_ticks + (self.ONE_MINUTE * 60)
         cur_start = start_ticks + (self.ONE_MINUTE * 70)
-        self.__populate_run(hsr, "currentRun", cur_start, cur_stop,
-                            interval=self.INTERVAL / 100)
+        HsTestUtil.MockHitspool.create(hsr, "currentRun", cur_start, cur_stop,
+                                       interval=self.INTERVAL / 100)
 
         # create copy directory
-        self.__create_copydir(hsr)
+        HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # set log file name
         logfile = "unknown.log"
@@ -691,9 +643,9 @@ class HsWorkerTest(LoggingTestCase):
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # build copy/log directories passed to HsSender
-        copydir = os.path.join(self.COPY_DIR,
+        copydir = os.path.join(hsr.TEST_COPY_DIR,
                                "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(self.COPY_DIR, "logs")
+        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
 
         # initialize hsr.sender.socket and add all expected HsSender messages
         hsr.sender.addExpected({"hubname": hsr.shorthost,
@@ -735,16 +687,17 @@ class HsWorkerTest(LoggingTestCase):
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
         last_stop = start_ticks - (self.ONE_MINUTE * 60)
-        self.__populate_run(hsr, "lastRun", last_start, last_stop,
-                            interval=self.INTERVAL / 100)
+        HsTestUtil.MockHitspool.create(hsr, "lastRun", last_start, last_stop,
+                                       interval=self.INTERVAL / 100)
 
         # create currentRun directory
         cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
-        self.__populate_run(hsr, "currentRun", cur_start, cur_stop)
+        HsTestUtil.MockHitspool.create(hsr, "currentRun", cur_start, cur_stop,
+                                       interval=self.INTERVAL)
 
         # create copy directory
-        self.__create_copydir(hsr)
+        HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # set log file name
         logfile = "unknown.log"
@@ -777,9 +730,9 @@ class HsWorkerTest(LoggingTestCase):
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # build copy/log directories passed to HsSender
-        copydir = os.path.join(self.COPY_DIR,
+        copydir = os.path.join(hsr.TEST_COPY_DIR,
                                "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(self.COPY_DIR, "logs")
+        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
 
         # initialize hsr.sender.socket and add all expected HsSender messages
         hsr.sender.addExpected({"hubname": hsr.shorthost,
@@ -821,15 +774,17 @@ class HsWorkerTest(LoggingTestCase):
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
         last_stop = start_ticks - (self.ONE_MINUTE * 60)
-        self.__populate_run(hsr, "lastRun", last_start, last_stop)
+        HsTestUtil.MockHitspool.create(hsr, "lastRun", last_start, last_stop,
+                                       interval=self.INTERVAL)
 
         # create currentRun directory
         cur_start = start_ticks + (self.TICKS_PER_SECOND * 5)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
-        self.__populate_run(hsr, "currentRun", cur_start, cur_stop)
+        HsTestUtil.MockHitspool.create(hsr, "currentRun", cur_start, cur_stop,
+                                       interval=self.INTERVAL)
 
         # create copy directory
-        self.__create_copydir(hsr)
+        HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # set log file name
         logfile = "unknown.log"
@@ -874,15 +829,17 @@ class HsWorkerTest(LoggingTestCase):
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
         last_stop = start_ticks - (self.ONE_MINUTE * 60)
-        self.__populate_run(hsr, "lastRun", last_start, last_stop)
+        HsTestUtil.MockHitspool.create(hsr, "lastRun", last_start, last_stop,
+                                       interval=self.INTERVAL)
 
         # create currentRun directory
         cur_start = start_ticks + (self.TICKS_PER_SECOND * 5)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
-        self.__populate_run(hsr, "currentRun", cur_start, cur_stop)
+        HsTestUtil.MockHitspool.create(hsr, "currentRun", cur_start, cur_stop,
+                                       interval=self.INTERVAL)
 
         # create copy directory
-        self.__create_copydir(hsr)
+        HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # set log file name
         logfile = "unknown.log"
@@ -918,9 +875,9 @@ class HsWorkerTest(LoggingTestCase):
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # build copy/log directories passed to HsSender
-        copydir = os.path.join(self.COPY_DIR,
+        copydir = os.path.join(hsr.TEST_COPY_DIR,
                                "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(self.COPY_DIR, "logs")
+        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
 
         # initialize hsr.sender.socket and add all expected HsSender messages
         hsr.sender.addExpected({"hubname": hsr.shorthost,
@@ -962,15 +919,17 @@ class HsWorkerTest(LoggingTestCase):
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
         last_stop = start_ticks - (self.ONE_MINUTE * 60)
-        self.__populate_run(hsr, "lastRun", last_start, last_stop)
+        HsTestUtil.MockHitspool.create(hsr, "lastRun", last_start, last_stop,
+                                       interval=self.INTERVAL)
 
         # create currentRun directory
         cur_start = start_ticks + (self.ONE_MINUTE * 5)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 10)
-        self.__populate_run(hsr, "currentRun", cur_start, cur_stop)
+        HsTestUtil.MockHitspool.create(hsr, "currentRun", cur_start, cur_stop,
+                                       interval=self.INTERVAL)
 
         # create copy directory
-        self.__create_copydir(hsr)
+        HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # set log file name
         logfile = "unknown.log"
@@ -1019,15 +978,17 @@ class HsWorkerTest(LoggingTestCase):
         # create lastRun directory
         last_start = start_ticks + (self.TICKS_PER_SECOND * 5)
         last_stop = stop_ticks + (self.ONE_MINUTE * 5)
-        self.__populate_run(hsr, "lastRun", last_start, last_stop)
+        HsTestUtil.MockHitspool.create(hsr, "lastRun", last_start, last_stop,
+                                       interval=self.INTERVAL)
 
         # create currentRun directory
         cur_start = start_ticks + (self.ONE_MINUTE * 10)
         cur_stop = start_ticks + (self.ONE_MINUTE * 15)
-        self.__populate_run(hsr, "currentRun", cur_start, cur_stop)
+        HsTestUtil.MockHitspool.create(hsr, "currentRun", cur_start, cur_stop,
+                                       interval=self.INTERVAL)
 
         # create copy directory
-        self.__create_copydir(hsr)
+        HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # set log file name
         logfile = "unknown.log"
@@ -1063,9 +1024,9 @@ class HsWorkerTest(LoggingTestCase):
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # build copy/log directories passed to HsSender
-        copydir = os.path.join(self.COPY_DIR,
+        copydir = os.path.join(hsr.TEST_COPY_DIR,
                                "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(self.COPY_DIR, "logs")
+        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
 
         # initialize hsr.sender.socket and add all expected HsSender messages
         hsr.sender.addExpected({"hubname": hsr.shorthost,
@@ -1107,15 +1068,17 @@ class HsWorkerTest(LoggingTestCase):
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 5)
         last_stop = start_ticks + (self.TICKS_PER_SECOND * 5)
-        self.__populate_run(hsr, "lastRun", last_start, last_stop)
+        HsTestUtil.MockHitspool.create(hsr, "lastRun", last_start, last_stop,
+                                       interval=self.INTERVAL)
 
         # create currentRun directory
         cur_start = start_ticks + self.ONE_MINUTE + self.TICKS_PER_SECOND
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
-        self.__populate_run(hsr, "currentRun", cur_start, cur_stop)
+        HsTestUtil.MockHitspool.create(hsr, "currentRun", cur_start, cur_stop,
+                                       interval=self.INTERVAL)
 
         # create copy directory
-        self.__create_copydir(hsr)
+        HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # set log file name
         logfile = "unknown.log"
@@ -1148,9 +1111,9 @@ class HsWorkerTest(LoggingTestCase):
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # build copy/log directories passed to HsSender
-        copydir = os.path.join(self.COPY_DIR,
+        copydir = os.path.join(hsr.TEST_COPY_DIR,
                                "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(self.COPY_DIR, "logs")
+        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
 
         # initialize hsr.sender.socket and add all expected HsSender messages
         hsr.sender.addExpected({"hubname": hsr.shorthost,
@@ -1192,15 +1155,17 @@ class HsWorkerTest(LoggingTestCase):
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 5)
         last_stop = start_ticks + (self.TICKS_PER_SECOND * 5)
-        self.__populate_run(hsr, "lastRun", last_start, last_stop)
+        HsTestUtil.MockHitspool.create(hsr, "lastRun", last_start, last_stop,
+                                       interval=self.INTERVAL)
 
         # create currentRun directory
         cur_start = start_ticks + (self.TICKS_PER_SECOND * 50)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
-        self.__populate_run(hsr, "currentRun", cur_start, cur_stop)
+        HsTestUtil.MockHitspool.create(hsr, "currentRun", cur_start, cur_stop,
+                                       interval=self.INTERVAL)
 
         # create copy directory
-        self.__create_copydir(hsr)
+        HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # set log file name
         logfile = "unknown.log"
@@ -1236,9 +1201,9 @@ class HsWorkerTest(LoggingTestCase):
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # build copy/log directories passed to HsSender
-        copydir = os.path.join(self.COPY_DIR,
+        copydir = os.path.join(hsr.TEST_COPY_DIR,
                                "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(self.COPY_DIR, "logs")
+        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
 
         # initialize hsr.sender.socket and add all expected HsSender messages
         hsr.sender.addExpected({"hubname": hsr.shorthost,
@@ -1276,20 +1241,22 @@ class HsWorkerTest(LoggingTestCase):
             'start': str(start_ticks / 10),
             'stop': str(stop_ticks / 10),
             'copy': "/foo/bar",
-        }]
+        },]
 
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 5)
         last_stop = start_ticks + (self.TICKS_PER_SECOND * 5)
-        self.__populate_run(hsr, "lastRun", last_start, last_stop)
+        HsTestUtil.MockHitspool.create(hsr, "lastRun", last_start, last_stop,
+                                       interval=self.INTERVAL)
 
         # create currentRun directory
         cur_start = start_ticks + (self.TICKS_PER_SECOND * 50)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
-        self.__populate_run(hsr, "currentRun", cur_start, cur_stop)
+        HsTestUtil.MockHitspool.create(hsr, "currentRun", cur_start, cur_stop,
+                                       interval=self.INTERVAL)
 
         # create copy directory
-        self.__create_copydir(hsr)
+        HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # set log file name
         logfile = "unknown.log"
@@ -1334,9 +1301,9 @@ class HsWorkerTest(LoggingTestCase):
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # build copy/log directories passed to HsSender
-        copydir = os.path.join(self.COPY_DIR,
+        copydir = os.path.join(hsr.TEST_COPY_DIR,
                                "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(self.COPY_DIR, "logs")
+        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
 
         # initialize hsr.sender.socket and add all expected HsSender messages
         hsr.sender.addExpected({"hubname": hsr.shorthost,
@@ -1376,15 +1343,17 @@ class HsWorkerTest(LoggingTestCase):
         # create lastRun directory
         last_start = start_ticks + (self.ONE_MINUTE * 2)
         last_stop = start_ticks + (self.ONE_MINUTE * 5)
-        self.__populate_run(hsr, "lastRun", last_start, last_stop)
+        HsTestUtil.MockHitspool.create(hsr, "lastRun", last_start, last_stop,
+                                       interval=self.INTERVAL)
 
         # create currentRun directory
         cur_start = start_ticks + (self.ONE_MINUTE * 6)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 10)
-        self.__populate_run(hsr, "currentRun", cur_start, cur_stop)
+        HsTestUtil.MockHitspool.create(hsr, "currentRun", cur_start, cur_stop,
+                                       interval=self.INTERVAL)
 
         # create copy directory
-        self.__create_copydir(hsr)
+        HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # set log file name
         logfile = "unknown.log"
@@ -1433,15 +1402,17 @@ class HsWorkerTest(LoggingTestCase):
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
         last_stop = start_ticks - (self.ONE_MINUTE * 60)
-        self.__populate_run(hsr, "lastRun", last_start, last_stop)
+        HsTestUtil.MockHitspool.create(hsr, "lastRun", last_start, last_stop,
+                                       interval=self.INTERVAL)
 
         # create currentRun directory
         cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
-        self.__populate_run(hsr, "currentRun", cur_start, cur_stop)
+        HsTestUtil.MockHitspool.create(hsr, "currentRun", cur_start, cur_stop,
+                                       interval=self.INTERVAL)
 
         # create copy directory
-        self.__create_copydir(hsr)
+        HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # set log file name
         logfile = "unknown.log"
@@ -1474,9 +1445,9 @@ class HsWorkerTest(LoggingTestCase):
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # build copy/log directories passed to HsSender
-        copydir = os.path.join(self.COPY_DIR,
+        copydir = os.path.join(hsr.TEST_COPY_DIR,
                                "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(self.COPY_DIR, "logs")
+        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
 
         # initialize hsr.sender.socket and add all expected HsSender messages
         hsr.sender.addExpected({"hubname": hsr.shorthost,
@@ -1519,15 +1490,17 @@ class HsWorkerTest(LoggingTestCase):
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
         last_stop = start_ticks - (self.ONE_MINUTE * 60)
-        self.__populate_run(hsr, "lastRun", last_start, last_stop)
+        HsTestUtil.MockHitspool.create(hsr, "lastRun", last_start, last_stop,
+                                       interval=self.INTERVAL)
 
         # create currentRun directory
         cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
-        self.__populate_run(hsr, "currentRun", cur_start, cur_stop)
+        HsTestUtil.MockHitspool.create(hsr, "currentRun", cur_start, cur_stop,
+                                       interval=self.INTERVAL)
 
         # create copy directory
-        self.__create_copydir(hsr)
+        HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # set log file name
         logfile = "unknown.log"
@@ -1568,9 +1541,9 @@ class HsWorkerTest(LoggingTestCase):
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # build copy/log directories passed to HsSender
-        copydir = os.path.join(self.COPY_DIR,
+        copydir = os.path.join(hsr.TEST_COPY_DIR,
                                "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(self.COPY_DIR, "logs")
+        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
 
         # initialize hsr.sender.socket and add all expected HsSender messages
         hsr.sender.addExpected({"hubname": hsr.shorthost,
@@ -1610,15 +1583,17 @@ class HsWorkerTest(LoggingTestCase):
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 10)
         last_stop = start_ticks - (self.ONE_MINUTE * 6)
-        self.__populate_run(hsr, "lastRun", last_start, last_stop)
+        HsTestUtil.MockHitspool.create(hsr, "lastRun", last_start, last_stop,
+                                       interval=self.INTERVAL)
 
         # create currentRun directory
         cur_start = start_ticks - (self.ONE_MINUTE * 5)
         cur_stop = stop_ticks - (self.ONE_MINUTE * 2)
-        self.__populate_run(hsr, "currentRun", cur_start, cur_stop)
+        HsTestUtil.MockHitspool.create(hsr, "currentRun", cur_start, cur_stop,
+                                       interval=self.INTERVAL)
 
         # create copy directory
-        self.__create_copydir(hsr)
+        HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # set log file name
         logfile = "unknown.log"
@@ -1666,15 +1641,17 @@ class HsWorkerTest(LoggingTestCase):
         # create lastRun directory
         last_start = start_ticks + (self.TICKS_PER_SECOND * 1)
         last_stop = start_ticks + (self.TICKS_PER_SECOND * 2)
-        self.__populate_run(hsr, "lastRun", last_start, last_stop)
+        HsTestUtil.MockHitspool.create(hsr, "lastRun", last_start, last_stop,
+                                       interval=self.INTERVAL)
 
         # create currentRun directory
         cur_start = start_ticks + (self.TICKS_PER_SECOND * 4)
         cur_stop = start_ticks + (self.TICKS_PER_SECOND * 4)
-        self.__populate_run(hsr, "currentRun", cur_start, cur_stop)
+        HsTestUtil.MockHitspool.create(hsr, "currentRun", cur_start, cur_stop,
+                                       interval=self.INTERVAL)
 
         # create copy directory
-        self.__create_copydir(hsr)
+        HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # set log file name
         logfile = "unknown.log"
@@ -1709,9 +1686,9 @@ class HsWorkerTest(LoggingTestCase):
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # build copy/log directories passed to HsSender
-        copydir = os.path.join(self.COPY_DIR,
+        copydir = os.path.join(hsr.TEST_COPY_DIR,
                                "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(self.COPY_DIR, "logs")
+        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
 
         # initialize hsr.sender.socket and add all expected HsSender messages
         hsr.sender.addExpected({"hubname": hsr.shorthost,
@@ -1754,15 +1731,17 @@ class HsWorkerTest(LoggingTestCase):
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 10)
         last_stop = start_ticks - (self.ONE_MINUTE * 6)
-        self.__populate_run(hsr, "lastRun", last_start, last_stop)
+        HsTestUtil.MockHitspool.create(hsr, "lastRun", last_start, last_stop,
+                                       interval=self.INTERVAL)
 
         # create currentRun directory
         cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + self.ONE_MINUTE
-        self.__populate_run(hsr, "currentRun", cur_start, cur_stop)
+        HsTestUtil.MockHitspool.create(hsr, "currentRun", cur_start, cur_stop,
+                                       interval=self.INTERVAL)
 
         # create copy directory
-        self.__create_copydir(hsr)
+        HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # set log file name
         logfile = "unknown.log"
@@ -1799,7 +1778,7 @@ class HsWorkerTest(LoggingTestCase):
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # build copy/log directories passed to HsSender
-        copydir = os.path.join(self.COPY_DIR,
+        copydir = os.path.join(hsr.TEST_COPY_DIR,
                                "ANON_%s_%s" % (timetag, hsr.fullhost))
 
         # initialize hsr.sender.socket and add all expected HsSender messages
@@ -1836,15 +1815,17 @@ class HsWorkerTest(LoggingTestCase):
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 10)
         last_stop = start_ticks - (self.ONE_MINUTE * 6)
-        self.__populate_run(hsr, "lastRun", last_start, last_stop)
+        HsTestUtil.MockHitspool.create(hsr, "lastRun", last_start, last_stop,
+                                       interval=self.INTERVAL)
 
         # create currentRun directory
         cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + self.ONE_MINUTE
-        self.__populate_run(hsr, "currentRun", cur_start, cur_stop)
+        HsTestUtil.MockHitspool.create(hsr, "currentRun", cur_start, cur_stop,
+                                       interval=self.INTERVAL)
 
         # create copy directory
-        self.__create_copydir(hsr)
+        HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # set log file name
         logfile = "unknown.log"
@@ -1877,9 +1858,9 @@ class HsWorkerTest(LoggingTestCase):
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # build copy/log directories passed to HsSender
-        copydir = os.path.join(self.COPY_DIR,
+        copydir = os.path.join(hsr.TEST_COPY_DIR,
                                "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(self.COPY_DIR, "logs")
+        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
 
         # initialize hsr.sender.socket and add all expected HsSender messages
         hsr.sender.addExpected({"hubname": hsr.shorthost,
@@ -1931,15 +1912,17 @@ class HsWorkerTest(LoggingTestCase):
         # create lastRun directory
         last_start = start_ticks - (self.ONE_MINUTE * 10)
         last_stop = start_ticks - (self.ONE_MINUTE * 6)
-        self.__populate_run(hsr, "lastRun", last_start, last_stop)
+        HsTestUtil.MockHitspool.create(hsr, "lastRun", last_start, last_stop,
+                                       interval=self.INTERVAL)
 
         # create currentRun directory
         cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + self.ONE_MINUTE
-        self.__populate_run(hsr, "currentRun", cur_start, cur_stop)
+        HsTestUtil.MockHitspool.create(hsr, "currentRun", cur_start, cur_stop,
+                                       interval=self.INTERVAL)
 
         # create copy directory
-        self.__create_copydir(hsr)
+        HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # set log file name
         logfile = "unknown.log"
@@ -1968,9 +1951,9 @@ class HsWorkerTest(LoggingTestCase):
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # build copy/log directories passed to HsSender
-        copydir = os.path.join(self.COPY_DIR,
+        copydir = os.path.join(hsr.TEST_COPY_DIR,
                                "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(self.COPY_DIR, "logs")
+        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
 
         # initialize hsr.sender.socket and add all expected HsSender messages
         hsr.sender.addExpected({"hubname": hsr.shorthost,
