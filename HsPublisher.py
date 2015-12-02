@@ -149,10 +149,12 @@ class Receiver(HsBase.HsBase):
                     alertdict = ast.literal_eval(str(alert))
                     alert_start = int(alertdict['start'])
                     alert_stop = int(alertdict['stop'])
+                    copydir = alertdict['copy']
                     extract = alertdict.has_key('extract')
                 except (ValueError, SyntaxError):
                     sn_start_utc = "TBD"
                     sn_stop_utc = "TBD"
+                    copydir = None
                     extract = False
                 else:
                     jan1 = datetime(datetime.utcnow().year, 1, 1)
@@ -161,28 +163,38 @@ class Receiver(HsBase.HsBase):
                     sn_start_utc = jan1 + timedelta(seconds=alert_start*1.0E-9)
                     sn_stop_utc = jan1 + timedelta(seconds=alert_stop*1.0E-9)
 
-                #send JSON for moni Live page:
-                self.__i3socket.send_json({"service": "HSiface",
-                                           "varname": "HsPublisher",
-                                           "value": "Received data request" \
-                                                    " for [%s , %s] " % \
-                                                    (sn_start_utc, sn_stop_utc),
-                                          })
+                if copydir is None:
+                    # ignore requests which do not specify a copy directory
+                    logging.error("Ignoring badly-formed request \"%s\"" %
+                                  alert)
+                elif not "HsDataCopy" in copydir:
+                    # hack to drop all non-SnDAQ requests
+                    logging.error("Ignoring non-SnDAQ request \"%s\"" %
+                                  alert)
+                else:
+                    #send JSON for moni Live page:
+                    self.__i3socket.send_json({
+                        "service": "HSiface",
+                        "varname": "HsPublisher",
+                        "value": "Received data request for [%s , %s] " %
+                        (sn_start_utc, sn_stop_utc),
+                    })
 
-                #publish the request for the HsWorkers:
-                self.__publisher.send("["+alert+"]")
-                logging.info("Publisher published: %s", alert)
+                    #publish the request for the HsWorkers:
+                    self.__publisher.send("["+alert+"]")
+                    logging.info("Publisher published: %s", alert)
 
-                self.__i3socket.send_json({"service": "HSiface",
-                                           "varname": "HsPublisher",
-                                           "value": "Published request to"
-                                                    " HsWorkers"})
-                # send Live alert JSON for email notification:
+                    self.__i3socket.send_json({
+                        "service": "HSiface",
+                        "varname": "HsPublisher",
+                        "value": "Published request to HsWorkers",
+                    })
 
-                alertjson = self.__build_json(alert, sn_start_utc, sn_stop_utc,
-                                              extract)
+                    # send Live alert JSON for email notification:
+                    alertjson = self.__build_json(alert, sn_start_utc,
+                                                  sn_stop_utc, extract)
 
-                self.__i3socket.send_json(alertjson)
+                    self.__i3socket.send_json(alertjson)
 
                 #reply to requester:
                 # added \0 to fit C/C++ zmq message termination

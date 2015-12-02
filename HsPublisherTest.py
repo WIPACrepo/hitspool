@@ -98,7 +98,7 @@ class HsPublisherTest(LoggingTestCase):
 
         # add all expected log messages
         self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage("Publisher published: %s" % req_str)
+        self.expectLogMessage("Ignoring badly-formed request \"%s\"" % req_str)
         self.expectLogMessage("send confirmation back to requester: DONE")
         self.expectLogMessage("Quitting: Incoming message queue is empty")
 
@@ -152,7 +152,7 @@ class HsPublisherTest(LoggingTestCase):
 
         # add all expected log messages
         self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage("Publisher published: %s" % req_str)
+        self.expectLogMessage("Ignoring badly-formed request \"%s\"" % req_str)
         self.expectLogMessage("send confirmation back to requester: DONE")
         self.expectLogMessage("Quitting: Incoming message queue is empty")
 
@@ -165,9 +165,11 @@ class HsPublisherTest(LoggingTestCase):
         # expected start/stop times
         start_utc = "TBD"
         stop_utc = "TBD"
+        copydir = "/x/y/z"
 
         # request message
-        req_str = "{'start': \"XXX\", 'stop': \"%s\"}" % stop_utc
+        req_str = "{'start': \"XXX\", 'stop': \"%s\", 'copy': \"%s\"}" % \
+                  (stop_utc, copydir)
 
         # initialize incoming socket and add expected message(s)
         rcvr.alert_socket().addIncoming(req_str)
@@ -207,7 +209,7 @@ class HsPublisherTest(LoggingTestCase):
 
         # add all expected log messages
         self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage("Publisher published: %s" % req_str)
+        self.expectLogMessage("Ignoring badly-formed request \"%s\"" % req_str)
         self.expectLogMessage("send confirmation back to requester: DONE")
         self.expectLogMessage("Quitting: Incoming message queue is empty")
 
@@ -221,9 +223,11 @@ class HsPublisherTest(LoggingTestCase):
         start_ticks = 98765432101234
         start_utc = "TBD"
         stop_utc = "TBD"
+        copydir = "/x/y/z"
 
         # request message
-        req_str = "{'start': %d, 'stop': \"%s\"}" % (start_ticks / 10, stop_utc)
+        req_str = "{'start': %d, 'stop': \"%s\", 'copy': \"%s\"}" % \
+                  (start_ticks / 10, stop_utc, copydir)
 
         # initialize incoming socket and add expected message(s)
         rcvr.alert_socket().addIncoming(req_str)
@@ -263,7 +267,7 @@ class HsPublisherTest(LoggingTestCase):
 
         # add all expected log messages
         self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage("Publisher published: %s" % req_str)
+        self.expectLogMessage("Ignoring badly-formed request \"%s\"" % req_str)
         self.expectLogMessage("send confirmation back to requester: DONE")
         self.expectLogMessage("Quitting: Incoming message queue is empty")
 
@@ -278,10 +282,11 @@ class HsPublisherTest(LoggingTestCase):
         stop_ticks = 98899889980000
         start_utc = self.utc(start_ticks)
         stop_utc = self.utc(stop_ticks)
+        copydir = "/foo/HsDataCopy/bar"
 
         # request message
-        req_str = "{'start': %d, 'stop': %d}" % \
-                 (start_ticks / 10, stop_ticks / 10)
+        req_str = "{'start': %d, 'stop': %d, 'copy': \"%s\"}" % \
+                 (start_ticks / 10, stop_ticks / 10, copydir)
 
         # initialize incoming socket and add expected message(s)
         rcvr.alert_socket().addIncoming(req_str)
@@ -336,10 +341,11 @@ class HsPublisherTest(LoggingTestCase):
         stop_ticks = 98899889980000
         start_utc = self.utc(start_ticks)
         stop_utc = self.utc(stop_ticks)
+        copydir = "/foo/HsDataCopy/bar"
 
         # request message
-        req_str = "{'start': %d, 'stop': %d}" % \
-                 (start_ticks / 10, stop_ticks / 10)
+        req_str = "{'start': %d, 'stop': %d, 'copy': \"%s\"}" % \
+                 (start_ticks / 10, stop_ticks / 10, copydir)
 
         # initialize incoming socket and add expected message(s)
         rcvr.alert_socket().addIncoming(req_str)

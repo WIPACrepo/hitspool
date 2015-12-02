@@ -1,9 +1,10 @@
 #!/bin/sh
 
 source testbed/create_test_env.sh &&
-if [ -d $ROOTDIR/copytest ]; then rm -rf $ROOTDIR/copytest; fi &&
+if [ -z "$COPYDIR" ]; then COPYDIR=HsDataCopy; fi &&
+if [ -d "$ROOTDIR/$COPYDIR" ]; then rm -rf "$ROOTDIR/$COPYDIR"; fi &&
 python ./HsGrabber.py \
     -b 15789006796024623 \
     -e 15789066796024623 \
-    -c dglo@localhost:$ROOTDIR/copytest/ \
+    -c "dglo@localhost:$ROOTDIR/$COPYDIR/" \
     $*
