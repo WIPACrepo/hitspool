@@ -6,7 +6,6 @@ import os
 import sqlite3
 import struct
 import tempfile
-import threading
 import zmq
 
 
@@ -82,10 +81,6 @@ class Mock0MQSocket(object):
 
     def close(self):
         pass
-
-    @property
-    def has_input(self):
-        return len(self.__outqueue) > 0
 
     def poll(self, _):
         if len(self.__pollresult) == 0:
@@ -203,99 +198,6 @@ class Mock0MQSocket(object):
             verb = " was" if len(self.__pollresult) == 1 else "s were"
             raise Exception("%s message%s not received (%s)" %
                             (len(self.__pollresult), verb, self.__pollresult))
-
-
-class MockHitspool(object):
-    COPY_DIR = None
-    HUB_DIR = None
-    LOCK = threading.Lock()
-
-    @classmethod
-    def create(cls, hsr, subdir, t0, t_cur, interval, max_f=1000,
-               make_bad=False, debug=False):
-        with cls.LOCK:
-            if cls.HUB_DIR is None:
-                # create temporary hub directory and set in HsRSyncFiles
-                cls.HUB_DIR = tempfile.mkdtemp(prefix="HubDir_")
-                hsr.TEST_HUB_DIR = cls.HUB_DIR
-
-        # create subdir if necessary
-        path = os.path.join(cls.HUB_DIR, subdir)
-        if not os.path.exists(path):
-            os.makedirs(path)
-
-        # compute "current file"
-        cur_f = int((t_cur - t0) / interval)
-
-        # create info.txt
-        infopath = os.path.join(path, "info.txt")
-        with open(infopath, "w") as fout:
-            if not make_bad:
-                print >>fout, "T0 %d" % t0
-            print >>fout, "CURT %d" % t_cur
-            print >>fout, "IVAL %d" % interval
-            print >>fout, "CURF %d" % cur_f
-            print >>fout, "MAXF %d" % max_f
-
-        if debug:
-            print >>sys.stderr, "=== %s" % infopath
-            print >>sys.stderr, "=== start %d :: %s" % \
-                (t0, HsTestUtil.get_time(t0))
-            print >>sys.stderr, "=== stop  %d :: %s" % \
-                (t_cur, HsTestUtil.get_time(t_cur))
-            with open(infopath, "r") as fin:
-                for line in fin:
-                    print >>sys.stderr, line,
-
-    @classmethod
-    def create_copy_dir(cls, hsr=None, suffix="_HsDataCopy"):
-        with cls.LOCK:
-            if cls.COPY_DIR is None:
-                # create temporary copy directory and set in HsWorker
-                cls.COPY_DIR = tempfile.mkdtemp(suffix=suffix)
-                if hsr is not None:
-                    # set HsRSyncFiles.TEST_COPY_DIR
-                    hsr.TEST_COPY_DIR = cls.COPY_DIR
-
-    @classmethod
-    def create_copy_files(cls, prefix, timetag, host, startnum, numfiles,
-                          real_stuff=False):
-        """create copy directory and fill with fake hitspool files"""
-        cls.create_copy_dir()
-
-        # create copy directory
-        path = os.path.join(cls.COPY_DIR, "%s_%s_%s" % (prefix, timetag, host))
-
-        # if caller wants actual directory and files, create them
-        if real_stuff:
-            if not os.path.exists(path):
-                os.makedirs(path)
-
-            # create all fake hitspool files
-            for num in xrange(startnum, startnum + numfiles):
-                fpath = os.path.join(path, "HitSpool-%d" % num)
-                with open(fpath, "w") as fout:
-                    print >>fout, "Fake#%d" % num
-
-        return path
-
-    @classmethod
-    def destroy(cls):
-        with cls.LOCK:
-            if cls.HUB_DIR is not None:
-                # clear lingering files
-                try:
-                    shutil.rmtree(cls.HUB_DIR)
-                except:
-                    pass
-                cls.HUB_DIR = None
-            if cls.COPY_DIR is not None:
-                # clear lingering files
-                try:
-                    shutil.rmtree(cls.COPY_DIR)
-                except:
-                    pass
-                cls.COPY_DIR = None
 
 
 class MockI3Socket(Mock0MQSocket):

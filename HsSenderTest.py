@@ -131,59 +131,6 @@ class HsSenderTest(LoggingTestCase):
 
         return path
 
-    def __full_test(self, category, timetag, host, target, rsync_prefix,
-                    firstnum, numfiles):
-        sender = MySender()
-        self.SENDER = sender
-
-        # create real directories
-        hsdir = self.__create_hitspool_copy(category, timetag, host, firstnum,
-                                            numfiles, real_stuff=True)
-        copydir = self.__create_copydir(real_stuff=True)
-        usrdir = os.path.join(copydir, target)
-
-        # initialize message
-        msg = {"msgtype": "rsync_sum",
-               "copydir": hsdir,
-               "copydir_user": rsync_prefix + usrdir,
-              }
-
-        # add all expected JSON messages
-        sender.reporter.addIncoming(json.dumps(msg))
-
-        # don't check DEBUG/INFO log messages
-        self.setLogLevel(logging.WARN)
-
-        # run it!
-        sender.mainloop()
-
-        self.assertFalse(os.path.exists(hsdir),
-                         "HitSpool directory \"%s\" was not moved" % hsdir)
-        self.assertTrue(os.path.exists(usrdir),
-                        "User directory \"%s\" does not exist" % usrdir)
-
-        base = os.path.basename(hsdir)
-        if base == "":
-            base = os.path.basename(os.path.dirname(hsdir))
-            if base == "":
-                self.fail("Cannot find basename from %s" % hsdir)
-        subdir = os.path.join(usrdir, base)
-        self.assertTrue(os.path.exists(subdir),
-                        "Moved directory \"%s\" does not exist" % subdir)
-
-        # I'm not sure why, but there's a dual level of subdirectories
-        subsub = os.path.join(subdir, base)
-        self.assertTrue(os.path.exists(subsub),
-                        "Moved subdirectory \"%s\" does not exist" % subsub)
-
-        flist = []
-        for entry in os.listdir(subsub):
-            flist.append(entry)
-        self.__check_hitspool_file_list(flist, firstnum, numfiles)
-
-        # make sure 0MQ communications checked out
-        sender.validate()
-
     def setUp(self):
         super(HsSenderTest, self).setUp()
         # by default, check all log messages
@@ -691,50 +638,66 @@ class HsSenderTest(LoggingTestCase):
         # make sure 0MQ communications checked out
         sender.validate()
 
-    def test_main_loop_SNALERT(self):
+    def test_main_loop(self):
+        sender = MySender()
+        self.SENDER = sender
+
         # initialize directory parts
         category = "SNALERT"
         timetag = "12345678_987654"
         host = "ichub01"
-        target = "UserCopy"
-        rsync_prefix = ""
 
         # initialize HitSpool file parameters
         firstnum = 11
         numfiles = 3
 
-        self.__full_test(category, timetag, host, target, rsync_prefix,
-                         firstnum, numfiles)
+        # create real directories
+        hsdir = self.__create_hitspool_copy(category, timetag, host, firstnum,
+                                            numfiles, real_stuff=True)
+        copydir = self.__create_copydir(real_stuff=True)
+        usrdir = os.path.join(copydir, "UserCopy")
 
-    def test_main_loop_HESE_no_hostname(self):
-        # initialize directory parts
-        category = "HESE"
-        timetag = "12345678_987654"
-        host = "ichub01"
-        target = "123_456_2015-11-17T20:15:58.666638"
-        rsync_prefix = ""
+        # initialize message
+        msg = {"msgtype": "rsync_sum",
+               "copydir": hsdir,
+               "copydir_user": usrdir,
+              }
 
-        # initialize HitSpool file parameters
-        firstnum = 11
-        numfiles = 3
+        # add all expected JSON messages
+        sender.reporter.addIncoming(json.dumps(msg))
 
-        self.__full_test(category, timetag, host, target, rsync_prefix,
-                         firstnum, numfiles)
+        # don't check DEBUG/INFO log messages
+        self.setLogLevel(logging.WARN)
 
-    def test_main_loop_HESE_plus_hostname(self):
-        # initialize directory parts
-        category = "HESE"
-        timetag = "12345678_987654"
-        host = "ichub01"
-        target = "123_456_2015-11-17T20:15:58.666638"
-        rsync_prefix = "somehost:"
+        # run it!
+        sender.mainloop()
 
-        # initialize HitSpool file parameters
-        firstnum = 11
-        numfiles = 3
+        self.assertFalse(os.path.exists(hsdir),
+                         "HitSpool directory \"%s\" was not moved" % hsdir)
+        self.assertTrue(os.path.exists(usrdir),
+                        "User directory \"%s\" does not exist" % usrdir)
 
-        self.__full_test(category, timetag, host, target, rsync_prefix,
-                         firstnum, numfiles)
+        base = os.path.basename(hsdir)
+        if base == "":
+            base = os.path.basename(os.path.dirname(hsdir))
+            if base == "":
+                self.fail("Cannot find basename from %s" % hsdir)
+        subdir = os.path.join(usrdir, base)
+        self.assertTrue(os.path.exists(subdir),
+                        "Moved directory \"%s\" does not exist" % subdir)
+
+        # I'm not sure why, but there's a dual level of subdirectories
+        subsub = os.path.join(subdir, base)
+        self.assertTrue(os.path.exists(subsub),
+                        "Moved subdirectory \"%s\" does not exist" % subsub)
+
+        flist = []
+        for entry in os.listdir(subsub):
+            flist.append(entry)
+        self.__check_hitspool_file_list(flist, firstnum, numfiles)
+
+        # make sure 0MQ communications checked out
+        sender.validate()
 
 
 if __name__ == '__main__':

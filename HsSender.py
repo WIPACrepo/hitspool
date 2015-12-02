@@ -159,42 +159,28 @@ class HsSender(HsBase.HsBase):
         logging.info("HS data located at: %s", copydir)
         logging.info("user requested it to be in: %s", copydir_user)
 
+        no_spade = True
+
         hs_basedir, data_dir_name = os.path.split(copydir)
 
-        no_spade = False
-        if not force_spade:
-            match = re.match(r'(\S+)_[0-9]{8}_[0-9]{6}', data_dir_name)
-            prefixes = ("SNALERT", "HESE", "ANON")
-            if match is None or not match.group(1) in prefixes:
-                logging.error("Naming scheme validation failed.")
-                logging.error("Please put the data manually in the desired"
-                              " location: %s", copydir_user)
-                no_spade = True
-
-        # if data looks valid, copy it to the requested directory
-        if not no_spade:
+        match = re.match(r'(\S+)_[0-9]{8}_[0-9]{6}', data_dir_name)
+        if match is None or not match.group(1) in ["SNALERT", "HESE", "ANON"]:
+            logging.error("Naming scheme validation failed.")
+            logging.error("Please put the data manually in the desired"
+                          " location: %s", copydir_user)
+        else:
             logging.info("HS data name: %s", data_dir_name)
 
-            if os.path.normpath(copydir_user) == os.path.normpath(hs_basedir):
-                # data is already in the requested directory
+            # XXX use os.path.samefile()
+            if force_spade or \
+               os.path.normpath(copydir_user) == os.path.normpath(hs_basedir):
+                no_spade = False
                 logging.info("HS data \"%s\" is located in \"%s\"",
                              data_dir_name, hs_basedir)
             else:
-                # strip rsync hostname if present
-                parts = copydir_user.split(":", 1)
-                if len(parts) > 1 and parts[0].find("/") < 0:
-                    # strip off "hostname:"
-                    target_base = parts[1]
-                else:
-                    # no embedded colons or colons are part of the path
-                    target_base = copydir_user
-
-                # move files to requested directory
-                targetdir = os.path.join(target_base, data_dir_name)
+                targetdir = os.path.join(copydir_user, data_dir_name)
                 if self.movefiles(copydir, targetdir):
-                    hs_basedir = targetdir
-                else:
-                    no_spade = True
+                    hs_basedir = copydir_user
 
         return hs_basedir, no_spade
 
