@@ -1,6 +1,6 @@
-###HSiface Jobs -- Please contact David Heereman: i3.hsinterface@gmail.com for questions 
+###HSiface Jobs -- Please contact Dave Glowacki: dglo@icecube.wisc.edu for questions 
 
-HSifacePATH=/mnt/data/pdaqlocal/HsInterface/trunk
+HSifacePATH=/mnt/data/pdaqlocal/HsInterface/current
 
 #delete subfolders in $HSifacePATH that are older than 60 days
 #to be run at 12:00 AM on every first day of th month:

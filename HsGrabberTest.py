@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import json
 import logging
 import unittest
 
@@ -24,9 +23,12 @@ class MyGrabber(HsGrabber.HsGrabber):
         return HsTestUtil.MockI3Socket("HsGrabber")
 
     def validate(self):
-        self.grabber.validate()
-        self.poller.validate()
-        self.i3socket.validate()
+        self.close_all()
+        val = self.grabber.validate()
+        val |= self.poller.validate()
+        val |= self.i3socket.validate()
+        return val
+
 
 class HsGrabberTest(LoggingTestCase):
     def setUp(self):
@@ -41,12 +43,11 @@ class HsGrabberTest(LoggingTestCase):
             pass
 
     def test_negative_time(self):
-        timeout = 1
-        alert_start_sn = 1578900679602462
-        alert_stop_sn = alert_start_sn - 1000000000
+        alert_start_ns = 1578900679602462
+        alert_start_utc = HsTestUtil.get_time(alert_start_ns, is_sn_ns=True)
+        alert_stop_ns = alert_start_ns - 1000000000
+        alert_stop_utc = HsTestUtil.get_time(alert_stop_ns, is_sn_ns=True)
         copydir = None
-
-        secrange = (alert_stop_sn - alert_start_sn) / 1E9
 
         # create the grabber object
         hsg = MyGrabber()
@@ -55,58 +56,94 @@ class HsGrabberTest(LoggingTestCase):
         self.setLogLevel(logging.WARN)
 
         # add all expected log messages
-        self.expectLogMessage("Requesting negative time range (%.2f)."
-                              " Try another time window." % secrange)
+        msg = "Requesting negative time range (%.2f).\n" \
+              "Try another time window." % \
+              ((alert_stop_ns - alert_start_ns) / 1E9)
+        self.expectLogMessage(msg)
 
         # run it!
-        hsg.send_alert(timeout, alert_start_sn, alert_stop_sn, copydir,
-                       print_dots=False)
+        hsg.send_alert(alert_start_ns, alert_start_utc, alert_stop_ns,
+                       alert_stop_utc, copydir, print_to_console=False)
 
         hsg.validate()
 
-    def test_huge_time(self):
-        timeout = 1
-        alert_start_sn = 1578900679602462
-        alert_stop_sn = alert_start_sn + \
-                        10000000000 * (HsGrabber.MAX_SECONDS + 1)
-        copydir = None
+    def test_nonstandard_time(self):
+        alert_start_ns = 1578900679602462
+        alert_start_utc = HsTestUtil.get_time(alert_start_ns, is_sn_ns=True)
+        alert_stop_ns = alert_start_ns + \
+            1E9 * (HsGrabber.STD_SECONDS + 1)
+        alert_stop_utc = HsTestUtil.get_time(alert_stop_ns, is_sn_ns=True)
+        copydir = "/not/valid/path"
 
-        secrange = (alert_stop_sn - alert_start_sn) / 1E9
-
-        # create the grabber object
-        hsg = MyGrabber()
-
-        # don't check DEBUG/INFO log messages
-        self.setLogLevel(logging.WARN)
-
-        # add all expected log messages
-        self.expectLogMessage("Request for %.2f seconds is too huge.\n"
-                              "HsWorker processes request only up to %d sec.\n"
-                              "Try a smaller time window." %
-                              (secrange, HsGrabber.MAX_SECONDS))
-
-        # run it!
-        hsg.send_alert(timeout, alert_start_sn, alert_stop_sn, copydir,
-                       print_dots=False)
-
-        hsg.validate()
-
-    def test_timeout(self):
-        timeout = 1
-        alert_start_sn = 1578900679602462
-        alert_stop_sn = 1578906679602462
-        copydir = None
+        secrange = (alert_stop_ns - alert_start_ns) / 1E9
 
         # create the alert
-        alert = {"start": alert_start_sn,
-                 "stop": alert_stop_sn,
+        alert = {"start": alert_start_ns,
+                 "stop": alert_stop_ns,
                  "copy": copydir}
 
         # create the grabber object
         hsg = MyGrabber()
 
         # add all JSON and response messages
-        hsg.grabber.addExpected(json.dumps(alert))
+        hsg.grabber.addExpected(alert)
+
+        # don't check DEBUG/INFO log messages
+        self.setLogLevel(logging.WARN)
+
+        # add all expected log messages
+        msg = "Warning: You are requesting %.2f seconds of data\n" \
+              "Normal requests are %d seconds or less" % \
+              (secrange, HsGrabber.STD_SECONDS)
+        self.expectLogMessage(msg)
+
+        # run it!
+        hsg.send_alert(alert_start_ns, alert_start_utc, alert_stop_ns,
+                       alert_stop_utc, copydir, print_to_console=False)
+
+        hsg.validate()
+
+        # add grabber to poller socket
+        hsg.poller.addPollResult(hsg.grabber)
+
+        # add final grabber response
+        hsg.grabber.addIncoming("DONE\0")
+
+        timeout = 1
+        hsg.wait_for_response(timeout=timeout, print_to_console=False)
+
+    def test_huge_time(self):
+        alert_start_ns = 1578900679602462
+        alert_start_utc = HsTestUtil.get_time(alert_start_ns, is_sn_ns=True)
+        alert_stop_ns = alert_start_ns + \
+            1E9 * (HsGrabber.MAX_SECONDS + 1)
+        alert_stop_utc = HsTestUtil.get_time(alert_stop_ns, is_sn_ns=True)
+        copydir = None
+
+        secrange = (alert_stop_ns - alert_start_ns) / 1E9
+
+        # create the grabber object
+        hsg = MyGrabber()
+
+        # don't check DEBUG/INFO log messages
+        self.setLogLevel(logging.WARN)
+
+        # add all expected log messages
+        msg = "Request for %.2f seconds is too huge.\n" \
+              "HsWorker processes request only up to %d seconds.\n" \
+              "Try a smaller time window." % \
+              (secrange, HsGrabber.MAX_SECONDS)
+        self.expectLogMessage(msg)
+
+        # run it!
+        hsg.send_alert(alert_start_ns, alert_start_utc, alert_stop_ns,
+                       alert_stop_utc, copydir, print_to_console=False)
+
+        hsg.validate()
+
+    def test_timeout(self):
+        # create the grabber object
+        hsg = MyGrabber()
 
         # add grabber to poller socket
         hsg.poller.addPollResult(None)
@@ -114,56 +151,50 @@ class HsGrabberTest(LoggingTestCase):
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
+
+        # change the timeout
+        timeout = 1
 
         # add all expected log messages
         self.expectLogMessage("no connection to expcont's HsPublisher"
                               " within %s seconds.\nAbort request." % timeout)
 
         # run it!
-        try:
-            hsg.send_alert(timeout, alert_start_sn, alert_stop_sn, copydir,
-                           print_dots=False)
-            self.fail("Expected alert to call sys.exit(1)")
-        except SystemExit:
-            pass
+        hsg.wait_for_response(timeout=timeout, print_to_console=False)
 
         hsg.validate()
 
     def test_working(self):
-        timeout = 1
-        alert_start_sn = 1578900679602462
-        alert_stop_sn = 1578906679602462
-        copydir = None
+        alert_start_ns = 1578900679602462
+        alert_start_utc = HsTestUtil.get_time(alert_start_ns, is_sn_ns=True)
+        alert_stop_ns = 1578906679602462
+        alert_stop_utc = HsTestUtil.get_time(alert_stop_ns, is_sn_ns=True)
+        copydir = "/somewhere/else"
 
         # create the alert
-        alert = {"start": alert_start_sn,
-                 "stop": alert_stop_sn,
+        alert = {"start": alert_start_ns,
+                 "stop": alert_stop_ns,
                  "copy": copydir}
 
         # create the grabber object
         hsg = MyGrabber()
 
         # add all JSON and response messages
-        hsg.grabber.addExpected(json.dumps(alert))
+        hsg.grabber.addExpected(alert)
         hsg.grabber.addIncoming("DONE\0")
 
         # add grabber to poller socket
         hsg.poller.addPollResult(hsg.grabber)
 
-        # add all expected I3Live messages
-        hsg.i3socket.addExpectedValue("pushed request")
-
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
         # run it!
-        try:
-            hsg.send_alert(timeout, alert_start_sn, alert_stop_sn, copydir,
-                           print_dots=False)
-            self.fail("Expected alert to call sys.exit(1)")
-        except SystemExit:
-            pass
+        hsg.send_alert(alert_start_ns, alert_start_utc, alert_stop_ns,
+                       alert_stop_utc, copydir, print_to_console=False)
 
+        timeout = 1
+        hsg.wait_for_response(timeout=timeout, print_to_console=False)
         hsg.validate()
 
 

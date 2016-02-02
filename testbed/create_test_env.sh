@@ -16,6 +16,12 @@ for dir in $FAKE_HOSTS; do
     fi
 done
 
+destdir="$ROOTDIR/HsDataCopy"
+if [ -d "$destdir" ]; then
+    rm -rf "$destdir"
+fi
+mkdir "$destdir"
+
 explog="$ROOTDIR/expcont/logs"
 if [ ! -d "$explog" ]; then
     mkdir "$explog"

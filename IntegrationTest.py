@@ -7,7 +7,6 @@ import logging
 import os
 import re
 import threading
-import time
 import unittest
 
 import HsConstants
@@ -15,7 +14,9 @@ import HsPublisher
 import HsSender
 import HsWorker
 import HsTestUtil
+import HsUtil
 
+from HsPrefix import HsPrefix
 from LoggingTestCase import LoggingTestCase
 
 
@@ -40,6 +41,9 @@ class MockPubSocket(object):
         self.__closed = True
 
     def send(self, msg):
+        self.__pubsub.send_to_subs(msg)
+
+    def send_json(self, msg):
         self.__pubsub.send_to_subs(msg)
 
     def validate(self):
@@ -78,7 +82,8 @@ class MockPullSocket(object):
         self.__closed = False
 
     def close(self):
-        self.__closed = True
+        with self.__queueLock:
+            self.__closed = True
 
     @property
     def has_input(self):
@@ -88,14 +93,18 @@ class MockPullSocket(object):
     def recv_json(self):
         with self.__queueLock:
             while True:
+                if self.__closed:
+                    break
                 if len(self.__queue) == 0:
                     self.__queueLock.wait()
                 if len(self.__queue) > 0:
                     return self.__queue.pop(0)
 
-    def send_json(self, json):
+    def send_json(self, obj):
         with self.__queueLock:
-            self.__queue.append(json)
+            if self.__closed:
+                raise Exception("Cannot send from closed socket")
+            self.__queue.append(obj)
             self.__queueLock.notify()
 
     def validate(self):
@@ -132,8 +141,8 @@ class MockPushPullSocket(object):
         if len(self.__pushers) == 0:
             self.__puller.close()
 
-    def create_pusher(self):
-        pusher = MockPushSocket(self)
+    def create_pusher(self, name):
+        pusher = MockPushSocket(self, name)
         self.__pushers.append(pusher)
         return pusher
 
@@ -146,16 +155,23 @@ class MockPushPullSocket(object):
 
 
 class MockPushSocket(object):
-    def __init__(self, parent):
+    def __init__(self, parent, name):
         self.__parent = parent
+        self.__name = name
         self.__closed = False
+        self.__verbose = False
 
     def close(self):
         self.__closed = True
         self.__parent.close_pusher(self)
 
     def send_json(self, json):
+        if self.__verbose:
+            print "PushSocket(%s) <- %s" % (self.__name, str(json))
         self.__parent.send_json(json)
+
+    def set_verbose(self, value=True):
+        self.__verbose = (value is True)
 
     def validate(self):
         rtnval = True
@@ -185,7 +201,7 @@ class MockSubSocket(object):
             self.__queue.append(msg)
             self.__queueLock.notify()
 
-    def recv(self):
+    def recv_json(self):
         with self.__queueLock:
             while True:
                 if len(self.__queue) == 0:
@@ -198,6 +214,7 @@ class MockSubSocket(object):
         if not self.__closed:
             rtnval = False
         if len(self.__queue) > 0:
+            import sys
             print >>sys.stderr, \
                 "MockSubSocket queue contains %s entries (%s)" % \
                 (len(self.__queue), self.__queue)
@@ -207,12 +224,13 @@ class MockSubSocket(object):
 
 
 class MyPublisher(HsPublisher.Receiver):
-    def __init__(self, pub_sock):
+    def __init__(self, pub_sock, snd_sock):
         self.__pub_sock = pub_sock
+        self.__snd_sock = snd_sock
         self.__alert_sock = None
         self.__i3_sock = None
 
-        super(MyPublisher, self).__init__(is_test=True)
+        super(MyPublisher, self).__init__(host="mypublisher", is_test=True)
 
     def create_alert_socket(self):
         if self.__alert_sock is not None:
@@ -228,7 +246,12 @@ class MyPublisher(HsPublisher.Receiver):
         self.__i3_sock = HsTestUtil.MockI3Socket('HsPublisher')
         return self.__i3_sock
 
-    def create_publisher(self):
+    def create_sender_socket(self, host):
+        if self.__snd_sock is None:
+            self.__snd_sock = HsTestUtil.Mock0MQSocket("Sender")
+        return self.__snd_sock
+
+    def create_workers_socket(self):
         if self.__pub_sock is None:
             self.__pub_sock = HsTestUtil.Mock0MQSocket("Publisher")
         return self.__pub_sock
@@ -247,16 +270,19 @@ class MyPublisher(HsPublisher.Receiver):
         self.close_all()
 
     def validate(self):
-        for sock in (self.__alert_sock, self.__i3_sock, self.__pub_sock):
+        val = True
+        for sock in (self.__alert_sock, self.__i3_sock, self.__pub_sock,
+                     self.__snd_sock):
             if sock is not None:
-                sock.validate()
+                val |= sock.validate()
+        return val
 
 
 class MySender(HsSender.HsSender):
     def __init__(self, reporter):
         self.__rpt_sock = reporter
 
-        super(MySender, self).__init__()
+        super(MySender, self).__init__(host="mysender", is_test=True)
 
     def create_reporter(self):
         if self.__rpt_sock is None:
@@ -277,12 +303,13 @@ class MySender(HsSender.HsSender):
         """
         Check that all expected messages were received by mock sockets
         """
-        self.reporter.validate()
-        self.i3socket.validate()
+        val = self.reporter.validate()
+        val |= self.i3socket.validate()
+        return val
 
 
 class MyWorker(HsWorker.Worker):
-    def __init__(self, num, sub_sock, sender_sock):
+    def __init__(self, num, host, sub_sock, sender_sock):
         self.__num = num
         self.__sub_sock = sub_sock
 
@@ -291,25 +318,19 @@ class MyWorker(HsWorker.Worker):
 
         self.__link_paths = []
 
-        super(MyWorker, self).__init__(self.name, is_test=True)
+        super(MyWorker, self).__init__(self.name, host=host, is_test=True)
 
     @classmethod
     def __timetag(cls, starttime):
         return starttime.strftime("%Y%m%d_%H%M%S")
 
     def add_expected_links(self, base_utc, rundir, firstnum, numfiles,
-                           i3socket=None, ssh_access=None):
+                           i3socket=None, finaldir=None):
         timetag = self.__timetag(base_utc)
         srcdir = self.TEST_HUB_DIR
         for i in xrange(firstnum, firstnum + numfiles):
             frompath = os.path.join(srcdir, rundir, "HitSpool-%d.dat" % i)
             self.__link_paths.append((frompath, srcdir, timetag))
-            if i3socket is not None:
-                errmsg = "linked %s to tmp dir" % frompath
-                i3socket.addExpectedValue(errmsg)
-        if i3socket is not None and ssh_access is not None:
-            i3socket.addExpectedValue(" 0.0 [MB] HS data transferred"
-                                      " to %s " % ssh_access, prio=1)
 
     def check_for_unused_links(self):
         llen = len(self.__link_paths)
@@ -358,7 +379,7 @@ class MyWorker(HsWorker.Worker):
         if not os.path.exists(filename):
             fdir = os.path.dirname(filename)
             if not os.path.exists(fdir):
-                os.makedirs()
+                os.makedirs(fdir)
             open(filename, "w").close()
 
         super(MyWorker, self).hardlink(filename, targetdir)
@@ -367,26 +388,32 @@ class MyWorker(HsWorker.Worker):
     def name(self):
         return "Worker#%d" % self.__num
 
-    def run_test(self, logfile):
+    def run_test(self):
         if self.__sub_sock is None:
             raise Exception("Subscriber socket does not exist")
         while True:
+            # create logfile
+            logfile = "/tmp/%s.log" % self.shorthost
+            open(logfile, "w").close()
+
             self.mainloop(logfile)
             if not self.__sub_sock.has_input:
                 break
         self.close_all()
 
     def validate(self):
+        val = True
         for sock in (self.__i3_sock, self.__sender_sock, self.__sub_sock):
             if sock is not None:
-                sock.validate()
+                val |= sock.validate()
+        return val
 
 
 class IntegrationTest(LoggingTestCase):
     TICKS_PER_SECOND = 10000000000
     INTERVAL = 15 * TICKS_PER_SECOND
 
-    RCV_REQ_PAT = re.compile(r"received request at \S+ \S+")
+    MATCH_ANY = re.compile(r"^.*$")
 
     def __create_hsdir(self, workers, start_ticks, stop_ticks):
         HsTestUtil.MockHitspool.create_copy_dir(workers[0])
@@ -413,128 +440,102 @@ class IntegrationTest(LoggingTestCase):
         thrd.setDaemon(True)
         return thrd
 
-    def __create_worker_thread(self, wrk, logfile):
-        thrd = threading.Thread(name=wrk.name, target=wrk.run_test,
-                                args=(logfile, ))
+    def __create_worker_thread(self, wrk):
+        thrd = threading.Thread(name=wrk.name, target=wrk.run_test, args=())
         thrd.setDaemon(True)
         return thrd
 
-    def __init_publisher(self, publisher, start_ticks, stop_ticks, copydir):
+    def __init_publisher(self, publisher, req_id, username, prefix,
+                         start_ticks, stop_ticks, copydir):
         start_utc = HsTestUtil.get_time(start_ticks)
         stop_utc = HsTestUtil.get_time(stop_ticks)
 
         # request message
-        req_str = "{\"start\": %d, \"stop\": %d, \"copy\": \"%s\"}" % \
-                  (start_ticks / 10, stop_ticks / 10, copydir)
+        alertdict = {
+            "start": start_ticks / 10,
+            "stop": stop_ticks / 10,
+            "copy": copydir,
+            "request_id": req_id,
+            "username": username,
+        }
 
         # initialize incoming socket and add expected message(s)
-        publisher.alert_socket().addIncoming(req_str)
-        publisher.alert_socket().addExpected("DONE\0")
+        publisher.alert_socket.addIncoming(alertdict)
+        publisher.alert_socket.addExpected("DONE\0")
 
         # notification message strings
         notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % publisher.cluster
         notify_lines = [
-            req_str,
+            '',
             'start in UTC : %s' % start_utc,
             'stop  in UTC : %s' % stop_utc,
             '(no possible leapseconds applied)',
         ]
+        notify_pat = re.compile(r".*" + re.escape("\n".join(notify_lines)),
+                                flags=re.MULTILINE)
+
+        # fill in defaults for worker request
+        stddict = alertdict.copy()
+        stddict["prefix"] = prefix
+
+        notifies = []
+        for addr in HsConstants.ALERT_EMAIL_DEV:
+            notifies.append(
+                {
+                    'notifies_txt': notify_pat,
+                    'notifies_header': notify_hdr,
+                    'receiver': addr,
+                })
 
         # initialize I3Live socket and add all expected I3Live messages
-        publisher.i3socket.addExpectedValue("Received data request for [%s ,"
-                                            " %s] " % (start_utc, stop_utc))
-        publisher.i3socket.addExpectedValue("Published request to HsWorkers")
         publisher.i3socket.addExpectedAlert({
             'condition': notify_hdr,
             'desc': 'HsInterface Data Request',
-            'notifies': [
-                {
-                    'notifies_txt': "\n".join(notify_lines),
-                    'notifies_header': notify_hdr,
-                    'receiver': HsConstants.ALERT_EMAIL_DEV,
-                },
-                {
-                    'notifies_txt': "\n".join(notify_lines),
-                    'notifies_header': notify_hdr,
-                    'receiver': HsConstants.ALERT_EMAIL_SN,
-                },
-            ],
+            'notifies': notifies,
             'short_subject': 'true',
             'quiet': 'true',
         })
 
-        # add all expected log messages
-        # self.expectLogMessage("received request:\n%s" % req_str)
-        # self.expectLogMessage("Publisher published: %s" % req_str)
-        # self.expectLogMessage("send confirmation back to requester: DONE")
-        self.expectLogMessage("Quitting: Incoming message queue is empty")
+    def __init_sender(self, sender, req_id, username, prefix, destdir):
+        # I3Live status message value
+        status_queued = {
+            "request_id": req_id,
+            "username": username,
+            "prefix": prefix,
+            "start_time": HsTestUtil.TIME_PAT,
+            "stop_time": HsTestUtil.TIME_PAT,
+            "update_time": self.MATCH_ANY,
+            "destination_dir": destdir,
+            "status": HsUtil.STATUS_QUEUED,
+        }
+        sender.i3socket.addExpectedMessage(status_queued, service="hitspool",
+                                           varname="hsrequest",
+                                           time=self.MATCH_ANY)
 
-    def __init_sender(self, sender):
-        # add all expected log messages
-        self.expectLogMessage("Ignoring message type \"log_done\"")
-        self.expectLogMessage("Ignoring message type \"log_done\"")
+        status_started = status_queued.copy()
+        status_started["status"] = HsUtil.STATUS_IN_PROGRESS
+        sender.i3socket.addExpectedMessage(status_started, service="hitspool",
+                                           varname="hsrequest",
+                                           time=self.MATCH_ANY)
 
-    def __init_worker(self, worker, start_ticks, stop_ticks, copydir, logfile):
-        # initialize formatted start/stop times
+        status_success = status_queued.copy()
+        status_success["status"] = HsUtil.STATUS_SUCCESS
+        sender.i3socket.addExpectedMessage(status_success, service="hitspool",
+                                           varname="hsrequest",
+                                           time=self.MATCH_ANY)
+
+    def __init_worker(self, worker, start_ticks, stop_ticks, copydir):
+        # build timetag used to construct final destination
         utcstart = HsTestUtil.get_time(start_ticks)
-        utcstop = HsTestUtil.get_time(stop_ticks)
-
-        # add all expected I3Live messages
-        worker.i3socket.addExpectedValue(self.RCV_REQ_PAT)
-        worker.i3socket.addExpectedValue({
-            'START': int(start_ticks / 10),
-            'UTCSTART': str(utcstart),
-            'STOP': int(stop_ticks / 10),
-            'UTCSTOP': str(utcstop),
-        })
-
         plus30 = utcstart + datetime.timedelta(0, 30)
 
         # reformat time string for file names
         timetag = plus30.strftime("%Y%m%d_%H%M%S")
 
-        # directory where HsWorker copies results
-        finaldir = HsTestUtil.MockHitspool.COPY_DIR
-        finaluser = os.path.join(finaldir, "SNALERT_%s_%s" %
-                                 (timetag, worker.fullhost))
-
-        logfiledir = os.path.join(finaldir, "logs")
-
         # TODO should compute the expected number of files
         worker.add_expected_links(plus30, "currentRun", 0, 1,
                                   i3socket=worker.i3socket,
-                                  ssh_access=finaldir)
-
-        # add all expected HsSender messages
-        # worker.sender.addExpected({
-        #     "hubname": worker.shorthost,
-        #     "dataload": "TBD",
-        #     "datastart": str(utcstart),
-        #     "alertid": timetag,
-        #     "datastop": str(utcstop),
-        #     "msgtype": "rsync_sum",
-        #     "copydir_user": finaldir,
-        #     "copydir": finaluser,
-        # })
-        # worker.sender.addExpected({
-        #     "msgtype": "log_done",
-        #     "logfile_hsworker": logfile,
-        #     "hubname": worker.shorthost,
-        #     "logfiledir": logfiledir,
-        #     "alertid": timetag,
-        # })
-
-        # add all expected log messages
-        # self.expectLogMessage("ready for new alert...")
-        # self.expectLogMessage("HsWorker received alert message:\n"
-        #                       "[{\"start\": %d, \"stop\": %d, \"copy\":"
-        #                       " \"%s\"}]\nfrom Publisher" %
-        #                       (start_ticks / 10, stop_ticks / 10, copydir))
-        # self.expectLogMessage("Requested HS data copy destination differs"
-        #                       " from default!")
-        # self.expectLogMessage("data will be sent to default"
-        #                       " destination: %s" % worker.TEST_COPY_DIR)
-        # self.expectLogMessage("start processing alert...")
+                                  finaldir=HsTestUtil.MockHitspool.COPY_DIR)
 
     @classmethod
     def allow_out_of_order(cls):
@@ -543,6 +544,8 @@ class IntegrationTest(LoggingTestCase):
     def setUp(self):
         super(IntegrationTest, self).setUp()
 
+        HsSender.RequestMonitor.EXPIRE_SECONDS = 15.0
+
         # by default, don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
@@ -550,44 +553,60 @@ class IntegrationTest(LoggingTestCase):
         try:
             super(IntegrationTest, self).tearDown()
         finally:
-            HsTestUtil.MockHitspool.destroy()
+            try:
+                HsTestUtil.MockHitspool.destroy()
+            except:
+                import traceback
+                traceback.print_exc()
+
+            # get rid of HsSender's state database
+            dbpath = HsSender.HsSender.get_db_path()
+            if os.path.exists(dbpath):
+                try:
+                    os.unlink(dbpath)
+                except:
+                    import traceback
+                    traceback.print_exc()
 
     def test_publisher_to_worker(self):
         pub2wrk = MockPubSubSocket()
 
-        wrk2snd = MockPushPullSocket()
+        push2snd = MockPushPullSocket()
 
-        publisher = MyPublisher(pub2wrk.publisher)
+        publisher = MyPublisher(pub2wrk.publisher,
+                                push2snd.create_pusher("publisher"))
 
-        workers = (MyWorker(1, pub2wrk.subscribe(), wrk2snd.create_pusher()),
-                   MyWorker(2, pub2wrk.subscribe(), wrk2snd.create_pusher()))
+        workers = (MyWorker(1, "ichub01.usap.gov", pub2wrk.subscribe(),
+                            push2snd.create_pusher("ichub01")),
+                   MyWorker(2, "ichub66.usap.gov", pub2wrk.subscribe(),
+                            push2snd.create_pusher("ichub66")))
 
-        sender = MySender(wrk2snd.puller)
+        sender = MySender(push2snd.puller)
 
         # expected start/stop times
         start_ticks = 98765432100000
         stop_ticks = 98899889980000
         copydir = "foo@localhost:/tmp/bogus"
 
-        # create logfile
-        logfile = "/tmp/XXX.log"
-        open(logfile, "w").close()
-
-        # self.setVerbose(True) # XXX
-
         self.__create_hsdir(workers, start_ticks, stop_ticks)
 
+        # set up request fields
+        req_id = "FAKE_ID"
+        username = "test_pdaq"
+        prefix = HsPrefix.SNALERT
+
         # initialize HS services
-        self.__init_publisher(publisher, start_ticks, stop_ticks,
-                              workers[0].TEST_COPY_DIR)
+        self.__init_publisher(publisher, req_id, username, prefix, start_ticks,
+                              stop_ticks, workers[0].TEST_COPY_DIR)
         for wrk in workers:
-            self.__init_worker(wrk, start_ticks, stop_ticks, copydir, logfile)
-        self.__init_sender(sender)
+            self.__init_worker(wrk, start_ticks, stop_ticks, copydir)
+        self.__init_sender(sender, req_id, username, prefix,
+                           workers[0].TEST_COPY_DIR)
 
         # create HS service threads
         thrds = [self.__create_publisher_thread(publisher), ]
         for wrk in workers:
-            thrds.append(self.__create_worker_thread(wrk, logfile))
+            thrds.append(self.__create_worker_thread(wrk))
         thrds.append(self.__create_sender_thread(sender))
 
         # start all threads
@@ -595,7 +614,7 @@ class IntegrationTest(LoggingTestCase):
             thrd.start()
 
         # wait for threads to finish
-        for n in range(10):
+        for _ in range(10):
             alive = False
             for thrd in thrds:
                 if thrd.isAlive():

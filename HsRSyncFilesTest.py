@@ -5,12 +5,15 @@ import unittest
 
 import HsRSyncFiles
 import HsRSyncTestCase
+import HsTestUtil
 
 from HsException import HsException
 
 
 class MyHsRSyncFiles(HsRSyncFiles.HsRSyncFiles):
     def __init__(self, is_test=False):
+        self.__i3_sock = None
+
         super(MyHsRSyncFiles, self).__init__(is_test=is_test)
 
         self.__link_paths = []
@@ -32,7 +35,15 @@ class MyHsRSyncFiles(HsRSyncFiles.HsRSyncFiles):
         llen = len(self.__link_paths)
         if llen > 0:
             raise Exception("Found %d extra link%s (%s)" %
-                            (llen, "" if llen == 1 else "s", self.__link_paths))
+                            (llen, "" if llen == 1 else "s",
+                             self.__link_paths))
+
+    def create_i3socket(self, host):
+        if self.__i3_sock is not None:
+            raise Exception("Cannot create multiple I3 sockets")
+
+        self.__i3_sock = HsTestUtil.MockI3Socket('HsRSyncFiles')
+        return self.__i3_sock
 
     def fail_hardlink(self):
         self.__fail_hardlink = True
@@ -40,7 +51,7 @@ class MyHsRSyncFiles(HsRSyncFiles.HsRSyncFiles):
     def fail_rsync(self):
         self.__fail_rsync = True
 
-    def get_timetag_tuple(self, hs_copydir, starttime):
+    def get_timetag_tuple(self, prefix, hs_copydir, starttime):
         return "TestHS", self.__timetag(starttime)
 
     def hardlink(self, filename, targetdir):
@@ -69,8 +80,8 @@ class MyHsRSyncFiles(HsRSyncFiles.HsRSyncFiles):
     def rsync(self, source, target, bwlimit=None, log_format=None,
               relative=True):
         if self.__fail_rsync:
-            return ([], "FakeFail")
-        return (["", ], "")
+            raise HsException("FakeFail")
+        return ("", )
 
 
 class HsRSyncFilesTest(HsRSyncTestCase.HsRSyncTestCase):

@@ -7,292 +7,456 @@ David Heereman
 Watching the HitSpool interface services.
 Restarts the watched process in case.
 """
+import getpass
+import logging
+import os
+import re
+import signal
 import subprocess
 import sys
-import re
-import logging
+import time
 import zmq
+
 from datetime import datetime
+
 import HsConstants
+import HsUtil
 
-class MyWatcher(object):
-    def get_host(self):
-        """
-        Detect cluster and define settings accordingly.
-        """
-        #global CLUSTER, host, user, host_short
-        p = subprocess.Popen(["hostname"], stdout = subprocess.PIPE)
-        out,err = p.communicate()
-        host = out.rstrip()
-        q = subprocess.Popen(["whoami"], stdout = subprocess.PIPE)
-        out,err = q.communicate()
-        user = out.rstrip()
+from HsBase import HsBase
+from HsException import HsException
 
-        if not "icecube" in host:
-            #print "This HsWatcher runs in your own test environment."
-            CLUSTER = "LOCALHOST"
+
+def add_arguments(parser):
+    example_log_path = os.path.join(HsBase.DEFAULT_LOG_PATH, "hswatcher.log")
+
+    parser.add_argument("-H", "--host", dest="host",
+                        help="Forced host name, used for debugging")
+    parser.add_argument("-k", "--kill", dest="kill",
+                        action="store_true", default=False,
+                        help="Kill the watched program")
+    parser.add_argument("-l", "--logfile", dest="logfile",
+                        help="Log file (e.g. %s)" % example_log_path)
+
+
+class Daemon(object):
+    def __init__(self, basename, executable):
+        self.check_executable(basename, executable)
+
+        self.__basename = basename
+        self.__executable = executable
+
+    def __str__(self):
+        return "%s(%s)" % (self.__basename, self.__executable)
+
+    @property
+    def basename(self):
+        return self.__basename
+
+    def check_executable(self, basename, executable):
+        if not os.path.exists(executable):
+            raise SystemError("Cannot find %s; giving up", basename)
+
+    def daemonize(self, stdin=None, stdout=None, stderr=None):
+        """
+        From http://www.jejik.com/articles/2007/02/\
+            a_simple_unix_linux_daemon_in_python/
+
+        do the UNIX double-fork magic, see Stevens' "Advanced
+        Programming in the UNIX Environment" for details (ISBN 0201563177)
+        http://www.erlenstar.demon.co.uk/unix/faq_2.html#SEC16
+        """
+        try:
+            pid = os.fork()
+            if pid > 0:
+                # return so parent can finish its work
+                return None
+        except OSError, e:
+            raise SystemExit("fork #1 failed: %d (%s)\n" %
+                             (e.errno, e.strerror))
+
+        # decouple from parent environment
+        os.chdir("/")
+        os.setsid()
+        os.umask(0)
+
+        # do second fork
+        try:
+            pid = os.fork()
+            if pid > 0:
+                # exit from second parent
+                raise SystemExit(0)
+        except OSError, e:
+            raise SystemExit("fork #2 failed: %d (%s)\n" %
+                             (e.errno, e.strerror))
+
+        # redirect standard file descriptors
+        sys.stdout.flush()
+        sys.stderr.flush()
+        si = file(stdin if stdin is not None else "/dev/null", 'r')
+        so = file(stdout if stdout is not None else "/dev/null", 'a+')
+        se = file(stderr if stderr is not None else "/dev/null", 'a+')
+        os.dup2(si.fileno(), sys.stdin.fileno())
+        os.dup2(so.fileno(), sys.stdout.fileno())
+        os.dup2(se.fileno(), sys.stderr.fileno())
+
+        # start the new process
+        os.execv(sys.executable, (sys.executable, self.__executable))
+
+    def list_processes(self):
+        """
+        List all process IDs.
+        Return a tuple with the integer PID, the program name, and
+        a list of all arguments (or None if there are no arguments)
+        """
+        proc = subprocess.Popen(["ps", "x", "-o", "pid,command"],
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT)
+        pid = None
+        try:
+            for line in proc.stdout:
+                if self.__basename in line:
+                    flds = line.split()
+
+                    # convert process ID to its integer value
+                    try:
+                        pid = int(flds[0])
+                    except ValueError:
+                        logging.error("Bad integer PID \"%s\" in \"%s\"",
+                                      flds[0], line.rstrip())
+                        continue
+
+                    if len(flds) == 2:
+                        args = None
+                    else:
+                        args = flds[2:]
+
+                    yield (pid, flds[1], args)
+
+            proc.stdout.close()
+        finally:
+            proc.wait()
+
+    def run(self):
+        subprocess.call((sys.executable, self.__executable, ))
+
+
+class Watchee(Daemon):
+    def __init__(self, basename):
+        try:
+            path = self.__find_executable_path()
+        except:
+            path = HsConstants.SANDBOX_INSTALLED
+            logging.exception("Cannot find %s path; using %s", basename, path)
+
+        executable = os.path.join(path, basename + ".py")
+
+        super(Watchee, self).__init__(basename, executable)
+
+    def __find_executable_path(self):
+        return os.path.dirname(os.path.realpath(__file__))
+
+    def get_pids(self):
+        """
+        Find the process ID for this executable
+        """
+        pids = []
+        for pid, name, args in self.list_processes():
+            # screen out things like 'vi SomeProgram.py'
+            if (self.basename not in name and
+                ("ython" not in name or
+                 (args is not None and self.basename not in args[0]))):
+                continue
+
+            pids.append(pid)
+
+        return pids
+
+    def kill_all(self):
+        """
+        Stop all instances of this program
+        """
+        num_killed = 0
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            pids = self.get_pids()
+            if len(pids) == 0:
+                break
+
+            # go on a killing spree
+            for pid in pids:
+                try:
+                    os.kill(pid, sig)
+                    num_killed += 1
+                except OSError, err:
+                    errstr = str(err)
+                    if errstr.find("No such process") == 0:
+                        logging.error("Cannot kill %s at PID %d: %s",
+                                      (self.basename, pid, errstr))
+                        return None
+
+            # give processes a chance to die
+            time.sleep(1.0)
+
+        return num_killed
+
+
+class HsWatcher(HsBase):
+    STATUS_PREFIX = "Status: "
+    STATUS_STOPPED = "STOPPED"
+    STATUS_STARTED = "STARTED"
+    STATUS_RUNNING = "RUNNING"
+    STATUS_ERROR = "!ERROR!"
+
+    def __init__(self, host=None):
+        super(HsWatcher, self).__init__(host=host)
+
+        if self.is_cluster_sps or self.is_cluster_spts:
+            expcont = "expcont"
         else:
-            if "pdaq" != user:
-                logging.info("Sorry user %s, you are not pdaq."
-                             " Please try again as pdaq." % user)
-                raise SystemExit(1)
+            expcont = "localhost"
 
-            #check host
-            if "wisc.edu" in host:
-                CLUSTER = "SPTS"
-            elif "usap.gov" in host:
-                CLUSTER = "SPS"
-            else:
-                logging.info("Wrong host. Use SPTS or SPS instead.")
-                CLUSTER = None
-                raise SystemExit(1)
+        self.__context = zmq.Context()
+        self.__i3socket = self.create_i3socket(expcont)
 
-        if CLUSTER == "SPS":
-            host_short = re.sub(".icecube.southpole.usap.gov", "", host)
-            logfile = "/mnt/data/pdaqlocal/HsInterface/logs/hswatcher_" + host_short + ".log"
+    def __get_halted_time(self, logfile, num_to_check=4):
+        lastline = None
+        count = 0
+        for line in self.tail(logfile, lines=num_to_check,
+                              search_string=self.STATUS_PREFIX):
+            if self.STATUS_RUNNING in line or self.STATUS_STARTED in line:
+                return None
+            lastline = line
+            count += 1
 
-        elif CLUSTER == "SPTS":
-            host_short = re.sub(".icecube.wisc.edu", "", host)
-            logfile = "/mnt/data/pdaqlocal/HsInterface/logs/hswatcher_" + host_short + ".log"
+        if count < num_to_check:
+            return None
 
-        else:
-            host_short = host
-            logfile = "/home/david/TESTCLUSTER/testhub/logs/hswatcher_" + host_short + ".log"
+        if lastline is not None:
+            time_pattern = r'^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}).*'
+            m = re.search(time_pattern, lastline)
+            if m is not None:
+                return m.group(1)
 
-        logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
-                            level=logging.INFO, stream=sys.stdout,
-                            datefmt= '%Y-%m-%d %H:%M:%S',
-                            filename=logfile)
-        #logging.info(str(user) + " @ " + str(host) + " is running this HsWatcher on cluster : " + str(CLUSTER))
+        return "???"
 
-        return CLUSTER, host, host_short, logfile
-
-    def myWatch(self, CLUSTER, host, host_short):
+    def __send_error(self, program, message):
         """
-        Depending on which machines this HsWatcher runs,
-        determine the processes it is responsible to watch.
-        Watcher at 2ndbuild -->  HsSender, HsController
-        Watcher at expcont -->  HsPublisher
-        Watcher at hub -->  HsWorker
+        Send error alert.
         """
-        global mywatch, HSiface_PATH, StartWorker, StartPublisher, StartSender
+        header = "ERROR HsInterface Alert: %s@%s" % (program, self.shorthost)
+        description = "HsInterface service error notice"
 
-        if  CLUSTER ==  "SPTS" :
-            HSiface_PATH    = "/mnt/data/pdaqlocal/HsInterface/trunk/"
+        json = HsUtil.assemble_email_dict(HsConstants.ALERT_EMAIL_DEV, header,
+                                          description, message)
 
-        elif CLUSTER == "SPS":
-            HSiface_PATH    = "/mnt/data/pdaqlocal/HsInterface/trunk/"
+        self.__i3socket.send_json(json)
 
-        elif CLUSTER == "LOCALHOST":
-            #This means that there is no real HitSpool cluster.
-            hspath = subprocess.Popen(["locate", "HsWatcher.py"], stdout = subprocess.PIPE)
-            out,err = hspath.communicate()
-            hspathlist = out.splitlines()
-            for entry  in hspathlist:
-                if not ".svn" in entry:
-                    hspathdir = re.sub("HsWatcher.py$", "", entry)
-            HSiface_PATH = hspathdir# = str(raw_input("Your local path to the HitSpool Interface: "))
-
-        HsWorker            = "python " + HSiface_PATH + "HsWorker.py"
-        HsWorker_short       = "HsWorker"
-        HsPublisher         = "python " + HSiface_PATH + "HsPublisher.py"
-        HsPublisher_short   = "HsPublisher"
-        HsSender            = "python " + HSiface_PATH + "HsSender.py"
-        HsSender_short      = "HsSender"
-
-        if "2ndbuild" in host:
-            mywatch = HsSender
-            mywatch_short = HsSender_short
-        elif "expcont" in host:
-            mywatch = HsPublisher
-            mywatch_short = HsPublisher_short
-        elif "hub" in host:
-            mywatch = HsWorker
-            mywatch_short = HsWorker_short
-        elif "david" in host:
-            mywatch = HsWorker
-            mywatch_short = HsWorker_short
-        else:
-            raise SystemExit("Unrecognized host \"%s\"" % host)
-
-        return mywatch, mywatch_short
-
-    def startProc(self, procstatus, mywatch):
-        """
-        If necessary, start the mywatched process.
-        """
-        if not procstatus:
-            #start the mywatched process:
-            subprocess.Popen([mywatch], shell=True, bufsize=256)
-        else:
-            pass
-
-    def stopProc(self, procstatus, mywatch):
-        """
-        Stop the mywatch process.
-        """
-        if not procstatus:
-            logging.info("Nothing to stop.")
-            pass
-        else:
-            subprocess.Popen(["pkill -f \"" +  mywatch + "\""], shell=True)
-            i3socket.send_json({"service": "HSiface",
-                            "varname": mywatch_short + "@" + host_short,
-                            "value": "STOPPING", "prio": 1})
-            logging.info("STOPPED")
-
-    def isRunning(self, mywatch, mywatch_short):
-        """
-        Depending on where this HsWatcher is running, check for running
-        services of the HitSpool interface. Only logging , no report to I3Live.
-        """
-        #global procstatus
-        processes = subprocess.Popen(["ps", "ax"], stdout = subprocess.PIPE)
-        out, err = processes.communicate()
-        procstring = out.rstrip()
-        #proclist = procstring.split("\n")
-
-        if mywatch_short in procstring:
-            procstatus = True
-            logging.info("RUNNING")
-        else:
-            procstatus = False
-            logging.info("STOPPED")
-
-        return procstatus
-
-    def isRunningReport(self, mywatch, mywatch_short):
-        """
-        Depending on where this HsWatcher is running, check for running
-        services of the HitSpool interface. Logging and report to I3Live.
-        """
-        #global procstatus
-        processes_update = subprocess.Popen(["ps", "ax"], stdout = subprocess.PIPE)
-        out, err = processes_update.communicate()
-        procstring_update = out.rstrip()
-        #proclist = procstring_update.split("\n")
-
-
-        if mywatch_short in procstring_update:
-            status_update = True
-            #update (March & July 2014):
-            #dont report single components anymore to I3Live:
-            #fabfile on expcont is reporting SUM of running components
-
-            #i3socket.send_json({"service": "HSiface",
-            #                "varname": mywatch_short + "@" + host_short,
-            #                "value": "RUNNING", "prio": 3})
-
-            logging.info("RUNNING")
-        else:
-#            logging.info( str(mywatch) + " not in processes list")
-            status_update = False
-            #i3socket.send_json({"service": "HSiface",
-            #                "varname": mywatch_short + "@" + host_short,
-            #                "value": "STOPPED", "prio": 3})
-
-            logging.info("STOPPED")
-        return status_update
-
-    def send_alert(self, status_update, logfile):
+    def __send_if_halted(self, program, logfile):
         '''
         Check for how long HsWatcher is reporting STOPPED state.
         In case service is in STOPPED state for too long: send alert to i3live
         '''
-        #Each time HsWatcher is run,
-        #2 lines are adedd two the log file baout the status
-        #do this reading efficiently via tail-like function:
-        #equvalent: tail -n 10 logfile to list:
-        nlines = 8 # shows entries from last 4 HsWatcher status report
-        logtaillist = [line.rstrip() for line in reversed(open(logfile).readlines())][:nlines:]
+        halted_time = self.__get_halted_time(logfile)
+        if halted_time is None:
+            return False
 
-        if not status_update:
-            #runhist     = [s for s in logtaillist if "RUNNING" in s]
-            stophist    = [s for s in logtaillist if "STOPPED" in s]
+        header = "HALTED HsInterface Alert: %s@%s" % (program, self.shorthost)
+        description = "HsInterface service halted"
+        message = "%s@%s in STOPPED state more than 1h.\n" \
+                  "Last seen running before %s" % \
+                  (program, self.shorthost, halted_time)
 
-            # send stopped alert after 4 STOPPED status logs:
-            if len(stophist) == nlines:
-                last_stop = re.search(r'[0-9]{4}-[0-9]{2}-[0-9]{2}\s[0-9]{2}:[0-9]{2}:[0-9]{2}(?=\sINFO)', stophist[-1])
-                last_stop_time = str(last_stop.group(0))
-                alertmsg1 = mywatch_short + "@" + host_short + " in STOPPED state more than 1h.\nLast seen running before " + last_stop_time
+        json = HsUtil.assemble_email_dict(HsConstants.ALERT_EMAIL_DEV,
+                                          header, description, message)
 
-                alertjson1 = {"service" :   "HSiface",
-                                  "varname" :   "alert",
-                                  "prio"    :   2,
-                                  "time"    :   str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-                                  "value"   :   {"condition"    : "STOPPED HsInterface Alert: " + mywatch_short + "@" + host_short,
-                                                 "desc"         : "HsInterface service stopped",
-                                                 "notifies"     : [{"receiver"      : HsConstants.ALERT_EMAIL_DEV,
-                                                                    "notifies_txt"  : alertmsg1,
-                                                                    "notifies_header" : "RECOVERY HsInterface Alert: " + mywatch_short + "@" + host_short}],
-                                                 "short_subject": "true",
-                                                 "quiet"        : "true",}}
+        self.__i3socket.send_json(json)
 
-                i3socket.send_json(alertjson1)
+        return True
 
+    def __send_recovery(self, program, logfile):
+        """
+        Send message when program is started
+        """
+        # find entries from last 2 HsWatcher status report
+        logmsgs = self.tail(logfile, lines=2,
+                            search_string=self.STATUS_PREFIX)
 
+        header = "RECOVERY HsInterface Alert: %s@%s" % \
+                 (program, self.shorthost)
+        description = "HsInterface service recovery notice"
+        mlines = ["%s@%s recovered by HsWatcher:" %
+                  (program, self.shorthost), ]
+        mlines += logmsgs
 
-            # send STOPPED alert if in Stopped status:
-            if "STOPPED" in logtaillist[0]:
-                alertmsg3 = mywatch_short + "@" + host_short + ":\n" + str(logtaillist[0])
+        json = HsUtil.assemble_email_dict(HsConstants.ALERT_EMAIL_DEV,
+                                          header, description,
+                                          "\n".join(mlines))
 
-                alertjson3 = {"service" :   "HSiface",
-                                  "varname" :   "alert",
-                                  "prio"    :   2,
-                                  "time"    :   str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-                                  "value"   :   {"condition"    : "STOPPED HsInterface Alert: " + mywatch_short + "@" + host_short,
-                                                 "desc"         : "HsInterface service stopped",
-                                                 "notifies"     : [{"receiver"      : HsConstants.ALERT_EMAIL_DEV,
-                                                                    "notifies_txt"  : alertmsg3,
-                                                                    "notifies_header" : "STOPPED HsInterface Alert: " + mywatch_short + "@" + host_short}],
-                                                 "short_subject": "true",
-                                                 "quiet"        :   "true"}}
-                i3socket.send_json(alertjson3)
+        self.__i3socket.send_json(json)
 
+    def __send_stopped(self, program):
+        """
+        Send STOPPED alert
+        """
+        header = "STOPPED HsInterface Alert: %s@%s" % \
+                 (program, self.shorthost)
+        description = "HsInterface service stopped"
+        message = "%s@%s is STOPPED" % (program, self.shorthost)
+
+        json = HsUtil.assemble_email_dict(HsConstants.ALERT_EMAIL_DEV,
+                                          header, description, message)
+
+        self.__i3socket.send_json(json)
+
+    def check(self, logpath, sleep_secs=5.0):
+        watchee = self.get_watchee()
+
+        pids = watchee.get_pids()
+
+        status = None
+        errmsg = None
+
+        if len(pids) == 1:
+            status = self.STATUS_RUNNING
         else:
-            # send RECOVERY report when RUNNING follows STOPPED status
-            if "RUNNING" in logtaillist[0]:
-                if len(logtaillist) > 1 :
-                    if "STOPPED" in logtaillist[1]:
-                        alertmsg2 = mywatch_short + "@" + host_short + " recovered by HsWatcher:\n" + str(logtaillist[1]) + "\n" + str(logtaillist[0])
-                        alertjson2 = {"service" :   "HSiface",
-                                      "varname" :   "alert",
-                                      "prio"    :   2,
-                                      "time"    :   str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-                                      "value"   :   {"condition"    : "RECOVERY HsInterface Alert: " + mywatch_short + "@" + host_short,
-                                                     "desc"         : "HsInterface service recovery notice",
-                                                     "notifies"     : [{"receiver"      : HsConstants.ALERT_EMAIL_DEV,
-                                                                        "notifies_txt"  : alertmsg2,
-                                                                        "notifies_header" : "RECOVERY HsInterface Alert: " + mywatch_short + "@" + host_short},
-                                                                       {"receiver"      : HsConstants.ALERT_EMAIL_SN,
-                                                                        "notifies_txt"  : alertmsg2,
-                                                                        "notifies_header" : "RECOVERY HsInterface Alert: " + mywatch_short + "@" + host_short}],
-                                                     "short_subject": "true",
-                                                     "quiet"        : "true"}}
+            if len(pids) > 1:
+                if watchee.kill_all() is None:
+                    raise SystemExit(1)
+                logging.error("Found multiple copies of %s;"
+                              " killing everything!", watchee.basename)
 
-                        i3socket.send_json(alertjson2)
+            watchee.daemonize()
+            time.sleep(sleep_secs)
+            pids = watchee.get_pids()
+            if len(pids) == 0:
+                status = self.STATUS_STOPPED
+            elif len(pids) == 1:
+                status = self.STATUS_STARTED
+            else:
+                status = self.STATUS_ERROR
+                errmsg = "Found multiple copies of %s after starting" % \
+                    watchee.basename
+                logging.error(errmsg)
+
+        logging.info("%s%s", self.STATUS_PREFIX, status)
+
+        if status == self.STATUS_ERROR:
+            self.__send_error(watchee.basename, errmsg)
+        elif status == self.STATUS_STARTED:
+            self.__send_recovery(watchee.basename, logpath)
+        elif status != self.STATUS_RUNNING:
+            if not self.__send_if_halted(watchee.basename, logpath):
+                self.__send_stopped(watchee.basename)
+
+    def close_all(self):
+        self.__i3socket.close()
+        self.__context.term()
+
+    def create_i3socket(self, host):
+        # Socket for I3Live on expcont
+        sock = self.__context.socket(zmq.PUSH)
+        sock.connect("tcp://%s:%d" % (host, HsConstants.I3LIVE_PORT))
+        logging.info("connect PUSH socket to i3live on %s port %d", host,
+                     HsConstants.I3LIVE_PORT)
+        return sock
+
+    def create_watchee(self, basename):
+        return Watchee(basename)
+
+    def get_watchee(self):
+        """
+        Depending on which machines this HsWatcher runs,
+        determine the processes it is responsible to watch.
+        Watcher at 2ndbuild -->  HsSender
+        Watcher at expcont -->  HsPublisher
+        Watcher at hub -->  HsWorker
+        """
+        if "2ndbuild" in self.fullhost:
+            return self.create_watchee("HsSender")
+        elif "expcont" in self.fullhost:
+            return self.create_watchee("HsPublisher")
+        elif "hub" in self.fullhost:
+            return self.create_watchee("HsWorker")
+        elif "david" in self.fullhost:
+            return self.create_watchee("HsWorker")
+
+        raise HsException("Unrecognized host \"%s\"" % self.fullhost)
+
+    @property
+    def i3socket(self):
+        return self.__i3socket
+
+    def load_logfile(self, logpath):
+        return open(logpath).readlines()
+
+    def tail(self, path, lines=20, search_string="\n"):
+        """
+        Get the last lines of a file as efficiently as possible.
+        Code adapted from a StackOverflow post
+        """
+        blocks = []
+
+        f = open(path, "rb")
+        try:
+            total_lines_wanted = lines
+
+            BLOCK_SIZE = 1024
+            f.seek(0, 2)
+            block_end_byte = f.tell()
+            lines_to_go = total_lines_wanted
+            block_number = -1
+
+            # blocks of size BLOCK_SIZE, in reverse order starting
+            # from the end of the file
+            while lines_to_go > 0 and block_end_byte > 0:
+                if block_end_byte - BLOCK_SIZE > 0:
+                    # read the last block we haven't yet read
+                    f.seek(block_number*BLOCK_SIZE, 2)
+                    blocks.append(f.read(BLOCK_SIZE))
                 else:
-                    pass
+                    # file too small, start from begining
+                    f.seek(0, 0)
+                    # only read what was not read
+                    blocks.append(f.read(block_end_byte))
+                lines_found = blocks[-1].count(search_string)
+                lines_to_go -= lines_found
+                block_end_byte -= BLOCK_SIZE
+                block_number -= 1
+        finally:
+            f.close()
+
+        all_read_text = ''.join(reversed(blocks))
+        return [line for line in all_read_text.splitlines()
+                if search_string in line][-total_lines_wanted:]
+
 
 if __name__ == "__main__":
+    import argparse
 
-    from HsConstants import I3LIVE_PORT
+    def main():
+        p = argparse.ArgumentParser()
 
+        add_arguments(p)
 
-    newservice = MyWatcher()
-    context = zmq.Context()
-    i3socket = context.socket(zmq.PUSH) # former ZMQ_DOWNSTREAM is depreciated
-    CLUSTER, host, host_short, logfile = newservice.get_host()
+        args = p.parse_args()
 
-    if (CLUSTER == "SPS") or (CLUSTER == "SPTS"):
-        expcont = "expcont"
-    else:
-        expcont = "localhost"
-    i3socket.connect("tcp://%s:%d" % (expcont, I3LIVE_PORT))
+        watcher = HsWatcher(host=args.host)
 
-    mywatch, mywatch_short = newservice.myWatch(CLUSTER, host, host_short)
-    procstatus = newservice.isRunning(mywatch, mywatch_short)
-    newservice.send_alert(procstatus, logfile)
-    newservice.startProc(procstatus, mywatch)
-    status_update = newservice.isRunningReport(mywatch, mywatch_short)
-    newservice.send_alert(status_update, logfile)
+        logpath = watcher.init_logging(args.logfile, basename="hswatcher",
+                                       basehost="testhub", both=False)
+
+        if watcher.is_cluster_sps or watcher.is_cluster_spts:
+            user = getpass.getuser()
+            if user != "pdaq":
+                raise SystemExit("Sorry user %s, you are not pdaq."
+                                 " Please try again as pdaq." % user)
+
+        try:
+            if args.kill:
+                if watcher.get_watchee().kill_all() is None:
+                    raise SystemExit(1)
+            else:
+                watcher.check(logpath)
+        finally:
+            watcher.close_all()
+
+    main()

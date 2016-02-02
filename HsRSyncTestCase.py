@@ -57,7 +57,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
         # test parser
         try:
-            hsr.request_parser(None, None, None, sleep_secs=0)
+            hsr.request_parser(None, None, None, None, sleep_secs=0)
         except TypeError, terr:
             self.assertEquals(str(terr), "expected string or buffer",
                               "Unexpected %s exception: %s" %
@@ -73,6 +73,9 @@ class HsRSyncTestCase(LoggingTestCase):
         copypath = "/one/two/three"
         copydir = "%s@%s:%s" % (copyuser, copyhost, copypath)
 
+        # initialize currentRun/info.txt path
+        cur_info = os.path.join(hsr.TEST_HUB_DIR, "currentRun", "info.txt")
+
         # check all log messages
         self.setLogLevel(0)
 
@@ -81,11 +84,11 @@ class HsRSyncTestCase(LoggingTestCase):
         self.expectLogMessage("HS COPYDIR = %s" % copypath)
         self.expectLogMessage("HS DESTINATION HOST: %s" % copyhost)
         self.expectLogMessage("HsInterface running on: %s" % hsr.cluster)
-        self.expectLogMessage("CurrentRun info.txt reading/parsing failed")
+        self.expectLogMessage("%s reading/parsing failed" % cur_info)
 
         # test parser
         try:
-            hsr.request_parser(HsTestUtil.get_time(1),
+            hsr.request_parser(None, HsTestUtil.get_time(1),
                                HsTestUtil.get_time(2),
                                copydir, sleep_secs=0)
         except TypeError, terr:
@@ -98,13 +101,16 @@ class HsRSyncTestCase(LoggingTestCase):
         hsr = self.real_object
         hsr.TEST_HUB_DIR = "/this/directory/does/not/exist"
 
+        # initialize currentRun/info.txt path
+        cur_info = os.path.join(hsr.TEST_HUB_DIR, "currentRun", "info.txt")
+
         # add all expected log messages
-        self.expectLogMessage("CurrentRun info.txt reading/parsing failed")
+        self.expectLogMessage("%s reading/parsing failed" % cur_info)
 
         copydir = "me@host:/a/b/c"
 
         # test parser
-        hsr.request_parser(HsTestUtil.get_time(1),
+        hsr.request_parser(None, HsTestUtil.get_time(1),
                            HsTestUtil.get_time(2),
                            copydir, sleep_secs=0)
 
@@ -124,17 +130,18 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
 
-        # use DB or old info.txt?
-        use_db = False
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
         tstrun.make_bad_last()
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and old info.txt
+        tstrun.populate(self, use_db=False)
+
+        # initialize lastRun/info.txt path
+        last_info = os.path.join(hsr.TEST_HUB_DIR, "lastRun", "info.txt")
 
         # add all expected log messages
-        self.expectLogMessage("LastRun info.txt reading/parsing failed")
+        self.expectLogMessage("%s reading/parsing failed" % last_info)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -154,17 +161,18 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
 
-        # use DB or old info.txt?
-        use_db = False
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
         tstrun.make_bad_current()
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and old info.txt
+        tstrun.populate(self, use_db=False)
+
+        # initialize currentRun/info.txt path
+        cur_info = os.path.join(hsr.TEST_HUB_DIR, "currentRun", "info.txt")
 
         # add all expected log messages
-        self.expectLogMessage("CurrentRun info.txt reading/parsing failed")
+        self.expectLogMessage("%s reading/parsing failed" % cur_info)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -184,14 +192,12 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_stop = start_ticks + (self.ONE_MINUTE * 60)
         cur_start = start_ticks + (self.ONE_MINUTE * 70)
 
-        # use DB or old info.txt?
-        use_db = False
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
         tstrun.set_current_interval(self.INTERVAL / 100)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and old info.txt
+        tstrun.populate(self, use_db=False)
 
         # TODO: should compute these file values instead of hardcoding them
         tstrun.add_expected_links(start_ticks, "lastRun", 4, 5)
@@ -214,20 +220,24 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_stop = start_ticks + (self.ONE_MINUTE * 60)
         cur_start = start_ticks + (self.ONE_MINUTE * 70)
 
-        # use DB or old info.txt?
-        use_db = True
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
         tstrun.set_current_interval(self.INTERVAL / 100)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and database
+        tstrun.populate(self, use_db=True)
+
+        # fill info database
+        (lastfile, numlast) \
+            = tstrun.update_hitspool_db(start_ticks, stop_ticks, last_start,
+                                        last_stop, self.INTERVAL)
+        (curfile, numcur) = tstrun.update_hitspool_db(start_ticks, stop_ticks,
+                                                      cur_start, cur_stop,
+                                                      self.INTERVAL)
 
         # add all expected files being transferred
-        tstrun.add_expected_files(start_ticks, stop_ticks, last_start,
-                                  last_stop, self.INTERVAL, use_db=use_db)
-        tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
-                                  self.INTERVAL, use_db=use_db)
+        tstrun.add_expected_files(start_ticks, lastfile, numlast)
+        tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -247,14 +257,12 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
 
-        # use DB or old info.txt?
-        use_db = False
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
         tstrun.set_last_interval(self.INTERVAL / 100)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and old info.txt
+        tstrun.populate(self, use_db=False)
 
         # TODO: should compute these file values instead of hardcoding them
         tstrun.add_expected_links(start_ticks, "currentRun", 4, 5)
@@ -277,14 +285,12 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
 
-        # use DB or old info.txt?
-        use_db = False
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
         tstrun.set_last_interval(self.INTERVAL / 100)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and old info.txt
+        tstrun.populate(self, use_db=False)
 
         # TODO: should compute these file values instead of hardcoding them
         tstrun.add_expected_links(start_ticks, "currentRun", 4, 5)
@@ -307,13 +313,11 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks + (self.TICKS_PER_SECOND * 5)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
 
-        # use DB or old info.txt?
-        use_db = False
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and old info.txt
+        tstrun.populate(self, use_db=False)
 
         # add all expected log messages
         self.expectLogMessage("sn_start & sn_stop time-stamps inverted."
@@ -337,13 +341,11 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks + (self.TICKS_PER_SECOND * 5)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
 
-        # use DB or old info.txt?
-        use_db = True
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and database
+        tstrun.populate(self, use_db=True)
 
         # add all expected log messages
         self.expectLogMessage("sn_start & sn_stop time-stamps inverted."
@@ -367,13 +369,11 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks + (self.TICKS_PER_SECOND * 5)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
 
-        # use DB or old info.txt?
-        use_db = False
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and old info.txt
+        tstrun.populate(self, use_db=False)
 
         # TODO: should compute these file values instead of hardcoding them
         tstrun.add_expected_links(start_ticks, "currentRun", 0, 4)
@@ -401,19 +401,23 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks + (self.TICKS_PER_SECOND * 5)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
 
-        # use DB or old info.txt?
-        use_db = True
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and database
+        tstrun.populate(self, use_db=True)
+
+        # fill info database
+        (lastfile, numlast) \
+            = tstrun.update_hitspool_db(start_ticks, stop_ticks, last_start,
+                                        last_stop, self.INTERVAL)
+        (curfile, numcur) = tstrun.update_hitspool_db(start_ticks, stop_ticks,
+                                                      cur_start, cur_stop,
+                                                      self.INTERVAL)
 
         # add all expected files being transferred
-        tstrun.add_expected_files(start_ticks, stop_ticks, last_start,
-                                  last_stop, self.INTERVAL, use_db=use_db)
-        tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
-                                  self.INTERVAL, use_db=use_db)
+        tstrun.add_expected_files(start_ticks, lastfile, numlast)
+        tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -433,13 +437,11 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks + (self.ONE_MINUTE * 5)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 10)
 
-        # use DB or old info.txt?
-        use_db = False
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and old info.txt
+        tstrun.populate(self, use_db=False)
 
         # add all expected log messages
         self.expectLogMessage("Requested data doesn't exist in HitSpool"
@@ -463,24 +465,32 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks + (self.ONE_MINUTE * 5)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 10)
 
-        # use DB or old info.txt?
-        use_db = True
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and database
+        tstrun.populate(self, use_db=True)
+
+        # fill info database
+        (lastfile, numlast) \
+            = tstrun.update_hitspool_db(start_ticks, stop_ticks, last_start,
+                                        last_stop, self.INTERVAL)
+        (curfile, numcur) = tstrun.update_hitspool_db(start_ticks, stop_ticks,
+                                                      cur_start, cur_stop,
+                                                      self.INTERVAL)
 
         # add all expected files being transferred
-        tstrun.add_expected_files(start_ticks, stop_ticks, last_start,
-                                  last_stop, self.INTERVAL, use_db=use_db)
-        tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
-                                  self.INTERVAL, use_db=use_db)
+        tstrun.add_expected_files(start_ticks, lastfile, numlast)
+        tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         # add all expected log messages
         self.expectLogMessage("No data found between %s and %s" %
                               (HsTestUtil.get_time(start_ticks),
                                HsTestUtil.get_time(stop_ticks)))
+
+        from HsRSyncFiles import HsRSyncFiles
+        if HsRSyncFiles.DEBUG_EMPTY:
+            tstrun.add_debug_email()
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -500,13 +510,11 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks + (self.ONE_MINUTE * 10)
         cur_stop = start_ticks + (self.ONE_MINUTE * 15)
 
-        # use DB or old info.txt?
-        use_db = False
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and old info.txt
+        tstrun.populate(self, use_db=False)
 
         # TODO: should compute these file values instead of hardcoding them
         tstrun.add_expected_links(start_ticks, "lastRun", 0, 4)
@@ -534,19 +542,23 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks + (self.ONE_MINUTE * 10)
         cur_stop = start_ticks + (self.ONE_MINUTE * 15)
 
-        # use DB or old info.txt?
-        use_db = True
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and database
+        tstrun.populate(self, use_db=True)
+
+        # fill info database
+        (lastfile, numlast) \
+            = tstrun.update_hitspool_db(start_ticks, stop_ticks, last_start,
+                                        last_stop, self.INTERVAL)
+        (curfile, numcur) = tstrun.update_hitspool_db(start_ticks, stop_ticks,
+                                                      cur_start, cur_stop,
+                                                      self.INTERVAL)
 
         # add all expected files being transferred
-        tstrun.add_expected_files(start_ticks, stop_ticks, last_start,
-                                  last_stop, self.INTERVAL, use_db=use_db)
-        tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
-                                  self.INTERVAL, use_db=use_db)
+        tstrun.add_expected_files(start_ticks, lastfile, numlast)
+        tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -566,13 +578,11 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks + self.ONE_MINUTE + self.TICKS_PER_SECOND
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
 
-        # use DB or old info.txt?
-        use_db = False
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and old info.txt
+        tstrun.populate(self, use_db=False)
 
         # TODO should compute the expected number of files
         tstrun.add_expected_links(start_ticks, "lastRun", 20, 1)
@@ -595,19 +605,23 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks + self.ONE_MINUTE + self.TICKS_PER_SECOND
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
 
-        # use DB or old info.txt?
-        use_db = True
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and database
+        tstrun.populate(self, use_db=True)
+
+        # fill info database
+        (lastfile, numlast) \
+            = tstrun.update_hitspool_db(start_ticks, stop_ticks, last_start,
+                                        last_stop, self.INTERVAL)
+        (curfile, numcur) = tstrun.update_hitspool_db(start_ticks, stop_ticks,
+                                                      cur_start, cur_stop,
+                                                      self.INTERVAL)
 
         # add all expected files being transferred
-        tstrun.add_expected_files(start_ticks, stop_ticks, last_start,
-                                  last_stop, self.INTERVAL, use_db=use_db)
-        tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
-                                  self.INTERVAL, use_db=use_db)
+        tstrun.add_expected_files(start_ticks, lastfile, numlast)
+        tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -627,13 +641,11 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks + (self.TICKS_PER_SECOND * 50)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
 
-        # use DB or old info.txt?
-        use_db = False
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and old info.txt
+        tstrun.populate(self, use_db=False)
 
         # TODO should compute the expected number of files
         tstrun.add_expected_links(start_ticks, "lastRun", 20, 1)
@@ -657,19 +669,23 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks + (self.TICKS_PER_SECOND * 50)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
 
-        # use DB or old info.txt?
-        use_db = True
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and database
+        tstrun.populate(self, use_db=True)
+
+        # fill info database
+        (lastfile, numlast) \
+            = tstrun.update_hitspool_db(start_ticks, stop_ticks, last_start,
+                                        last_stop, self.INTERVAL)
+        (curfile, numcur) = tstrun.update_hitspool_db(start_ticks, stop_ticks,
+                                                      cur_start, cur_stop,
+                                                      self.INTERVAL)
 
         # add all expected files being transferred
-        tstrun.add_expected_files(start_ticks, stop_ticks, last_start,
-                                  last_stop, self.INTERVAL, use_db=use_db)
-        tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
-                                  self.INTERVAL, use_db=use_db)
+        tstrun.add_expected_files(start_ticks, lastfile, numlast)
+        tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -690,13 +706,11 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks + (self.TICKS_PER_SECOND * 50)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
 
-        # use DB or old info.txt?
-        use_db = False
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and old info.txt
+        tstrun.populate(self, use_db=False)
 
         # TODO: should compute these file values instead of hardcoding them
         firstfile = 0
@@ -729,13 +743,11 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks + (self.TICKS_PER_SECOND * 50)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
 
-        # use DB or old info.txt?
-        use_db = True
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and database
+        tstrun.populate(self, use_db=True)
 
         # add all expected log messages
         self.expectLogMessage("failed to link HitSpool-575.dat to tmp dir:"
@@ -746,12 +758,19 @@ class HsRSyncTestCase(LoggingTestCase):
                               " Fake Hardlink Error")
         self.expectLogMessage("No relevant files found")
 
+        # fill info database
+        (lastfile, numlast) \
+            = tstrun.update_hitspool_db(start_ticks, stop_ticks, last_start,
+                                        last_stop, self.INTERVAL)
+        (curfile, numcur) = tstrun.update_hitspool_db(start_ticks, stop_ticks,
+                                                      cur_start, cur_stop,
+                                                      self.INTERVAL)
+
         # add all expected files being transferred
-        tstrun.add_expected_files(start_ticks, stop_ticks, last_start,
-                                  last_stop, self.INTERVAL, fail_links=True,
-                                  use_db=use_db)
-        tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
-                                  self.INTERVAL, fail_links=True, use_db=use_db)
+        tstrun.add_expected_files(start_ticks, lastfile, numlast,
+                                  fail_links=True)
+        tstrun.add_expected_files(start_ticks, curfile, numcur,
+                                  fail_links=True)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -771,13 +790,11 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks + (self.ONE_MINUTE * 6)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 10)
 
-        # use DB or old info.txt?
-        use_db = False
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and old info.txt
+        tstrun.populate(self, use_db=False)
 
         # add all expected log messages
         self.expectLogMessage("Requested data doesn't exist in HitSpool"
@@ -801,24 +818,32 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks + (self.ONE_MINUTE * 6)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 10)
 
-        # use DB or old info.txt?
-        use_db = True
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and database
+        tstrun.populate(self, use_db=True)
+
+        # fill info database
+        (lastfile, numlast) \
+            = tstrun.update_hitspool_db(start_ticks, stop_ticks, last_start,
+                                        last_stop, self.INTERVAL)
+        (curfile, numcur) = tstrun.update_hitspool_db(start_ticks, stop_ticks,
+                                                      cur_start, cur_stop,
+                                                      self.INTERVAL)
 
         # add all expected files being transferred
-        tstrun.add_expected_files(start_ticks, stop_ticks, last_start,
-                                  last_stop, self.INTERVAL, use_db=use_db)
-        tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
-                                  self.INTERVAL, use_db=use_db)
+        tstrun.add_expected_files(start_ticks, lastfile, numlast)
+        tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         # add all expected log messages
         self.expectLogMessage("No data found between %s and %s" %
                               (HsTestUtil.get_time(start_ticks),
                                HsTestUtil.get_time(stop_ticks)))
+
+        from HsRSyncFiles import HsRSyncFiles
+        if HsRSyncFiles.DEBUG_EMPTY:
+            tstrun.add_debug_email()
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -838,13 +863,11 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
 
-        # use DB or old info.txt?
-        use_db = False
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and old info.txt
+        tstrun.populate(self, use_db=False)
 
         # TODO should compute the expected number of files
         tstrun.add_expected_links(start_ticks, "currentRun", 4, 5)
@@ -867,19 +890,23 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
 
-        # use DB or old info.txt?
-        use_db = True
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and database
+        tstrun.populate(self, use_db=True)
+
+        # fill info database
+        (lastfile, numlast) \
+            = tstrun.update_hitspool_db(start_ticks, stop_ticks, last_start,
+                                        last_stop, self.INTERVAL)
+        (curfile, numcur) = tstrun.update_hitspool_db(start_ticks, stop_ticks,
+                                                      cur_start, cur_stop,
+                                                      self.INTERVAL)
 
         # add all expected files being transferred
-        tstrun.add_expected_files(start_ticks, stop_ticks, last_start,
-                                  last_stop, self.INTERVAL, use_db=use_db)
-        tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
-                                  self.INTERVAL, use_db=use_db)
+        tstrun.add_expected_files(start_ticks, lastfile, numlast)
+        tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -900,13 +927,11 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
 
-        # use DB or old info.txt?
-        use_db = False
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and old info.txt
+        tstrun.populate(self, use_db=False)
 
         # TODO: should compute these file values instead of hardcoding them
         firstfile = 4
@@ -937,13 +962,11 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
 
-        # use DB or old info.txt?
-        use_db = True
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and database
+        tstrun.populate(self, use_db=True)
 
         # TODO: should compute these file values instead of hardcoding them
         firstfile = 575
@@ -955,12 +978,19 @@ class HsRSyncTestCase(LoggingTestCase):
                                   " Fake Hardlink Error" % num)
         self.expectLogMessage("No relevant files found")
 
+        # fill info database
+        (lastfile, numlast) \
+            = tstrun.update_hitspool_db(start_ticks, stop_ticks, last_start,
+                                        last_stop, self.INTERVAL)
+        (curfile, numcur) = tstrun.update_hitspool_db(start_ticks, stop_ticks,
+                                                      cur_start, cur_stop,
+                                                      self.INTERVAL)
+
         # add all expected files being transferred
-        tstrun.add_expected_files(start_ticks, stop_ticks, last_start,
-                                  last_stop, self.INTERVAL, fail_links=True,
-                                  use_db=use_db)
-        tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
-                                  self.INTERVAL, fail_links=True, use_db=use_db)
+        tstrun.add_expected_files(start_ticks, lastfile, numlast,
+                                  fail_links=True)
+        tstrun.add_expected_files(start_ticks, curfile, numcur,
+                                  fail_links=True)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -980,13 +1010,11 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks - (self.ONE_MINUTE * 5)
         cur_stop = stop_ticks - (self.ONE_MINUTE * 2)
 
-        # use DB or old info.txt?
-        use_db = False
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and old info.txt
+        tstrun.populate(self, use_db=False)
 
         # add all expected log messages
         self.expectLogMessage("alert_start is in the FUTURE ?!")
@@ -1009,24 +1037,32 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks - (self.ONE_MINUTE * 5)
         cur_stop = stop_ticks - (self.ONE_MINUTE * 2)
 
-        # use DB or old info.txt?
-        use_db = True
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and database
+        tstrun.populate(self, use_db=True)
+
+        # fill info database
+        (lastfile, numlast) \
+            = tstrun.update_hitspool_db(start_ticks, stop_ticks, last_start,
+                                        last_stop, self.INTERVAL)
+        (curfile, numcur) = tstrun.update_hitspool_db(start_ticks, stop_ticks,
+                                                      cur_start, cur_stop,
+                                                      self.INTERVAL)
 
         # add all expected files being transferred
-        tstrun.add_expected_files(start_ticks, stop_ticks, last_start,
-                                  last_stop, self.INTERVAL, use_db=use_db)
-        tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
-                                  self.INTERVAL, use_db=use_db)
+        tstrun.add_expected_files(start_ticks, lastfile, numlast)
+        tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         # add all expected log messages
         self.expectLogMessage("No data found between %s and %s" %
                               (HsTestUtil.get_time(start_ticks),
                                HsTestUtil.get_time(stop_ticks)))
+
+        from HsRSyncFiles import HsRSyncFiles
+        if HsRSyncFiles.DEBUG_EMPTY:
+            tstrun.add_debug_email()
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -1046,16 +1082,15 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks + (self.TICKS_PER_SECOND * 4)
         cur_stop = start_ticks + (self.TICKS_PER_SECOND * 6)
 
-        # use DB or old info.txt?
-        use_db = False
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and old info.txt
+        tstrun.populate(self, use_db=False)
 
         # add all expected log messages
-        self.expectLogMessage("alert_start < lastRun < alert_stop < currentRun."
+        self.expectLogMessage("alert_start < lastRun < alert_stop"
+                              " < currentRun."
                               " Assign: all HS data of lastRun instead.")
 
         # TODO: should compute these file values instead of hardcoding them
@@ -1079,19 +1114,23 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks + (self.TICKS_PER_SECOND * 4)
         cur_stop = start_ticks + (self.TICKS_PER_SECOND * 6)
 
-        # use DB or old info.txt?
-        use_db = True
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and database
+        tstrun.populate(self, use_db=True)
+
+        # fill info database
+        (lastfile, numlast) \
+            = tstrun.update_hitspool_db(start_ticks, stop_ticks, last_start,
+                                        last_stop, self.INTERVAL)
+        (curfile, numcur) = tstrun.update_hitspool_db(start_ticks, stop_ticks,
+                                                      cur_start, cur_stop,
+                                                      self.INTERVAL)
 
         # add all expected files being transferred
-        tstrun.add_expected_files(start_ticks, stop_ticks, last_start,
-                                  last_stop, self.INTERVAL, use_db=use_db)
-        tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
-                                  self.INTERVAL, use_db=use_db)
+        tstrun.add_expected_files(start_ticks, lastfile, numlast)
+        tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -1112,16 +1151,11 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + self.ONE_MINUTE
 
-        # use DB or old info.txt?
-        use_db = False
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
-
-        # add all expected log messages
-        self.expectLogMessage("failed rsync process:\nFakeFail")
+        # populate directory with hit files and old info.txt
+        tstrun.populate(self, use_db=False)
 
         # TODO: should compute these file values instead of hardcoding them
         tstrun.add_expected_links(start_ticks, "currentRun", 4, 5)
@@ -1145,22 +1179,23 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + self.ONE_MINUTE
 
-        # use DB or old info.txt?
-        use_db = True
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and database
+        tstrun.populate(self, use_db=True)
 
-        # add all expected log messages
-        self.expectLogMessage("failed rsync process:\nFakeFail")
+        # fill info database
+        (lastfile, numlast) \
+            = tstrun.update_hitspool_db(start_ticks, stop_ticks, last_start,
+                                        last_stop, self.INTERVAL)
+        (curfile, numcur) = tstrun.update_hitspool_db(start_ticks, stop_ticks,
+                                                      cur_start, cur_stop,
+                                                      self.INTERVAL)
 
         # add all expected files being transferred
-        tstrun.add_expected_files(start_ticks, stop_ticks, last_start,
-                                  last_stop, self.INTERVAL, use_db=use_db)
-        tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
-                                  self.INTERVAL, use_db=use_db)
+        tstrun.add_expected_files(start_ticks, lastfile, numlast)
+        tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -1180,19 +1215,23 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + self.ONE_MINUTE
 
-        # use DB or old info.txt?
-        use_db = True
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and database
+        tstrun.populate(self, use_db=True)
+
+        # fill info database
+        (lastfile, numlast) \
+            = tstrun.update_hitspool_db(start_ticks, stop_ticks, last_start,
+                                        last_stop, self.INTERVAL)
+        (curfile, numcur) = tstrun.update_hitspool_db(start_ticks, stop_ticks,
+                                                      cur_start, cur_stop,
+                                                      self.INTERVAL)
 
         # add all expected files being transferred
-        tstrun.add_expected_files(start_ticks, stop_ticks, last_start,
-                                  last_stop, self.INTERVAL, use_db=use_db)
-        tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
-                                  self.INTERVAL, use_db=use_db)
+        tstrun.add_expected_files(start_ticks, lastfile, numlast)
+        tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -1212,21 +1251,27 @@ class HsRSyncTestCase(LoggingTestCase):
         cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + self.ONE_MINUTE
 
-        # use DB or old info.txt?
-        use_db = True
-
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and database
+        tstrun.populate(self, use_db=True)
+
+        # fill info database
+        (lastfile, numlast) \
+            = tstrun.update_hitspool_db(start_ticks, stop_ticks, last_start,
+                                        last_stop, self.INTERVAL,
+                                        create_files=True)
+        (curfile, numcur) = tstrun.update_hitspool_db(start_ticks, stop_ticks,
+                                                      cur_start, cur_stop,
+                                                      self.INTERVAL,
+                                                      create_files=True)
 
         # add all expected files being transferred
         destdir = os.path.join(self.HUB_DIR, "hitspool")
-        tstrun.add_expected_files(start_ticks, stop_ticks, last_start,
-                                  last_stop, self.INTERVAL, use_db=use_db,
+        tstrun.add_expected_files(start_ticks, lastfile, numlast,
                                   destdir=destdir)
-        tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
-                                  self.INTERVAL, use_db=use_db,
+        tstrun.add_expected_files(start_ticks, curfile, numcur,
                                   destdir=destdir)
 
         tstrun.run(start_ticks, stop_ticks, extract_hits=True)
@@ -1245,26 +1290,37 @@ class HsRSyncTestCase(LoggingTestCase):
 
         # create currentRun directory
         cur_start = start_ticks - self.ONE_MINUTE
-        cur_stop = stop_ticks + self.ONE_MINUTE
-
-        # use DB or old info.txt?
-        use_db = True
+        cur_stop = start_ticks - self.TICKS_PER_SECOND
 
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
 
-        tstrun.populate(self, use_db=use_db)
+        # populate directory with hit files and database
+        tstrun.populate(self, use_db=True)
 
         # add all expected log messages
         self.expectLogMessage(re.compile("No hits found for .*"))
 
+        # fill info database
+        offset = (stop_ticks - start_ticks) * 100
+        (lastfile, numlast) \
+            = tstrun.update_hitspool_db(start_ticks, stop_ticks,
+                                        last_start, last_stop,
+                                        self.INTERVAL,
+                                        offset=offset,
+                                        create_files=True)
+        (curfile, numcur) \
+            = tstrun.update_hitspool_db(start_ticks, stop_ticks,
+                                        cur_start, cur_stop,
+                                        self.INTERVAL,
+                                        offset=offset,
+                                        create_files=True)
+
         # add all expected files being transferred
         destdir = os.path.join(self.HUB_DIR, "hitspool")
-        tstrun.add_expected_files(start_ticks, stop_ticks, last_start,
-                                  last_stop, self.INTERVAL, use_db=use_db,
-                                  destdir=destdir, fail_extract=True)
-        tstrun.add_expected_files(start_ticks, stop_ticks, cur_start, cur_stop,
-                                  self.INTERVAL, use_db=use_db,
-                                  destdir=destdir, fail_extract=True)
+        tstrun.add_expected_files(start_ticks, lastfile, numlast,
+                                  destdir=destdir)
+        tstrun.add_expected_files(start_ticks, curfile, numcur,
+                                  destdir=destdir)
 
         tstrun.run(start_ticks, stop_ticks, extract_hits=True)

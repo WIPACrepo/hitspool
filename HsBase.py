@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 import logging
+import logging.handlers
 import os
 import shutil
 import socket
-import sys
 import tarfile
 
 from HsException import HsException
@@ -16,15 +16,29 @@ class HsBase(object):
     LOCALHOST = 3
     TEST = 4
 
-    def __init__(self, host=None, is_test=False):
-        fullname = socket.gethostname()
+    # default log directory
+    DEFAULT_LOG_PATH = "/mnt/data/pdaqlocal/HsInterface/logs/"
 
-        hdnm = fullname.split('.', 1)
-        if len(hdnm) == 2:
-            hostname, domainname = hdnm
+    # default rsync user
+    DEFAULT_RSYNC_USER = "pdaq"
+    # default rsync host
+    DEFAULT_RSYNC_HOST = "2ndbuild"
+    # default destination directory
+    DEFAULT_COPY_PATH = "/mnt/data/pdaqlocal/HsDataCopy"
+
+    def __init__(self, host=None, is_test=False):
+        # allow caller to override the host name
+        if host is not None:
+            self.__src_mchn = host
         else:
-            hostname = hdnm[1]
-            domainname = ""
+            self.__src_mchn = socket.gethostname()
+
+        # short host is the machine name without the domain
+        hdnm = self.__src_mchn.split('.', 1)
+        if len(hdnm) == 2:
+            self.__src_mchn_short, domainname = hdnm
+        else:
+            self.__src_mchn_short, domainname = (self.__src_mchn, "")
 
         # determine cluster based on host/domain name
         if is_test:
@@ -35,14 +49,6 @@ class HsBase(object):
             self.__cluster = self.SPTS
         else:
             self.__cluster = self.LOCALHOST
-
-        # allow caller to override the host name
-        if host is not None:
-            self.__src_mchn = host
-        else:
-            self.__src_mchn = fullname
-
-        self.__src_mchn_short = hostname
 
     @property
     def cluster(self):
@@ -60,28 +66,43 @@ class HsBase(object):
     def fullhost(self):
         return self.__src_mchn
 
-    @staticmethod
-    def init_logging(logfile=None, level=logging.INFO, both=False):
-        if len(logging.getLogger().handlers) > 0:
+    def init_logging(self, logfile=None, basename=None, basehost=None,
+                     level=logging.INFO, both=False):
+        if logfile is None and basename is not None and basehost is not None:
+            if self.is_cluster_sps or self.is_cluster_spts:
+                logdir = self.DEFAULT_LOG_PATH
+            else:
+                logdir = "/home/david/TESTCLUSTER/%s/logs" % basehost
+            logfile = os.path.join(logdir,
+                                   "%s_%s.log" % (basename, self.shorthost))
+
+        logger = logging.getLogger()
+        if len(logger.handlers) > 0:
             # any logging done before this point creates a StreamHandler
             # which causes basicConfig() to be ignored in Python 2.6
-            logging.getLogger().handlers = []
+            logger.handlers = []
 
-        if logfile is None:
-            logging.basicConfig(format='%(message)s',
-                                level=level,
-                                stream=sys.stdout)
-        else:
-            logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
-                                level=level,
-                                datefmt='%Y-%m-%d %H:%M:%S',
-                                filename=logfile)
+        if logfile is not None:
+            # set up logging to file
+            ten_mb = 1024 * 1024 * 10
+            rot = logging.handlers.RotatingFileHandler(logfile,
+                                                       maxBytes=ten_mb,
+                                                       backupCount=5)
+            longfmt = "%(asctime)s %(levelname)s %(message)s"
+            rot.setFormatter(logging.Formatter(fmt=longfmt,
+                                               datefmt="%Y-%m-%d %H:%M:%S"))
+            logger.addHandler(rot)
 
-            if both:
-                # copy log messages to console
-                out = logging.StreamHandler()
-                out.setFormatter(logging.Formatter("%(message)s"))
-                logging.getLogger().addHandler(out)
+        if logfile is None or both:
+            # set up logging to console
+            out = logging.StreamHandler()
+            out.setFormatter(logging.Formatter("%(message)s"))
+            logger.addHandler(rot)
+
+        # set log level
+        logger.setLevel(level)
+
+        return logfile
 
     @property
     def is_cluster_local(self):

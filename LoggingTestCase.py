@@ -14,9 +14,12 @@ try:
 except ImportError:
     # add assertIsNone() and assertIsNotNone() to older TestCase
     from unittest import TestCase
+
     class TestCasePlus(TestCase):
+
         def assertIsNone(self, var, msg=None):
             self.assertTrue(var is None, msg)
+
         def assertIsNotNone(self, var, msg=None):
             self.assertTrue(var is not None, msg)
 
@@ -28,8 +31,15 @@ class LoggingTestCase(TestCasePlus):
     def __init_handler(cls):
         mylog = logging.getLogger()
         mylog.setLevel(0)
-        cls._my_log_handler = MockLoggingHandler()
+
+        ooo = cls.allow_out_of_order()
+        cls._my_log_handler = MockLoggingHandler(out_of_order=ooo)
         mylog.addHandler(cls._my_log_handler)
+
+    @classmethod
+    def allow_out_of_order(cls):
+        return False
+
     @classmethod
     def setUpClass(cls):
         super(LoggingTestCase, cls).setUpClass()

@@ -5,12 +5,15 @@ import unittest
 
 import hsrsyncfab
 import HsRSyncTestCase
+import HsTestUtil
 
 from HsException import HsException
 
 
 class MyHsRSyncFab(hsrsyncfab.HsRSyncFab):
     def __init__(self, is_test=False):
+        self.__i3_sock = None
+
         super(MyHsRSyncFab, self).__init__(is_test=is_test)
 
         self.__fail_hardlink = False
@@ -21,6 +24,13 @@ class MyHsRSyncFab(hsrsyncfab.HsRSyncFab):
 
     def check_for_unused_links(self):
         pass
+
+    def create_i3socket(self, host):
+        if self.__i3_sock is not None:
+            raise Exception("Cannot create multiple I3 sockets")
+
+        self.__i3_sock = HsTestUtil.MockI3Socket('HsRSyncFiles')
+        return self.__i3_sock
 
     def fail_hardlink(self):
         self.__fail_hardlink = True
@@ -39,10 +49,9 @@ class MyHsRSyncFab(hsrsyncfab.HsRSyncFab):
 
     def rsync(self, source, target, bwlimit=None, log_format=None,
               relative=True):
-        #print >>sys.stderr, "Ignoring rsync %s -> %s" % (source, target)
         if self.__fail_rsync:
-            return ([], "FakeFail")
-        return (["", ], "")
+            raise HsException("FakeFail")
+        return ("", )
 
 
 class HsRSyncFabTest(HsRSyncTestCase.HsRSyncTestCase):
