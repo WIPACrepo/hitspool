@@ -256,10 +256,10 @@ class HsGrabber(HsBase):
             socks = dict(result)  # poller takes msec argument
             if self.__grabber in socks and socks[self.__grabber] == zmq.POLLIN:
                 message = self.__grabber.recv()
-                if message == "DONE\0":
+                if message.startswith("DONE"):
                     logging.info("Request sent.")
                     return True
-                elif message == "ERROR\0":
+                elif message.startswith("ERROR"):
                     logging.error("Request ERROR")
                     return False
 
