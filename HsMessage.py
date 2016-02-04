@@ -43,10 +43,23 @@ def receive(sock):
 
 def send(sock, msgtype, req_id, user, start_utc, stop_utc, copydir, destdir,
          prefix, extract, host):
+    if msgtype is None:
+        raise HsException("Message type is not set")
+    if req_id is None:
+        raise HsException("Message request ID is not set")
+    if start_utc is None:
+        raise HsException("Message start time is not set")
+    if stop_utc is None:
+        raise HsException("Message stop time is not set")
+    if destdir is None:
+        raise HsException("Message destination directory is not set")
+
+    # json doesn't know about datetime, convert to string
     if isinstance(start_utc, datetime):
         start_utc = str(start_utc)
     if isinstance(stop_utc, datetime):
         stop_utc = str(stop_utc)
+
     msg = {
         "msgtype": msgtype,
         "request_id": req_id,

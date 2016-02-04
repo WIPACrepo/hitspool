@@ -258,10 +258,11 @@ class Worker(HsRSyncFiles):
 
         if rsyncdir is not None:
             msgtype = HsMessage.MESSAGE_DONE
-            _, destdir = HsUtil.split_rsync_host_and_path(req.destination_dir)
         else:
             msgtype = HsMessage.MESSAGE_FAILED
-            destdir = None
+
+        # send final destination as a simple path
+        _, destdir = HsUtil.split_rsync_host_and_path(req.destination_dir)
 
         HsMessage.send(self.sender, msgtype, req.request_id, req.username,
                        req.start_time, req.stop_time, rsyncdir, destdir,

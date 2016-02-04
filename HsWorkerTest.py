@@ -364,6 +364,7 @@ class HsWorkerTest(LoggingTestCase):
         # add all expected log messages
         self.expectLogMessage("Destination parsing failed for \"%s\":\n"
                               "Abort request." % alert["destination_dir"])
+        self.expectLogMessage("Request failed")
 
         # initialize remaining values
         logfile = None
@@ -435,6 +436,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("data will be sent to default destination: %s" %
                               hsr.TEST_COPY_DIR)
         self.expectLogMessage("%s reading/parsing failed" % cur_info)
+        self.expectLogMessage("Request failed")
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue({
@@ -496,6 +498,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("data will be sent to default destination: %s" %
                               hsr.TEST_COPY_DIR)
         self.expectLogMessage("%s reading/parsing failed" % last_info)
+        self.expectLogMessage("Request failed")
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue({
@@ -557,6 +560,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("data will be sent to default destination: %s" %
                               hsr.TEST_COPY_DIR)
         self.expectLogMessage("%s reading/parsing failed" % cur_info)
+        self.expectLogMessage("Request failed")
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue({
@@ -793,6 +797,7 @@ class HsWorkerTest(LoggingTestCase):
         # add all expected log messages
         self.expectLogMessage("sn_start & sn_stop time-stamps inverted."
                               " Abort request.")
+        self.expectLogMessage("Request failed")
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue({
@@ -944,6 +949,7 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
         self.expectLogMessage("Requested data doesn't exist in HitSpool"
                               " Buffer anymore! Abort request.")
+        self.expectLogMessage("Request failed")
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue({
@@ -1285,6 +1291,7 @@ class HsWorkerTest(LoggingTestCase):
             self.expectLogMessage("failed to link HitSpool-%d.dat to tmp dir:"
                                   " Fake Hardlink Error" % num)
         self.expectLogMessage("No relevant files found")
+        self.expectLogMessage("Request failed")
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue({
@@ -1376,6 +1383,7 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
         self.expectLogMessage("Requested data doesn't exist in HitSpool"
                               " Buffer anymore! Abort request.")
+        self.expectLogMessage("Request failed")
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue({
@@ -1531,6 +1539,7 @@ class HsWorkerTest(LoggingTestCase):
             self.expectLogMessage("failed to link HitSpool-%d.dat to tmp dir:"
                                   " Fake Hardlink Error" % num)
         self.expectLogMessage("No relevant files found")
+        self.expectLogMessage("Request failed")
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue({
@@ -1619,6 +1628,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("data will be sent to default destination: %s" %
                               hsr.TEST_COPY_DIR)
         self.expectLogMessage("alert_start is in the FUTURE ?!")
+        self.expectLogMessage("Request failed")
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue({
@@ -1769,6 +1779,7 @@ class HsWorkerTest(LoggingTestCase):
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
                               hsr.TEST_COPY_DIR)
+        self.expectLogMessage("Request failed")
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue({

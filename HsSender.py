@@ -180,12 +180,9 @@ class RequestMonitor(threading.Thread):
             return self.__handle_req_initial(msg)
         elif msg.msgtype == HsMessage.MESSAGE_STARTED:
             return self.__handle_req_started(msg)
-        elif msg.msgtype == HsMessage.MESSAGE_DONE:
-            return self.__handle_req_update(msg, HsMessage.DBSTATE_DONE,
-                                            force_spade=force_spade)
-        elif msg.msgtype == HsMessage.MESSAGE_FAILED:
-            return self.__handle_req_update(msg, HsMessage.DBSTATE_ERROR,
-                                            force_spade=force_spade)
+        elif (msg.msgtype == HsMessage.MESSAGE_DONE or
+              msg.msgtype == HsMessage.MESSAGE_FAILED):
+            return self.__handle_req_update(msg, force_spade=force_spade)
 
         logging.error("Ignoring unknown message type \"%s\" in \"%s\"",
                       msg.msgtype, msg)
@@ -246,34 +243,39 @@ class RequestMonitor(threading.Thread):
                 self.__update_db(msg.request_id, msg.host,
                                  HsMessage.DBSTATE_START)
 
-    def __handle_req_update(self, msg, dbstate, force_spade=False):
+    def __handle_req_update(self, msg, force_spade=False):
         """
         Used to update an individual host's state as either DONE or ERROR
         """
-        if dbstate != HsMessage.DBSTATE_DONE:
-            moved = None
-        else:
+        if msg.msgtype == HsMessage.MESSAGE_DONE:
             moved = self.__handle_success(msg, force_spade=force_spade)
-
-        name = HsMessage.state_name(dbstate)
+        elif msg.msgtype == HsMessage.MESSAGE_FAILED:
+            moved = False
+        else:
+            raise HsException("Cannot update from request %s message %s" %
+                              (msg.request_id, msg.msgtype))
 
         with self.__reqlock:
             if msg.request_id not in self.__requests:
                 logging.error("Request %s was not initialized (received"
-                              " %s from %s)", msg.request_id, name, msg.host)
+                              " %s from %s)", msg.request_id, msg.msgtype,
+                              msg.host)
                 self.__requests[msg.request_id] = {}
 
             if msg.host not in self.__requests[msg.request_id]:
                 logging.error("Saw %s message for request %s host %s"
-                              " without a START message", name, msg.request_id,
-                              msg.host)
+                              " without a START message", msg.msgtype,
+                              msg.request_id, msg.host)
                 self.__insert_detail(msg.request_id, msg.username, msg.prefix,
                                      msg.start_time, msg.stop_time,
                                      msg.destination_dir)
 
-            if moved is not None and not moved:
+            if (msg.msgtype == HsMessage.MESSAGE_FAILED or
+                (moved is not None and not moved)):
                 # if files were not queued for SPADE, record an error
                 dbstate = HsMessage.DBSTATE_ERROR
+            else:
+                dbstate = HsMessage.DBSTATE_DONE
 
             self.__requests[msg.request_id][msg.host] \
                 = (dbstate, datetime.datetime.now())
@@ -540,9 +542,14 @@ class HsSender(HsBase):
     def __init__(self, host=None, is_test=False):
         super(HsSender, self).__init__(host=host, is_test=is_test)
 
+        if self.is_cluster_sps or self.is_cluster_spts:
+            expcont = "expcont"
+        else:
+            expcont = "localhost"
+
         self.__context = zmq.Context()
         self.__reporter = self.create_reporter()
-        self.__i3socket = self.create_i3socket("localhost")
+        self.__i3socket = self.create_i3socket(expcont)
         self.__monitor = RequestMonitor(self)
         self.__monitor.start()
 
@@ -578,7 +585,7 @@ class HsSender(HsBase):
         return sock
 
     def create_i3socket(self, host):
-        """Socket for I3Live on localhost"""
+        """Socket for I3Live on expcont"""
         sock = self.__context.socket(zmq.PUSH)
         sock.connect("tcp://%s:%d" % (host, I3LIVE_PORT))
         return sock
