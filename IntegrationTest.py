@@ -509,19 +509,19 @@ class IntegrationTest(LoggingTestCase):
             "status": HsUtil.STATUS_QUEUED,
         }
         sender.i3socket.addExpectedMessage(status_queued, service="hitspool",
-                                           varname="hsrequest",
+                                           varname="hsrequest_info",
                                            time=self.MATCH_ANY)
 
         status_started = status_queued.copy()
         status_started["status"] = HsUtil.STATUS_IN_PROGRESS
         sender.i3socket.addExpectedMessage(status_started, service="hitspool",
-                                           varname="hsrequest",
+                                           varname="hsrequest_info",
                                            time=self.MATCH_ANY)
 
         status_success = status_queued.copy()
         status_success["status"] = HsUtil.STATUS_SUCCESS
         sender.i3socket.addExpectedMessage(status_success, service="hitspool",
-                                           varname="hsrequest",
+                                           varname="hsrequest_info",
                                            time=self.MATCH_ANY)
 
     def __init_worker(self, worker, start_ticks, stop_ticks, copydir):

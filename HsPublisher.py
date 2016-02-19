@@ -294,8 +294,7 @@ class Receiver(HsBase):
                 success = self.__handle_request(alertdict)
             except:
                 success = False
-                logging.error("Request failed: %s", alertdict)
-                logging.exception("Request exception")
+                logging.exception("Request failed: %s", alertdict)
 
         if success:
             rtnmsg = "DONE"

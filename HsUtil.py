@@ -162,14 +162,24 @@ def parse_sntime(arg, is_sn_ns=True):
 
 
 def send_live_status(i3socket, req_id, username, prefix, start_utc, stop_utc,
-                     copydir, status, varname="hsrequest_info", success=None,
-                     failed=None):
-    nowstr = str(datetime.datetime.utcnow())
+                     copydir, status, success=None, failed=None):
+    if status is None:
+        raise HsException("Status is not set")
+    if req_id is None:
+        raise HsException("Request ID is not set")
+    if start_utc is None:
+        raise HsException("Start time is not set")
+    if stop_utc is None:
+        raise HsException("Stop time is not set")
+    if copydir is None:
+        raise HsException("Destination directory is not set")
 
     if not isinstance(start_utc, datetime.datetime):
         raise Exception("Bad start time %s<%s>" % (start_utc, type(start_utc)))
     if not isinstance(stop_utc, datetime.datetime):
         raise Exception("Bad stop time %s<%s>" % (stop_utc, type(stop_utc)))
+
+    nowstr = str(datetime.datetime.utcnow())
 
     value = {
         "request_id": req_id,
@@ -188,7 +198,7 @@ def send_live_status(i3socket, req_id, username, prefix, start_utc, stop_utc,
 
     i3json = {
         "service": "hitspool",
-        "varname": varname,
+        "varname": "hsrequest_info",
         "time": nowstr,
         "value": value,
     }

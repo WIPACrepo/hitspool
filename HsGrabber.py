@@ -330,8 +330,7 @@ if __name__ == "__main__":
 
         hsg = HsGrabber()
 
-        hsg.init_logging(args.logfile, basename="hsgrabber",
-                         basehost="access", level=logging.INFO)
+        hsg.init_logging(args.logfile, level=logging.INFO)
 
         logging.info("This HsGrabber runs on: %s", hsg.fullhost)
 
@@ -343,8 +342,10 @@ if __name__ == "__main__":
         copydir = "%s@%s:%s" % (user, host, path)
 
         if not hsg.send_alert(alert_start_sn, alert_begin_utc, alert_stop_sn,
-                              alert_end_utc, copydir, username=args.username,
-                              prefix=args.prefix, extract_hits=args.extract,
+                              alert_end_utc, copydir,
+                              request_id=args.request_id,
+                              username=args.username, prefix=args.prefix,
+                              extract_hits=args.extract,
                               send_json=args.send_json, print_to_console=True):
             raise SystemExit(1)
 

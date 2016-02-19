@@ -277,6 +277,15 @@ class Processor(object):
         "status",
     )
 
+    # error conditions which can occur during runs
+    #
+    RUN_ERR_UNKNOWN = "UNKNOWN"
+    RUN_ERR_MISSING = "MISSING"
+    RUN_ERR_ORDER = "OUT_OF_ORDER"
+    RUN_ERR_MSGCHG = "MESSAGE CHANGED"
+    RUN_ERR_ERROR = "ERROR"
+    RUN_ERR_EXPECTED = "EXPECTED"
+
     def __init__(self):
         # set up pseudo-Live socket
         #
@@ -296,6 +305,35 @@ class Processor(object):
                             datefmt='%Y-%m-%d %H:%M:%S',
                             stream=sys.stderr)
 
+    def __check_for_changes(self, oldmsg, newmsg):
+        if oldmsg.request_id != newmsg.request_id:
+            logging.error("Unexpected request ID #%s (should be #%s)",
+                          oldmsg.request_id, newmsg.request_id)
+            return self.RUN_ERR_MSGCHG
+
+        if oldmsg.username != newmsg.username:
+            logging.error("Request ID #%s username changed"
+                          " from \"%s\" (for %s) to \"%s\" (for %s)",
+                          newmsg.request_id, oldmsg.username, oldmsg.status,
+                          newmsg.username, newmsg,status)
+            return self.RUN_ERR_MSGCHG
+
+        if oldmsg.start_time != newmsg.start_time:
+            logging.error("Request ID #%s start time changed"
+                          " from \"%s\" (for %s) to \"%s\" (for %s)",
+                          newmsg.request_id, oldmsg.start_time, oldmsg.status,
+                          newmsg.start_time, newmsg,status)
+            return self.RUN_ERR_MSGCHG
+
+        if oldmsg.stop_time != newmsg.stop_time:
+            logging.error("Request ID #%s stop time changed"
+                          " from \"%s\" (for %s) to \"%s\" (for %s)",
+                          newmsg.request_id, oldmsg.stop_time, oldmsg.status,
+                          newmsg.stop_time, newmsg,status)
+            return self.RUN_ERR_MSGCHG
+
+        return None
+
     def __clear_destination(self, path):
         if os.path.exists(path):
             if os.path.isdir(path):
@@ -304,11 +342,12 @@ class Processor(object):
                 os.unlink(path)
 
     def __find_request(self, message):
-        if not message.request_id in self.__requests:
-            logging.error("Found %s message for unknown request %s",
-                          message.status, message.request_id)
-            return False
-        return True
+        if message.request_id in self.__requests:
+            return self.__requests[message.request_id]
+
+        logging.error("Found %s message for unknown request %s",
+                      message.status, message.request_id)
+        return None
 
     def __process_alert(self, value_dict):
         if not isinstance(value_dict, dict):
@@ -324,6 +363,7 @@ class Processor(object):
         logging.info("LiveAlert:\n\tCondition %s", value_dict["condition"])
 
     def __process_responses(self, request, destination):
+        saw_error = False
         while True:
             rawmsg = self.__socket.recv_json()
             if not isinstance(rawmsg, dict):
@@ -342,18 +382,24 @@ class Processor(object):
                 continue
 
             if rawmsg["service"] == "hitspool" and \
-               rawmsg["varname"] == "hsrequest":
-                rtnval = self.__process_status(rawmsg["value"],
-                                               request.should_succeed)
-                if rtnval is not None:
+               rawmsg["varname"].startswith("hsrequest_info"):
+                runstatus = self.__process_status(rawmsg["value"],
+                                                  request.should_succeed)
+                if (runstatus == self.RUN_ERR_EXPECTED or \
+                    runstatus == self.RUN_ERR_ERROR):
                     # got success/failure status
+                    rtnval = runstatus == self.RUN_ERR_EXPECTED
                     try:
                         request.validate(destination)
                     except HsException, hsex:
                         logging.error("Could not validate %s" % request,
                                       exc_info=True)
                         rtnval = False
-                    return rtnval
+                    return rtnval and not saw_error
+
+                # any status other than None indicates an error
+                if runstatus is not None:
+                    saw_error = True
 
                 # keep looking
                 continue
@@ -377,28 +423,45 @@ class Processor(object):
             if message.request_id in self.__requests:
                 logging.error("Found %s message for existing request %s",
                               message.status, message.request_id)
-            else:
-                self.__requests[message.request_id] = message.status
+                return self.RUN_ERR_ORDER
+
+            self.__requests[message.request_id] = message
+            return None
         elif message.status == HsUtil.STATUS_IN_PROGRESS:
-            if self.__find_request(message):
-                if self.__requests[message.request_id] != HsUtil.STATUS_QUEUED:
-                    logging.error("Expected request %s status %s, not %s",
-                                  message.request_id, HsUtil.STATUS_QUEUED,
-                                  self.__requests[message.request_id])
-                self.__requests[message.request_id] = message.status
+            oldmsg = self.__find_request(message)
+            if oldmsg is None:
+                return self.RUN_ERR_MISSING
+
+            self.__requests[message.request_id] = message
+            if oldmsg.status != HsUtil.STATUS_QUEUED:
+                logging.error("Expected request %s status %s, not %s",
+                              message.request_id, HsUtil.STATUS_QUEUED,
+                              oldmsg.status)
+                return self.RUN_ERR_ORDER
+
+            return self.__check_for_changes(oldmsg, message)
         elif message.status == HsUtil.STATUS_FAIL:
-            if self.__find_request(message):
-                return self.__report_result(message, should_succeed, False)
+            oldmsg = self.__find_request(message)
+            if oldmsg is None:
+                return self.RUN_ERR_MISSING
+
+            return self.__report_result(oldmsg, message, should_succeed, False)
         elif message.status == HsUtil.STATUS_SUCCESS:
-            if self.__find_request(message):
-                return self.__report_result(message, should_succeed, True)
-        else:
-            logging.error("Unknown status %s for request %s (%s)",
-                          message.status, message.request_id, message)
+            oldmsg = self.__find_request(message)
+            if oldmsg is None:
+                return self.RUN_ERR_MISSING
 
-        return None
+            return self.__report_result(oldmsg, message, should_succeed, True)
 
-    def __report_result(self, message, expected, actual):
+        logging.error("Unknown status %s for request %s (%s)",
+                      message.status, message.request_id, message)
+        return self.RUN_ERR_UNKNOWN
+
+    def __report_result(self, oldmsg, message, expected, actual):
+        changed = self.__check_for_changes(oldmsg, message)
+        if changed is not None:
+            return changed
+
         del self.__requests[message.request_id]
 
         if expected == actual:
@@ -410,7 +473,8 @@ class Processor(object):
 
         logging.info("Request %s %s", message.request_id, rstr)
 
-        return expected == actual
+        return self.RUN_ERR_EXPECTED if expected == actual else \
+            self.RUN_ERR_ERROR
 
     def __submit(self, request):
         print "::: Submit %s" % str(request)
@@ -479,46 +543,58 @@ if __name__ == "__main__":
         env = HsEnvironment(ROOTDIR)
         env.create(first_ticks, last_ticks, hits_per_file)
 
-        single_file_start = (first_ticks + TICKS_PER_SECOND) / 10
-        single_file_stop = (first_ticks + 6 * TICKS_PER_SECOND) / 10
-        multi_file_stop = (first_ticks + 65 * TICKS_PER_SECOND) / 10
+        single_start_ns = (first_ticks + TICKS_PER_SECOND) / 10
+        single_stop_ns = (first_ticks + 6 * TICKS_PER_SECOND) / 10
+        multi_stop_ns = (first_ticks + 65 * TICKS_PER_SECOND) / 10
 
         hubs = ("ichub01", )
 
+        _, single_start_utc = HsUtil.fix_date_or_timestamp(single_start_ns,
+                                                           None, is_sn_ns=True)
+        _, single_stop_utc = HsUtil.fix_date_or_timestamp(single_stop_ns,
+                                                          None, is_sn_ns=True)
         # list of requests
         requests = (
-            Request(env, True, single_file_start, single_file_stop, hubs,
+            Request(env, True, single_start_ns, single_stop_ns, hubs,
                     ("HitSpool-1.dat", )),
-            Request(env, True, single_file_start, multi_file_stop, hubs,
+            Request(env, True, single_start_ns, multi_stop_ns, hubs,
                     ("HitSpool-1.dat", "HitSpool-2.dat", "HitSpool-3.dat",
                      "HitSpool-4.dat", "HitSpool-5.dat", )),
-            Request(env, True, single_file_start, single_file_stop, hubs,
+            Request(env, True, single_start_ns, single_stop_ns, hubs,
                     ("HitSpool-1.dat", ), prefix=HsPrefix.SNALERT,
-                    copydir=env.copydst, extract=False, send_json=False),
+                    copydir=env.copydst),
             Request(env, False, first_ticks - 6 * TICKS_PER_SECOND,
                     first_ticks - 100, hubs, None, prefix=HsPrefix.SNALERT),
-            Request(env, True, single_file_start, single_file_stop, hubs,
+            Request(env, True, single_start_ns, single_stop_ns, hubs,
                     ("hits_157890077960249984_157890127960249984.dat", ),
-                    copydir=os.path.join(ROOTDIR, "hese_hs"),
-                    extract=True),
-            Request(env, True, single_file_start, single_file_stop, hubs,
+                    copydir=os.path.join(ROOTDIR, "hese_hs"), extract=True),
+            Request(env, True, single_start_ns, single_stop_ns, hubs,
                     ("hits_157890077960249984_157890127960249984.dat", ),
                     prefix=HsPrefix.HESE, copydir=os.path.join(ROOTDIR, "xxx"),
                     extract=True),
-            Request(env, True, single_file_start, single_file_stop, hubs,
+            Request(env, True, single_start_ns, single_stop_ns, hubs,
                     ("hits_157890077960249984_157890127960249984.dat", ),
                     request_id="ABC123", prefix=HsPrefix.ANON,
                     copydir=os.path.join(ROOTDIR, "anonymous"),
                     extract=True),
-            Request(env, True, single_file_start, single_file_stop, hubs,
+            Request(env, True, single_start_ns, single_stop_ns, hubs,
                     ("hits_157890077960249984_157890127960249984.dat", ),
                     request_id="AliveOrDead", prefix=HsPrefix.LIVE,
                     username="mfrere",
                     copydir=os.path.join(ROOTDIR, "live_and_let_die"),
                     extract=True),
-            Request(env, True, single_file_start, single_file_stop, hubs,
+            Request(env, True, single_start_ns, single_stop_ns, hubs,
                     ("HitSpool-1.dat", ), prefix=HsPrefix.HESE,
-                    copydir=env.copydst, extract=False, send_json=False),
+                    copydir=env.copydst),
+            Request(env, True, single_start_ns, single_stop_ns, hubs,
+                    ("HitSpool-1.dat", ), prefix=HsPrefix.ANON,
+                    copydir=env.copydst),
+            Request(env, True, single_start_ns, single_stop_ns, hubs,
+                    ("HitSpool-1.dat", ), prefix="UNOFFICIAL",
+                    copydir=env.copydst),
+            Request(env, True, single_start_utc, single_stop_utc, hubs,
+                    ("HitSpool-1.dat", ), prefix=HsPrefix.SNALERT,
+                    copydir=env.copydst, send_json=True),
         )
 
         if len(hubs) != 1:

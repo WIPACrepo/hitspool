@@ -292,8 +292,8 @@ class HsPublisherTest(LoggingTestCase):
             "request_id": self.MATCH_ANY,
             "username": HsPublisher.Receiver.DEFAULT_USERNAME,
             "prefix": HsPrefix.ANON,
-            "start_time": alertdict["start"],
-            "stop_time": alertdict["stop"],
+            "start_time": start_ticks / 10,
+            "stop_time": stop_ticks / 10,
             "copy_dir": None,
             "destination_dir": alertdict["copy"],
             "extract": False,
@@ -379,8 +379,8 @@ class HsPublisherTest(LoggingTestCase):
             "request_id": self.MATCH_ANY,
             "username": HsPublisher.Receiver.DEFAULT_USERNAME,
             "prefix": HsPrefix.ANON,
-            "start_time": alertdict["start"],
-            "stop_time": alertdict["stop"],
+            "start_time": start_ticks / 10,
+            "stop_time": stop_ticks / 10,
             "copy_dir": None,
             "destination_dir": alertdict["copy"],
             "extract": False,
@@ -468,8 +468,8 @@ class HsPublisherTest(LoggingTestCase):
             "request_id": alertdict["request_id"],
             "username": HsPublisher.Receiver.DEFAULT_USERNAME,
             "prefix": HsPrefix.ANON,
-            "start_time": alertdict["start_time"],
-            "stop_time": alertdict["stop_time"],
+            "start_time": start_ticks / 10,
+            "stop_time": stop_ticks / 10,
             "copy_dir": None,
             "destination_dir": alertdict["destination_dir"],
             "extract": False,
@@ -527,6 +527,97 @@ class HsPublisherTest(LoggingTestCase):
         rcvr.reply_request()
 
         rcvr.validate()
+
+    def test_req_datetime(self):
+        rcvr = MyReceiver()
+
+        # expected start/stop times
+        start_ticks = 98765432100000
+        stop_ticks = 98899889980000
+        start_utc = HsTestUtil.get_time(start_ticks)
+        stop_utc = HsTestUtil.get_time(stop_ticks)
+        copydir = "/bad/copy/path"
+
+        # request message
+        alertdict = {
+            "start_time": str(start_utc),
+            "stop_time": str(stop_utc),
+            "destination_dir": copydir,
+            "prefix": HsPrefix.ANON,
+            "request_id": "NO ID",
+        }
+        req_str = json.dumps(alertdict)
+
+        # initialize incoming socket and add expected message(s)
+        rcvr.alert_socket.addIncoming(req_str)
+        rcvr.alert_socket.addExpected("DONE\0")
+
+        # fill in defaults for worker request
+        stddict = {
+            "msgtype": HsMessage.MESSAGE_INITIAL,
+            "request_id": alertdict["request_id"],
+            "username": HsPublisher.Receiver.DEFAULT_USERNAME,
+            "prefix": HsPrefix.ANON,
+            "start_time": start_ticks / 10,
+            "stop_time": stop_ticks / 10,
+            "copy_dir": None,
+            "destination_dir": alertdict["destination_dir"],
+            "extract": False,
+            "host": rcvr.shorthost,
+        }
+
+        # notification message strings
+        notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % rcvr.cluster
+        notify_desc = 'HsInterface Data Request'
+        notify_lines = [
+            '',
+            'start in UTC : %s' % start_utc,
+            'stop  in UTC : %s' % stop_utc,
+            '(no possible leapseconds applied)',
+        ]
+        notify_pat = re.compile(r".*" + re.escape("\n".join(notify_lines)),
+                                flags=re.MULTILINE)
+
+        notifies = []
+        for addr in HsConstants.ALERT_EMAIL_DEV:
+            notifies.append(
+                {
+                    'notifies_txt': notify_pat,
+                    'notifies_header': notify_hdr,
+                    'receiver': addr,
+                })
+
+        # initialize I3Live socket and add all expected I3Live messages
+        rcvr.i3socket.addExpectedAlert({
+            'condition': notify_hdr,
+            'desc': notify_desc,
+            'notifies': notifies,
+            'short_subject': 'true',
+            'quiet': 'true',
+        })
+
+        # build sender status message
+        send_msg = stddict.copy()
+        send_msg["msgtype"] = HsMessage.MESSAGE_INITIAL
+        send_msg["start_time"] = str(start_utc)
+        send_msg["stop_time"] = str(stop_utc)
+
+        # add expected sender message
+        rcvr.sender.addExpected(send_msg)
+
+        # add expected worker request
+        rcvr.workers.addExpected(stddict)
+
+        # add all expected log messages
+        self.expectLogMessage("received request:\n%s" % req_str)
+        self.expectLogMessage(re.compile("Publisher published: .*"))
+        self.expectLogMessage("Sent response back to requester: DONE")
+
+        # run it!
+        rcvr.reply_request()
+
+        rcvr.validate()
+
 
 if __name__ == '__main__':
     unittest.main()

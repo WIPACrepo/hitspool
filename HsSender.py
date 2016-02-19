@@ -131,8 +131,7 @@ class RequestMonitor(threading.Thread):
         # send final message to LIVE
         HsUtil.send_live_status(self.__sender.i3socket, req_id, username,
                                 prefix, start_time, stop_time, dest_dir,
-                                status, success=success, failed=failed,
-                                varname="hsrequest")
+                                status, success=success, failed=failed)
 
     def __get_request_status(self, req_id):
         """
@@ -208,8 +207,7 @@ class RequestMonitor(threading.Thread):
                                 msg.username, msg.prefix,
                                 msg.start_time, msg.stop_time,
                                 msg.destination_dir,
-                                HsUtil.STATUS_QUEUED,
-                                varname="hsrequest")
+                                HsUtil.STATUS_QUEUED)
 
     def __handle_req_started(self, msg):
         with self.__reqlock:
@@ -225,8 +223,7 @@ class RequestMonitor(threading.Thread):
                                         msg.username, msg.prefix,
                                         msg.start_time, msg.stop_time,
                                         msg.destination_dir,
-                                        HsUtil.STATUS_IN_PROGRESS,
-                                        varname="hsrequest")
+                                        HsUtil.STATUS_IN_PROGRESS)
 
             if msg.host in self.__requests[msg.request_id]:
                 state, _ = self.__requests[msg.request_id][msg.host]
@@ -564,9 +561,8 @@ class HsSender(HsBase):
             prefix = match.group(1)
 
         if not HsPrefix.is_valid(prefix):
-            logging.error("Bad prefix for destination directory name \"%s\""
-                          " (from \"%s\")", dirname, copydir)
-            return False
+            logging.info("Unexpected prefix for destination directory"
+                         " name \"%s\" (from \"%s\")", dirname, copydir)
 
         return True
 

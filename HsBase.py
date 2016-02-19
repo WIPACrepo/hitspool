@@ -97,7 +97,7 @@ class HsBase(object):
             # set up logging to console
             out = logging.StreamHandler()
             out.setFormatter(logging.Formatter("%(message)s"))
-            logger.addHandler(rot)
+            logger.addHandler(out)
 
         # set log level
         logger.setLevel(level)

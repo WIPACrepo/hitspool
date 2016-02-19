@@ -139,7 +139,7 @@ class MockRequestBuilder(object):
 
         # add all expected I3Live messages
         i3socket.addExpectedMessage(value, service="hitspool",
-                                    varname="hsrequest", time=TIME_PAT)
+                                    varname="hsrequest_info", time=TIME_PAT)
 
     @classmethod
     def add_reporter_request(cls, reporter, msgtype, req_id, start_time,
@@ -342,16 +342,11 @@ class HsSenderTest(LoggingTestCase):
         # add all expected log messages
         datadir = os.path.basename(hsdir)
 
-        self.expectLogMessage("Bad prefix for destination directory name"
-                              " \"%s\" (from \"%s\")" % (datadir, hsdir))
-        self.expectLogMessage("Please put the data manually in the"
-                              " desired location: %s" % usrdir)
-
         # run it!
         sender.move_to_destination_dir(hsdir, usrdir)
 
-        # make sure no files moved
-        self.assertFalse(sender.moved_files(), "Should not have moved files")
+        # files should have been moved!
+        self.assertTrue(sender.moved_files(), "Should have moved files")
 
         # make sure 0MQ communications checked out
         sender.validate()
@@ -429,27 +424,51 @@ class HsSenderTest(LoggingTestCase):
         # make sure 0MQ communications checked out
         sender.validate()
 
-    def test_spade_data_bad_copy_dir(self):
+    def test_spade_data_nonstandard_prefix(self):
         sender = FailableSender()
         self.SENDER = sender
 
-        req = MockRequestBuilder(None, "XXX", None, None, "12345678_987654",
-                                 "ichub01", 11, 3)
+        # initialize directory parts
+        category = "XXX"
+        timetag = "12345678_987654"
+        host = "ichub01"
+
+        # initialize HitSpool file parameters
+        firstnum = 11
+        numfiles = 3
+
+        req = MockRequestBuilder(None, category, None, None, timetag, host,
+                                 firstnum, numfiles)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
-        # add all expected log messages
-        self.expectLogMessage("Bad prefix for destination directory name"
-                              " \"%s\" (from \"%s\")" %
-                              (os.path.basename(req.hsdir), req.hsdir))
-        self.expectLogMessage("Please put the data manually in the SPADE"
-                              " directory. Use HsSpader.py, for example.")
+        mybase = "%s_%s_%s" % (category, timetag, host)
+        mytar = "HS_%s.dat.tar.bz2" % mybase
+        mysem = "HS_%s.sem" % mybase
+
+        # create real directories
+        hsdir = MockHitspool.create_copy_files(category, timetag, host,
+                                               firstnum, numfiles,
+                                               real_stuff=True)
+        # add all expected I3Live messages
+        sender.i3socket.addExpectedValue("SPADE-ing of %s done" % hsdir)
+
+        # clean up test files
+        for fnm in (mytar, mysem):
+            tmppath = os.path.join(sender.HS_SPADE_DIR, fnm)
+            if os.path.exists(tmppath):
+                os.unlink(tmppath)
 
         # run it!
-        result = sender.spade_pickup_data(req.hsdir, "/foo/bar")
-        self.assertIsNone(result, "spade_pickup_data() should return None,"
-                          " not %s" % str(result))
+        (tarname, semname) \
+            = sender.spade_pickup_data(hsdir, "/foo/bar")
+        self.assertEquals(mytar, tarname,
+                          "Expected tarfile to be named \"%s\" not \"%s\"" %
+                          (mytar, tarname))
+        self.assertEquals(mysem, semname,
+                          "Expected semaphore to be named \"%s\" not \"%s\"" %
+                          (mysem, semname))
 
         # make sure 0MQ communications checked out
         sender.validate()

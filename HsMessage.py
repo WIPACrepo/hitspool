@@ -34,10 +34,10 @@ def receive(sock):
 
     if "start_time" in mdict:
         _, mdict["start_time"] = parse_sntime(mdict["start_time"],
-                                              is_sn_ns=False)
+                                              is_sn_ns=True)
     if "stop_time" in mdict:
         _, mdict["stop_time"] = parse_sntime(mdict["stop_time"],
-                                             is_sn_ns=False)
+                                             is_sn_ns=True)
     return dict_to_object(mdict, MSG_FLDS, "Message")
 
 
