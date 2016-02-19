@@ -2,7 +2,8 @@
 
 source testbed/create_test_env.sh &&
 python HsWorker.py \
+    -H ichub29 \
     -l /tmp/worker.log \
-    -H "$hubroot/" \
+    -R "$hubroot/" \
     -C "$copysrc/" \
     $*

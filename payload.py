@@ -13,12 +13,12 @@ import os
 import struct
 
 
-class PayloadException(Exception):
+class PayloadException(Exception):  # pragma: no cover
     "Payload exception"
     pass
 
 
-class Payload(object):
+class Payload(object):  # pragma: no cover
     "Base payload class"
 
     TYPE_ID = None
@@ -115,7 +115,8 @@ class Payload(object):
         "UTC time from payload header"
         return self.__utime
 
-class UnknownPayload(Payload):
+
+class UnknownPayload(Payload):  # pragma: no cover
     "A payload which has not been implemented in this library"
 
     def __init__(self, type_id, utime, data, keep_data=True):
@@ -141,7 +142,7 @@ class UnknownPayload(Payload):
 
 # pylint: disable=invalid-name
 # This is an internal class
-class delta_codec(object):
+class delta_codec(object):  # pragma: no cover
     """
     Delta compression decoder (stolen from icecube.daq.slchit in pDAQ's PyDOM)
     """
@@ -163,7 +164,7 @@ class delta_codec(object):
             while True:
                 wrd = self.get_bits()
                 # print "%d: Got %d" % (i, wrd)
-                if wrd != (1 << (self.bpw -1)):
+                if wrd != (1 << (self.bpw - 1)):
                     break
                 self.shift_up()
             if abs(wrd) < self.bth:
@@ -227,7 +228,7 @@ class delta_codec(object):
 
 # pylint: disable=too-many-instance-attributes
 # hits hold a lot of information
-class DeltaCompressedHit(Payload):
+class DeltaCompressedHit(Payload):  # pragma: no cover
     "Delta-compressed (omicron) hits"
 
     TYPE_ID = 3
@@ -324,7 +325,7 @@ class DeltaCompressedHit(Payload):
 
         return ((self.__word2 >> 27) & 0xf,
                 ((self.__word2 >> 18) & 0x1ff) << lsh,
-                ((self.__word2 >>  9) & 0x1ff) << lsh,
+                ((self.__word2 >> 9) & 0x1ff) << lsh,
                 ((self.__word2 & 0x1ff) << lsh))
 
     @property
@@ -395,7 +396,7 @@ class DeltaCompressedHit(Payload):
         return self.__word2
 
 
-class EventV5(Payload):
+class EventV5(Payload):  # pragma: no cover
     "Standard event payload"
     TYPE_ID = 21
     MIN_LENGTH = 18
@@ -410,7 +411,6 @@ class EventV5(Payload):
 
         super(EventV5, self).__init__(utime, data, keep_data=keep_data)
 
-        #hdr = struct.unpack(">8xQHHHQII", data[:38])
         hdr = struct.unpack(">IHIII", data[:18])
 
         self.__stop_time = utime + hdr[0]
@@ -469,8 +469,8 @@ class EventV5(Payload):
 
         recs = []
         for _ in range(num_recs):
-            rechdr = struct.unpack(">6i",
-                                   data[offset:offset+TriggerRecord.HEADER_LEN])
+            offend = offset + TriggerRecord.HEADER_LEN
+            rechdr = struct.unpack(">6i", data[offset:offend])
             rec = TriggerRecord(base_time, rechdr, data,
                                 offset + TriggerRecord.HEADER_LEN)
             recs.append(rec)
@@ -512,7 +512,7 @@ class EventV5(Payload):
         return self.__uid
 
 
-class BaseHitRecord(object):
+class BaseHitRecord(object):  # pragma: no cover
     "Generic hit record class"
     HEADER_LEN = 10
 
@@ -541,7 +541,7 @@ class BaseHitRecord(object):
         return self.__utime
 
 
-class DeltaHitRecord(BaseHitRecord):
+class DeltaHitRecord(BaseHitRecord):  # pragma: no cover
     "Delta-compressed hit record inside V5 event payload"
     TYPE_ID = 1
 
@@ -549,15 +549,16 @@ class DeltaHitRecord(BaseHitRecord):
         super(DeltaHitRecord, self).__init__(base_time, hdr, data, offset)
 
 
-class EngineeringHitRecord(BaseHitRecord):
+class EngineeringHitRecord(BaseHitRecord):  # pragma: no cover
     "Engineering hit record inside V5 event payload"
     TYPE_ID = 0
 
     def __init__(self, base_time, hdr, data, offset):
-        super(EngineeringHitRecord, self).__init__(base_time, hdr, data, offset)
+        super(EngineeringHitRecord, self).__init__(base_time, hdr, data,
+                                                   offset)
 
 
-class TriggerRecord(object):
+class TriggerRecord(object):  # pragma: no cover
     "Encoded trigger request inside V5 event payload"
     HEADER_LEN = 24
 
@@ -695,7 +696,6 @@ if __name__ == "__main__":
     def main():
         "Dump all payloads"
         import argparse
-
 
         parser = argparse.ArgumentParser()
 

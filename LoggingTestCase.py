@@ -14,9 +14,12 @@ try:
 except ImportError:
     # add assertIsNone() and assertIsNotNone() to older TestCase
     from unittest import TestCase
+
     class TestCasePlus(TestCase):
+
         def assertIsNone(self, var, msg=None):
             self.assertTrue(var is None, msg)
+
         def assertIsNotNone(self, var, msg=None):
             self.assertTrue(var is not None, msg)
 

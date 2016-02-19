@@ -5,13 +5,15 @@ import logging
 import os
 import shutil
 import tarfile
-import tempfile
 import unittest
 
 import HsSender
+import HsMessage
+import HsUtil
 
 from HsException import HsException
-from HsTestUtil import Mock0MQSocket, MockI3Socket, MockHitspool
+from HsTestUtil import Mock0MQSocket, MockHitspool, MockI3Socket, TIME_PAT, \
+    get_time
 from LoggingTestCase import LoggingTestCase
 
 
@@ -20,7 +22,7 @@ class MySender(HsSender.HsSender):
     Use mock 0MQ sockets for testing
     """
     def __init__(self):
-        super(MySender, self).__init__()
+        super(MySender, self).__init__(host="tstsnd", is_test=True)
 
     def create_reporter(self):
         return Mock0MQSocket("Reporter")
@@ -32,8 +34,9 @@ class MySender(HsSender.HsSender):
         """
         Check that all expected messages were received by mock sockets
         """
-        self.reporter.validate()
-        self.i3socket.validate()
+        val = self.reporter.validate()
+        val |= self.i3socket.validate()
+        return val
 
 
 class FailableSender(MySender):
@@ -78,6 +81,185 @@ class FailableSender(MySender):
             raise HsException("Fake Tar Error")
 
 
+class TestException(Exception):
+    pass
+
+
+class MockRequestBuilder(object):
+    SNDAQ = 1
+    HESE = 2
+    ANON = 3
+
+    USRDIR = None
+
+    def __init__(self, req_id, req_type, start_utc, stop_utc, timetag, host,
+                 firstfile, numfiles):
+        self.__req_id = req_id
+        self.__start_utc = start_utc
+        self.__stop_utc = stop_utc
+        self.__host = host
+        self.__firstfile = firstfile
+        self.__numfiles = numfiles
+
+        # create initial directory
+        category = self.__get_category(req_type)
+        self.__hsdir = MockHitspool.create_copy_files(category, timetag, host,
+                                                      firstfile, numfiles,
+                                                      real_stuff=True)
+
+        # build final directory path
+        if self.USRDIR is None:
+            self.create_user_dir()
+        self.__destdir = os.path.join(self.USRDIR,
+                                      "%s_%s_%s" % (category, timetag, host))
+
+    def __get_category(self, reqtype):
+        if reqtype == self.SNDAQ:
+            return "SNALERT"
+        if reqtype == self.HESE:
+            return "HESE"
+        if reqtype == self.ANON:
+            return "ANON"
+        if isinstance(reqtype, str):
+            return reqtype
+        raise NotImplementedError("Unknown request type #%s" % reqtype)
+
+    def add_i3live_message(self, i3socket, status):
+        # build I3Live success message
+        value = {
+            'status': status,
+            'request_id': self.__req_id,
+            'username': None,
+            'start_time': str(self.__start_utc),
+            'stop_time': str(self.__stop_utc),
+            'destination_dir': self.__destdir,
+            'prefix': None,
+            'update_time': TIME_PAT,
+        }
+
+        # add all expected I3Live messages
+        i3socket.addExpectedMessage(value, service="hitspool",
+                                    varname="hsrequest_info", time=TIME_PAT)
+
+    @classmethod
+    def add_reporter_request(cls, reporter, msgtype, req_id, start_time,
+                             stop_time, host, hsdir, destdir):
+        # initialize message
+        rcv_msg = {
+            "msgtype": msgtype,
+            "request_id": req_id,
+            "username": None,
+            "start_time": start_time,
+            "stop_time": stop_time,
+            "copy_dir": hsdir,
+            "destination_dir": destdir,
+            "prefix": None,
+            "extract": None,
+            "host": host,
+        }
+
+        # add all expected JSON messages
+        reporter.addIncoming(rcv_msg)
+
+    def add_request(self, reporter, msgtype):
+        self.add_reporter_request(reporter, msgtype, self.__req_id,
+                                  self.__start_utc, self.__stop_utc,
+                                  self.__host, self.__hsdir, self.__destdir)
+
+    def check_files(self):
+        if os.path.exists(self.__hsdir):
+            raise TestException("HitSpool directory \"%s\" was not moved" %
+                                self.__hsdir)
+        if not os.path.exists(self.USRDIR):
+            raise TestException("User directory \"%s\" does not exist" %
+                                self.USRDIR)
+
+        base = os.path.basename(self.__hsdir)
+        if base == "":
+            base = os.path.basename(os.path.dirname(self.__hsdir))
+            if base == "":
+                raise TestException("Cannot find basename from %s" %
+                                    self.__hsdir)
+
+        if os.path.basename(self.__destdir) == base:
+            subdir = self.__destdir
+        else:
+            subdir = os.path.join(self.__destdir, base)
+
+        if not os.path.exists(subdir):
+            raise TestException("Moved directory \"%s\" does not exist" %
+                                subdir)
+
+        flist = []
+        for entry in os.listdir(subdir):
+            flist.append(entry)
+
+        self.check_hitspool_file_list(flist, self.__firstfile, self.__numfiles)
+
+    @classmethod
+    def check_hitspool_file_list(cls, flist, firstfile, numfiles):
+        flist.sort()
+
+        for fnum in xrange(firstfile, firstfile + numfiles):
+            fname = "HitSpool-%d" % fnum
+            if len(flist) == 0:
+                raise TestException("Not all files were copied"
+                                    " (found %d of %d)" %
+                                    (fnum - firstfile, numfiles))
+
+            if fname != flist[0]:
+                raise TestException("Expected file #%d to be \"%s\""
+                                    " not \"%s\"" %
+                                    (fnum - firstfile, fname, flist[0]))
+
+            del flist[0]
+
+        if len(flist) != 0:
+            raise TestException("%d extra files were copied (%s)" %
+                                (len(flist), flist))
+
+    @classmethod
+    def create_user_dir(cls):
+        usrdir = cls.get_user_dir()
+        if os.path.exists(usrdir):
+            raise TestException("UserDir %s already exists" % str(usrdir))
+        os.makedirs(usrdir)
+        return usrdir
+
+    @property
+    def destdir(self):
+        return self.__destdir
+
+    @classmethod
+    def destroy(cls):
+        if cls.USRDIR is not None:
+            # clear lingering files
+            try:
+                shutil.rmtree(cls.USRDIR)
+            except:
+                pass
+            cls.USRDIR = None
+
+    @classmethod
+    def get_user_dir(cls):
+        if cls.USRDIR is None:
+            if MockHitspool.COPY_DIR is not None:
+                cls.USRDIR = os.path.join(MockHitspool.COPY_DIR, "UserCopy")
+        return cls.USRDIR
+
+    @property
+    def host(self):
+        return self.__host
+
+    @property
+    def hsdir(self):
+        return self.__hsdir
+
+    @property
+    def req_id(self):
+        return self.__req_id
+
+
 class HsSenderTest(LoggingTestCase):
     # pylint: disable=too-many-public-methods
     # Really?!?!  In a test class?!?!  Shut up, pylint!
@@ -100,60 +282,6 @@ class HsSenderTest(LoggingTestCase):
         if len(flist) != 0:
             self.fail("%d extra files were copied (%s)", (len(flist), flist))
 
-    def __full_test(self, category, timetag, host, target, rsync_prefix,
-                    firstnum, numfiles):
-        sender = MySender()
-        self.SENDER = sender
-
-        # create real directories
-        hsdir = MockHitspool.create_copy_files(category, timetag, host,
-                                               firstnum, numfiles,
-                                               real_stuff=True)
-        usrdir = os.path.join(MockHitspool.COPY_DIR, target)
-
-        # initialize message
-        rcv_msg = {
-            "msgtype": "rsync_sum",
-            "copydir": hsdir,
-            "copydir_user": rsync_prefix + usrdir,
-        }
-
-        # add all expected JSON messages
-        sender.reporter.addIncoming(json.dumps(rcv_msg))
-
-        # don't check DEBUG/INFO log messages
-        self.setLogLevel(logging.WARN)
-
-        # run it!
-        sender.mainloop()
-
-        self.assertFalse(os.path.exists(hsdir),
-                         "HitSpool directory \"%s\" was not moved" % hsdir)
-        self.assertTrue(os.path.exists(usrdir),
-                        "User directory \"%s\" does not exist" % usrdir)
-
-        base = os.path.basename(hsdir)
-        if base == "":
-            base = os.path.basename(os.path.dirname(hsdir))
-            if base == "":
-                self.fail("Cannot find basename from %s" % hsdir)
-        subdir = os.path.join(usrdir, base)
-        self.assertTrue(os.path.exists(subdir),
-                        "Moved directory \"%s\" does not exist" % subdir)
-
-        # I'm not sure why, but there's a dual level of subdirectories
-        subsub = os.path.join(subdir, base)
-        self.assertTrue(os.path.exists(subsub),
-                        "Moved subdirectory \"%s\" does not exist" % subsub)
-
-        flist = []
-        for entry in os.listdir(subsub):
-            flist.append(entry)
-        self.__check_hitspool_file_list(flist, firstnum, numfiles)
-
-        # make sure 0MQ communications checked out
-        sender.validate()
-
     def setUp(self):
         super(HsSenderTest, self).setUp()
         # by default, check all log messages
@@ -167,13 +295,32 @@ class HsSenderTest(LoggingTestCase):
             try:
                 MockHitspool.destroy()
             except:
-                pass
+                import traceback
+                traceback.print_exc()
+
+            try:
+                MockRequestBuilder.destroy()
+            except:
+                import traceback
+                traceback.print_exc()
+
+            # close all sockets
             if self.SENDER is not None:
                 try:
                     self.SENDER.close_all()
                 except:
-                    pass
+                    import traceback
+                    traceback.print_exc()
                 self.SENDER = None
+
+            # get rid of HsSender's state database
+            dbpath = HsSender.HsSender.get_db_path()
+            if os.path.exists(dbpath):
+                try:
+                    os.unlink(dbpath)
+                except:
+                    import traceback
+                    traceback.print_exc()
 
     def test_bad_dir_name(self):
         sender = FailableSender()
@@ -193,15 +340,13 @@ class HsSenderTest(LoggingTestCase):
         self.setLogLevel(logging.WARN)
 
         # add all expected log messages
-        self.expectLogMessage("Naming scheme validation failed.")
-        self.expectLogMessage("Please put the data manually in the"
-                              " desired location: %s" % usrdir)
+        datadir = os.path.basename(hsdir)
 
         # run it!
-        sender.hs_data_location_check(hsdir, usrdir)
+        sender.move_to_destination_dir(hsdir, usrdir)
 
-        # make sure no files moved
-        self.assertFalse(sender.moved_files(), "Should not have moved files")
+        # files should have been moved!
+        self.assertTrue(sender.moved_files(), "Should have moved files")
 
         # make sure 0MQ communications checked out
         sender.validate()
@@ -227,7 +372,7 @@ class HsSenderTest(LoggingTestCase):
         self.setLogLevel(logging.WARN)
 
         # run it!
-        sender.hs_data_location_check(hsdir, usrdir)
+        sender.move_to_destination_dir(hsdir, usrdir)
 
         # make sure no files moved
         self.assertFalse(sender.moved_files(), "Should not have moved files")
@@ -253,7 +398,7 @@ class HsSenderTest(LoggingTestCase):
         self.setLogLevel(logging.WARN)
 
         # run it!
-        sender.hs_data_location_check(hsdir, usrdir)
+        sender.move_to_destination_dir(hsdir, usrdir)
 
         # files should have been moved!
         self.assertTrue(sender.moved_files(), "Should have moved files")
@@ -265,55 +410,21 @@ class HsSenderTest(LoggingTestCase):
         sender = MySender()
         self.SENDER = sender
 
-        # initialize directory parts
-        category = "SNALERT"
-        timetag = "12345678_987654"
-        host = "ichub01"
-
-        # initialize HitSpool file parameters
-        firstnum = 11
-        numfiles = 3
-
-        # create real directories
-        hsdir = MockHitspool.create_copy_files(category, timetag, host,
-                                               firstnum, numfiles,
-                                               real_stuff=True)
-        usrdir = os.path.join(MockHitspool.COPY_DIR, "UserCopy")
+        req = MockRequestBuilder(None, MockRequestBuilder.SNDAQ, None, None,
+                                 "12345678_987654", "ichub01", 11, 3)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
         # run it!
-        sender.hs_data_location_check(hsdir, usrdir)
+        sender.move_to_destination_dir(req.hsdir, req.destdir)
 
-        self.assertFalse(os.path.exists(hsdir),
-                         "HitSpool directory \"%s\" was not moved" % hsdir)
-        self.assertTrue(os.path.exists(usrdir),
-                        "User directory \"%s\" does not exist" % usrdir)
-
-        base = os.path.basename(hsdir)
-        if base == "":
-            base = os.path.basename(os.path.dirname(hsdir))
-            if base == "":
-                self.fail("Cannot find basename from %s" % hsdir)
-        subdir = os.path.join(usrdir, base)
-        self.assertTrue(os.path.exists(subdir),
-                        "Moved directory \"%s\" does not exist" % subdir)
-
-        # I'm not sure why, but there's a dual level of subdirectories
-        subsub = os.path.join(subdir, base)
-        self.assertTrue(os.path.exists(subsub),
-                        "Moved subdirectory \"%s\" does not exist" % subsub)
-
-        flist = []
-        for entry in os.listdir(subsub):
-            flist.append(entry)
-        self.__check_hitspool_file_list(flist, firstnum, numfiles)
+        req.check_files()
 
         # make sure 0MQ communications checked out
         sender.validate()
 
-    def test_spade_data_bad_copy_dir(self):
+    def test_spade_data_nonstandard_prefix(self):
         sender = FailableSender()
         self.SENDER = sender
 
@@ -326,27 +437,38 @@ class HsSenderTest(LoggingTestCase):
         firstnum = 11
         numfiles = 3
 
-        # create bad directory name
-        hsdir = MockHitspool.create_copy_files(category, timetag, host,
-                                               firstnum, numfiles,
-                                               real_stuff=False)
+        req = MockRequestBuilder(None, category, None, None, timetag, host,
+                                 firstnum, numfiles)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
-        # add all expected log messages
-        self.expectLogMessage("Naming scheme validation failed.")
-        self.expectLogMessage("Please put the data manually in the SPADE"
-                              " directory. Use HsSpader.py, for example.")
+        mybase = "%s_%s_%s" % (category, timetag, host)
+        mytar = "HS_%s.dat.tar.bz2" % mybase
+        mysem = "HS_%s.sem" % mybase
+
+        # create real directories
+        hsdir = MockHitspool.create_copy_files(category, timetag, host,
+                                               firstnum, numfiles,
+                                               real_stuff=True)
+        # add all expected I3Live messages
+        sender.i3socket.addExpectedValue("SPADE-ing of %s done" % hsdir)
+
+        # clean up test files
+        for fnm in (mytar, mysem):
+            tmppath = os.path.join(sender.HS_SPADE_DIR, fnm)
+            if os.path.exists(tmppath):
+                os.unlink(tmppath)
 
         # run it!
         (tarname, semname) \
             = sender.spade_pickup_data(hsdir, "/foo/bar")
-
-        self.assertIsNone(tarname, "spade_pickup_data() should return None,"
-                          " not tar name \"%s\"" % tarname)
-        self.assertIsNone(semname, "spade_pickup_data() should return None,"
-                          " not semaphore name \"%s\"" % semname)
+        self.assertEquals(mytar, tarname,
+                          "Expected tarfile to be named \"%s\" not \"%s\"" %
+                          (mytar, tarname))
+        self.assertEquals(mysem, semname,
+                          "Expected semaphore to be named \"%s\" not \"%s\"" %
+                          (mysem, semname))
 
         # make sure 0MQ communications checked out
         sender.validate()
@@ -380,13 +502,9 @@ class HsSenderTest(LoggingTestCase):
                               " directory. Use HsSpader.py, for example.")
 
         # run it!
-        (tarname, semname) \
-            = sender.spade_pickup_data(hsdir, "/foo/bar")
-
-        self.assertIsNone(tarname, "spade_pickup_data() should return None,"
-                          " not tar name \"%s\"" % tarname)
-        self.assertIsNone(semname, "spade_pickup_data() should return None,"
-                          " not semaphore name \"%s\"" % semname)
+        result = sender.spade_pickup_data(hsdir, "/foo/bar")
+        self.assertIsNone(result, "spade_pickup_data() should return None,"
+                          " not %s" % str(result))
 
         # make sure 0MQ communications checked out
         sender.validate()
@@ -420,13 +538,9 @@ class HsSenderTest(LoggingTestCase):
                               " directory. Use HsSpader.py, for example.")
 
         # run it!
-        (tarname, semname) \
-            = sender.spade_pickup_data(hsdir, "/foo/bar")
-
-        self.assertIsNone(tarname, "spade_pickup_data() should return None,"
-                          " not tar name \"%s\"" % tarname)
-        self.assertIsNone(semname, "spade_pickup_data() should return None,"
-                          " not semaphore name \"%s\"" % semname)
+        result = sender.spade_pickup_data(hsdir, "/foo/bar")
+        self.assertIsNone(result, "spade_pickup_data() should return None,"
+                          " not %s" % str(result))
 
         # make sure 0MQ communications checked out
         sender.validate()
@@ -460,13 +574,9 @@ class HsSenderTest(LoggingTestCase):
                               " directory. Use HsSpader.py, for example.")
 
         # run it!
-        (tarname, semname) \
-            = sender.spade_pickup_data(hsdir, "/foo/bar")
-
-        self.assertIsNone(tarname, "spade_pickup_data() should return None,"
-                          " not tar name \"%s\"" % tarname)
-        self.assertIsNone(semname, "spade_pickup_data() should return None,"
-                          " not semaphore name \"%s\"" % semname)
+        result = sender.spade_pickup_data(hsdir, "/foo/bar")
+        self.assertIsNone(result, "spade_pickup_data() should return None,"
+                          " not %s" % str(result))
 
         # make sure 0MQ communications checked out
         sender.validate()
@@ -511,13 +621,12 @@ class HsSenderTest(LoggingTestCase):
         # run it!
         (tarname, semname) \
             = sender.spade_pickup_data(hsdir, "/foo/bar")
-
-        self.assertEquals(mysem, semname,
-                          "Expected semaphore to be named \"%s\" not \"%s\"" %
-                          (mysem, semname))
         self.assertEquals(mytar, tarname,
                           "Expected tarfile to be named \"%s\" not \"%s\"" %
                           (mytar, tarname))
+        self.assertEquals(mysem, semname,
+                          "Expected semaphore to be named \"%s\" not \"%s\"" %
+                          (mysem, semname))
 
         sempath = os.path.join(sender.HS_SPADE_DIR, semname)
         self.assertTrue(os.path.exists(sempath),
@@ -539,7 +648,7 @@ class HsSenderTest(LoggingTestCase):
         tar.close()
 
         # validate the list
-        self.__check_hitspool_file_list(names, firstnum, numfiles)
+        MockRequestBuilder.check_hitspool_file_list(names, firstnum, numfiles)
 
         # make sure 0MQ communications checked out
         sender.validate()
@@ -549,20 +658,21 @@ class HsSenderTest(LoggingTestCase):
         self.SENDER = sender
 
         # initialize message
-        msg = None
+        no_msg = None
 
         # add all expected JSON messages
-        sender.reporter.addIncoming(json.dumps(msg))
+        sender.reporter.addIncoming(no_msg)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
-        # add all expected log messages
-        self.expectLogMessage("Ignoring bad message \"%s\"<%s>" %
-                              (None, type(None)))
+        self.expectLogMessage("Ignoring empty (None) message")
 
         # run it!
         sender.mainloop()
+
+        # wait for message to be processed
+        sender.wait_for_idle()
 
         # make sure 0MQ communications checked out
         sender.validate()
@@ -572,45 +682,27 @@ class HsSenderTest(LoggingTestCase):
         self.SENDER = sender
 
         # initialize message
-        msg = json.dumps("abc")
+        msg = "abc"
+        snd_msg = json.dumps("abc")
 
         # add all expected JSON messages
-        sender.reporter.addIncoming(msg)
+        sender.reporter.addIncoming(snd_msg)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
-        # add all expected log messages
-        rcv_msg = json.loads(msg)
-        self.expectLogMessage("Ignoring bad message \"%s\"<%s>" %
-                              (rcv_msg, type(rcv_msg)))
-
         # run it!
-        sender.mainloop()
+        try:
+            sender.mainloop()
+        except HsException, hse:
+            hsestr = str(hse)
+            expstr = "Message is not a dictionary: \"\"%s\"\"<%s>" % \
+                     (msg, type(msg))
+            if hsestr.find(expstr) < 0:
+                self.fail("Unexpected exception: " + hsestr)
 
-        # make sure 0MQ communications checked out
-        sender.validate()
-
-    def test_main_loop_bad_msg(self):
-        sender = MySender()
-        self.SENDER = sender
-
-        # initialize message
-        msg = json.dumps({"abc": 123})
-
-        # add all expected JSON messages
-        sender.reporter.addIncoming(msg)
-
-        # don't check DEBUG/INFO log messages
-        self.setLogLevel(logging.WARN)
-
-        # add all expected log messages
-        rcv_msg = json.loads(msg)
-        self.expectLogMessage("Ignoring bad message \"%s\"<%s>" %
-                              (rcv_msg, type(rcv_msg)))
-
-        # run it!
-        sender.mainloop()
+        # wait for message to be processed
+        sender.wait_for_idle()
 
         # make sure 0MQ communications checked out
         sender.validate()
@@ -620,20 +712,24 @@ class HsSenderTest(LoggingTestCase):
         self.SENDER = sender
 
         # initialize message
-        msg = json.dumps({"msgtype": "rsync_sum"})
+        rcv_msg = {"msgtype": "rsync_sum"}
 
         # add all expected JSON messages
-        sender.reporter.addIncoming(msg)
+        sender.reporter.addIncoming(rcv_msg)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
-        # add all expected log messages
-        rcv_msg = json.loads(msg)
-        self.expectLogMessage("Ignoring incomplete message \"%s\"" % rcv_msg)
-
         # run it!
-        sender.mainloop()
+        try:
+            sender.mainloop()
+        except HsException, hse:
+            hsestr = str(hse)
+            if hsestr.find("Missing fields ") < 0:
+                self.fail("Unexpected exception: " + hsestr)
+
+        # wait for message to be processed
+        sender.wait_for_idle()
 
         # make sure 0MQ communications checked out
         sender.validate()
@@ -645,70 +741,136 @@ class HsSenderTest(LoggingTestCase):
         # initialize message
         rcv_msg = {
             "msgtype": "xxx",
-            "copydir": "yyy",
-            "copydir_user": "zzz",
+            "request_id": None,
+            "username": None,
+            "start_time": None,
+            "stop_time": None,
+            "copy_dir": None,
+            "destination_dir": None,
+            "prefix": None,
+            "extract": None,
+            "host": None,
         }
 
         # add all expected JSON messages
-        sender.reporter.addIncoming(json.dumps(rcv_msg))
+        sender.reporter.addIncoming(rcv_msg)
+
+        # don't check DEBUG/INFO log messages
+        self.setLogLevel(logging.WARN)
+
+        # run it!
+        try:
+            sender.mainloop()
+        except HsException, hse:
+            hsestr = str(hse)
+            if hsestr.find("No date/time specified") < 0:
+                self.fail("Unexpected exception: " + hsestr)
+
+        # wait for message to be processed
+        sender.wait_for_idle()
+
+        # make sure 0MQ communications checked out
+        sender.validate()
+
+    def test_main_loop_no_init_just_success(self):
+        sender = MySender()
+        self.SENDER = sender
+
+        # expected start/stop times
+        start_ticks = 98765432100000
+        stop_ticks = 98899889980000
+        start_utc = get_time(start_ticks)
+        stop_utc = get_time(stop_ticks)
+
+        req = MockRequestBuilder("1234abcd", MockRequestBuilder.SNDAQ,
+                                 start_utc, stop_utc, "12345678_987654",
+                                 "ichub01", 11, 3)
+
+        msgtype = HsMessage.MESSAGE_DONE
+        req.add_request(sender.reporter, msgtype)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
         # add all expected log messages
-        self.expectLogMessage("Ignoring message type \"%s\"" %
-                              rcv_msg["msgtype"])
+        self.expectLogMessage("Request %s was not initialized (received %s"
+                              " from %s)" % (req.req_id, msgtype, req.host))
+        self.expectLogMessage("Saw %s message for request %s host %s without"
+                              " a START message" % (msgtype, req.req_id,
+                                                    req.host))
+
+        req.add_i3live_message(sender.i3socket, HsUtil.STATUS_SUCCESS)
 
         # run it!
         sender.mainloop()
 
+        # wait for message to be processed
+        sender.wait_for_idle()
+
+        # make sure expected files were copied
+        req.check_files()
+
         # make sure 0MQ communications checked out
         sender.validate()
 
-    def test_main_loop_SNALERT(self):
-        # initialize directory parts
-        category = "SNALERT"
+    def test_main_loop_multi_request(self):
+        sender = MySender()
+        self.SENDER = sender
+
+        # expected start/stop times
+        start_ticks = 98765432100000
+        stop_ticks = 98899889980000
+        start_utc = get_time(start_ticks)
+        stop_utc = get_time(stop_ticks)
+
+        # request details
+        req_id = "1234abcd"
+        req_type = MockRequestBuilder.SNDAQ
         timetag = "12345678_987654"
-        host = "ichub01"
-        target = "UserCopy"
-        rsync_prefix = ""
 
-        # initialize HitSpool file parameters
-        firstnum = 11
-        numfiles = 3
+        # create two requests
+        req1 = MockRequestBuilder(req_id, req_type, start_utc, stop_utc,
+                                  timetag, "ichub01", 11, 3)
+        req2 = MockRequestBuilder(req_id, req_type, start_utc, stop_utc,
+                                  timetag, "ichub86", 11, 3)
 
-        self.__full_test(category, timetag, host, target, rsync_prefix,
-                         firstnum, numfiles)
+        # add initial message
+        req1.add_request(sender.reporter, HsMessage.MESSAGE_INITIAL)
 
-    def test_main_loop_HESE_no_hostname(self):
-        # initialize directory parts
-        category = "HESE"
-        timetag = "12345678_987654"
-        host = "ichub01"
-        target = "123_456_2015-11-17T20:15:58.666638"
-        rsync_prefix = ""
+        # add initial message for Live
+        req1.add_i3live_message(sender.i3socket, HsUtil.STATUS_QUEUED)
 
-        # initialize HitSpool file parameters
-        firstnum = 11
-        numfiles = 3
+        # add start messages
+        msgtype = HsMessage.MESSAGE_STARTED
+        req1.add_request(sender.reporter, msgtype)
+        req2.add_request(sender.reporter, msgtype)
 
-        self.__full_test(category, timetag, host, target, rsync_prefix,
-                         firstnum, numfiles)
+        # add in-progress message for Live
+        req1.add_i3live_message(sender.i3socket, HsUtil.STATUS_IN_PROGRESS)
 
-    def test_main_loop_HESE_plus_hostname(self):
-        # initialize directory parts
-        category = "HESE"
-        timetag = "12345678_987654"
-        host = "ichub01"
-        target = "123_456_2015-11-17T20:15:58.666638"
-        rsync_prefix = "somehost:"
+        # add done messages
+        msgtype = HsMessage.MESSAGE_DONE
+        req1.add_request(sender.reporter, msgtype)
+        req2.add_request(sender.reporter, msgtype)
 
-        # initialize HitSpool file parameters
-        firstnum = 11
-        numfiles = 3
+        # don't check DEBUG/INFO log messages
+        self.setLogLevel(logging.WARN)
 
-        self.__full_test(category, timetag, host, target, rsync_prefix,
-                         firstnum, numfiles)
+        # add final message for Live
+        req2.add_i3live_message(sender.i3socket, HsUtil.STATUS_SUCCESS)
+
+        # run it!
+        while sender.reporter.has_input:
+            sender.mainloop()
+
+        # wait for message to be processed
+        sender.wait_for_idle()
+
+        req1.check_files()
+        req2.check_files()
+
+        # make sure 0MQ communications checked out
+        sender.validate()
 
 
 if __name__ == '__main__':

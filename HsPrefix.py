@@ -8,8 +8,9 @@ class HsPrefix(object):
     ANON = "ANON"
     HESE = "HESE"
     SNALERT = "SNALERT"
+    LIVE = "i3live"
 
-    __LIST = (HESE, SNALERT, ANON)
+    __LIST = (HESE, SNALERT, ANON, LIVE)
 
     @classmethod
     def guess_from_dir(cls, copydir):
@@ -25,5 +26,6 @@ class HsPrefix(object):
 
 
 if __name__ == "__main__":
-    for pfx in (HsPrefix.ANON, HsPrefix.HESE, HsPrefix.SNALERT, "XXX"):
+    for pfx in (HsPrefix.ANON, HsPrefix.HESE, HsPrefix.SNALERT, HsPrefix.LIVE,
+                "XXX"):
         print "%s valid? == %s" % (pfx, HsPrefix.is_valid(pfx))

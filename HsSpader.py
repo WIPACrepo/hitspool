@@ -1,13 +1,28 @@
 #!/usr/bin/env python
 #
-#Hit Spool SPADE-ing to be run on access
-#author: dheereman
+# Hit Spool SPADE-ing to be run on access
+# author: dheereman
 #
 import glob
 import logging
 import os
 
 import HsBase
+
+
+def add_arguments(parser):
+    example_log_path = os.path.join(HsBase.DEFAULT_LOG_PATH, "hsspader.log")
+
+    parser.add_argument("-i", "--indir", dest="indir", required=True,
+                        help="Input dir where hs data is located,"
+                        " e.g. /mnt/data/pdaqlocal/HsDataCopy/")
+    parser.add_argument("-l", "--logfile", dest="logfile",
+                        help="Log file (e.g. %s)" % example_log_path)
+    parser.add_argument("-o", "--outdir", dest="spadedir", required=True,
+                        help="Directory where files are queued to SPADE")
+    parser.add_argument("-p", "--pattern", dest="pattern", required=True,
+                        help="time pattern of HS data alert: "
+                        " <yyyymmdd>_<hhmmss>, e.g. 20131101_045126")
 
 
 class HsSpader(HsBase.HsBase):
@@ -52,8 +67,8 @@ class HsSpader(HsBase.HsBase):
 
         datalistlocal = [os.path.basename(s) for s in datalist]
 
-        hubnamelist = ["ichub%02d" %i for i in xrange(1, 87)] + \
-                      ["ithub%02d" %i for i in xrange(1, 12)]
+        hubnamelist = ["ichub%02d" % i for i in xrange(1, 87)] + \
+                      ["ithub%02d" % i for i in xrange(1, 12)]
         for hub in hubnamelist:
             tarname = "HS_SNALERT_" + alertname + "_" + hub + ".dat.tar.bz2"
             semname = "HS_SNALERT_" + alertname + "_" + hub + ".sem"
@@ -75,73 +90,19 @@ class HsSpader(HsBase.HsBase):
             logging.info("Preparation for SPADE Pickup of %s DONE", tarname)
 
 if __name__ == "__main__":
-    import getopt
-    import sys
-
-
-    def process_args():
-        indir = None
-        pattern = None
-        outdir = None
-        logfile = None
-
-        #take arguments from command line and check for correct input
-        usage = False
-        try:
-            opts, _ = getopt.getopt(sys.argv[1:], 'hi:l:o:p:',
-                                    ['help', 'indir=', 'log=', 'outdir=',
-                                     'pattern='])
-        except getopt.GetoptError, err:
-            print >>sys.stderr, str(err)
-            opts = []
-            usage = True
-
-        for opt, arg in opts:
-            if opt == "-i" or opt == "--indir":
-                indir = str(arg)
-            elif opt == "-p" or opt == "--pattern":
-                pattern = str(arg)
-            elif opt == "-o" or opt == "--outdir":
-                outdir = str(arg)
-            elif opt == "-l" or opt == "--log":
-                logfile = str(arg)
-            elif opt == '-h' or opt == '--help':
-                usage = True
-
-        if not usage:
-            if indir is None:
-                print >>sys.stderr, "Please specify input directory with \"-i\""
-                usage = True
-            elif pattern is None:
-                print >>sys.stderr, "Please specify time pattern with \"-p\""
-                usage = True
-            elif outdir is None:
-                print >>sys.stderr, "Please specify output directory with \"-o\""
-                usage = True
-
-        if usage:
-            print >>sys.stderr, """
-usage :: HsSpader.py [options]
-  -i  |  Input dir where hs data is located
-      |    e.g. /mnt/data/pdaqlocal/HsDataCopy/
-  -p  |  time pattern of HS data alert:<yyyymmdd>_<hhmmss>
-      |    e.g. 20131101_045126
-  -o  |  Output directory
-      |    default is /mnt/data/HitSpool/
-  -l  |  logfile
-      |    e.g. /mnt/data/pdaqlocal/HsInterface/logs/hssender.log
-"""
-            raise SystemExit(1)
-
-        return indir, pattern, outdir, logfile
+    import argparse
 
     def main():
-        indir, pattern, outdir, logfile = process_args()
+        p = argparse.ArgumentParser()
+
+        add_arguments(p)
+
+        args = p.parse_args()
 
         hsp = HsSpader()
 
-        hsp.init_logging(logfile)
+        hsp.init_logging(args.logfile, basename="hsspader", basehost="access")
 
-        hsp.spade_pickup_data(indir, pattern, outdir)
+        hsp.spade_pickup_data(args.indir, args.pattern, args.spadedir)
 
     main()

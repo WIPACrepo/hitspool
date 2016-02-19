@@ -2,7 +2,31 @@
 
 See https://wiki.icecube.wisc.edu/index.php/HitSpool_Interface_Operation_Manual
 
+### Restarting the detector
+
+In an emergency, log onto access and run:
+
+`cd HsInterface/current && fab hs_start`
+
+This will stop all the hitspool programs and restart them.
+
+### Deploying
+
+On access:
+
+`cd HsInterface/current && fab hs_deploy && fab hs_start`
+
 ### Testing
+
+All-in-one testing:
+
+Run `testbed/test-requests.py`
+
+This creates a fake hitspool directory, spawns separate threads running
+HsPublisher, HsWorker, and HsSender, then feeds in requests and validates
+validates the resulting files and messages to Live.
+
+Older testbed:
 
 Open 4 terminal tabs and run:
 

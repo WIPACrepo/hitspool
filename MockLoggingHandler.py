@@ -14,7 +14,7 @@ class MockLoggingHandler(logging.Handler):
         self.__expected = []
         self.__verbose = False
 
-        if kwargs.has_key("out_of_order") and kwargs["out_of_order"]:
+        if "out_of_order"in kwargs and kwargs["out_of_order"]:
             out_of_order = True
             del kwargs["out_of_order"]
         else:
@@ -55,11 +55,20 @@ class MockLoggingHandler(logging.Handler):
                 if errmsg is None:
                     del self.__expected[i]
                     return
-                #if self.__verbose:
-                #    print >>sys.stderr, "ERR#%d>> %s" % (i, errmsg)
+                # if self.__verbose:
+                #     print >>sys.stderr, "ERR#%d>> %s" % (i, errmsg)
 
         raise Exception("Unexpected log message: %s[%s]%s" %
                         (record.name, record.levelname, recmsg))
+
+    def __stringify(self, msglist):
+        fixed = []
+        for msg in msglist:
+            try:
+                fixed.append("REGEX(%s)" % msg.pattern)
+            except:
+                fixed.append(msg)
+        return fixed
 
     def __validate(self, recmsg, xmsg):
         if isinstance(xmsg, str) or isinstance(xmsg, unicode):
@@ -113,9 +122,11 @@ class MockLoggingHandler(logging.Handler):
     # pylint: disable=invalid-name
     # match other test methods
     def setVerbose(self, value=True):
-        self.__verbose = value
+        self.__verbose = (value is True)
 
     def validate(self):
         if len(self.__expected) > 0:
             raise Exception("Didn't receive %d log messages: %s" %
-                            (len(self.__expected), self.__expected))
+                            (len(self.__expected),
+                             self.__stringify(self.__expected)))
+        return True

@@ -7,7 +7,6 @@
 #check out the icecube wiki page for instructions:
 https://wiki.icecube.wisc.edu/index.php/HitSpool_Interface_Operation_Manual
 """
-import json
 import logging
 import os
 import random
@@ -15,11 +14,15 @@ import re
 import signal
 import time
 import traceback
+import zmq
 
 from datetime import datetime, timedelta
+from zmq import ZMQError
 
+import HsMessage
 import HsUtil
 
+from HsBase import HsBase
 from HsException import HsException
 from HsPrefix import HsPrefix
 from HsRSyncFiles import HsRSyncFiles
@@ -27,6 +30,26 @@ from HsRSyncFiles import HsRSyncFiles
 
 # maximum number of seconds of data which can be requested
 MAX_REQUEST_SECONDS = 610
+
+
+def add_arguments(parser):
+    dflt_copydir = "%s@%s:%s" % (HsBase.DEFAULT_RSYNC_USER,
+                                 HsBase.DEFAULT_RSYNC_HOST,
+                                 HsBase.DEFAULT_COPY_PATH)
+
+    example_log_path = os.path.join(HsBase.DEFAULT_LOG_PATH, "hsworker.log")
+
+    parser.add_argument("-C", "--copydir", dest="copydir",
+                        default=os.path.join(dflt_copydir, "test"),
+                        help="Final directory on 2ndbuild as user pdaq")
+    parser.add_argument("-H", "--hostname", dest="hostname",
+                        default=None,
+                        help="Name of this host")
+    parser.add_argument("-l", "--logfile", dest="logfile",
+                        help="Log file (e.g. %s)" % example_log_path)
+    parser.add_argument("-R", "--hubroot", dest="hubroot",
+                        default=os.path.join(dflt_copydir, "test"),
+                        help="Final directory on 2ndbuild as user pdaq")
 
 
 class Worker(HsRSyncFiles):
@@ -49,80 +72,57 @@ class Worker(HsRSyncFiles):
     # location of copy directory used for testing HsInterface
     TEST_COPY_DIR = "/home/david/data/HitSpool/copytest"
 
-    def __init__(self, progname, is_test=False):
-        super(Worker, self).__init__(host=None, is_test=is_test)
+    def __init__(self, progname, host=None, is_test=False):
+        super(Worker, self).__init__(host=host, is_test=is_test)
 
         self.__copydir_dft = None
         self.__service = "HSiface"
         self.__varname = "%s@%s" % (progname, self.shorthost)
 
-    def alert_parser(self, alert, logfile, sleep_secs=4):
+    def alert_parser(self, req, logfile, sleep_secs=4):
         """
         Parse the Alert message for starttime, stoptime, sn-alert-time-stamp
         and directory where-to the data has to be copied.
         """
 
-        utc_now = datetime.utcnow()
-        jan1 = datetime(utc_now.year, 1, 1)
-
-        # --- Parsing alert message JSON ----- :
-        # XXX do json.loads() translation before calling alert_parser()
-        try:
-            alert_list = json.loads(alert)
-        except:
-            raise HsException("Cannot load \"%s\": %s" %
-                              (alert, traceback.format_exc()))
-
-        if not isinstance(alert_list, list):
-            raise HsException("Alert \"%s\" is not valid" % alert)
-
-        if len(alert_list) > 1:
-            logging.error("Ignoring all but first of %d alerts",
-                          len(alert_list))
-        elif len(alert_list) == 0:
-            raise HsException("Alert \"%s\" contains empty list" % alert)
-
-        alert_info = alert_list[0]
-        if not isinstance(alert_info, dict):
-            raise HsException("Alert \"%s\" does not contain a dict" % alert)
-
         try:
             # timestamp in ns as a string
-            sn_start, start_utc = HsUtil.parse_sntime(alert_info['start'])
+            sn_start, start_utc = HsUtil.parse_sntime(req.start_time)
         except:
             raise HsException("Bad start time \"%s\": %s" %
-                              (alert, traceback.format_exc()))
+                              (req.start_time, traceback.format_exc()))
 
         (sn_start, start_utc) \
             = HsUtil.fix_date_or_timestamp(sn_start, start_utc, is_sn_ns=True)
 
         try:
             # timestamp in ns as a string
-            sn_stop, stop_utc = HsUtil.parse_sntime(alert_info['stop'])
+            sn_stop, stop_utc = HsUtil.parse_sntime(req.stop_time)
         except:
-            raise HsException("Bad stop time \"%s\": %s" %
-                              (alert, traceback.format_exc()))
+            raise HsException("Bad stop time in %s: %s" %
+                              (req.stop_time, traceback.format_exc()))
 
         (sn_stop, stop_utc) \
             = HsUtil.fix_date_or_timestamp(sn_stop, stop_utc, is_sn_ns=True)
 
         # should we extract only the matching hits to a new file?
-        extract_hits = alert_info.has_key('extract')
-
-        if not alert_info.has_key('copy') or alert_info['copy'] is None:
-            raise HsException("Copy directory must be set")
+        extract_hits = req.extract
 
         # should be something like: pdaq@expcont:/mnt/data/pdaqlocal/HsDataCopy
-        hs_user_machinedir = alert_info['copy']
+        hs_user_machinedir = req.destination_dir
         logging.info("HS machinedir = %s", hs_user_machinedir)
 
+        # initialize a couple of time values
+        utc_now = datetime.utcnow()
+        jan1 = datetime(utc_now.year, 1, 1)
+
         logging.info("SN START [ns] = %d", sn_start)
-        #sndaq time units are nanoseconds
+        # sndaq time units are nanoseconds
         alertstart = jan1 + timedelta(seconds=sn_start*1.0E-9)
         logging.info("ALERTSTART: %s", alertstart)
 
         logging.info("SN STOP [ns] = %s", sn_stop)
-        #sndaq time units are nanosecond
+        # sndaq time units are nanosecond
         alertstop = jan1 + timedelta(seconds=sn_stop*1.0E-9)
         logging.info("ALERTSTOP = %s", alertstop)
 
@@ -130,10 +130,10 @@ class Worker(HsRSyncFiles):
         datarange = alertstop - alertstart
         datamax = timedelta(0, MAX_REQUEST_SECONDS)
         if datarange > datamax:
-            range_secs = datarange.days * (24 * 60 * 60) + datarange.seconds + \
-                         (datarange.microseconds / 1E6)
+            range_secs = datarange.days * (24 * 60 * 60) + \
+                datarange.seconds + (datarange.microseconds / 1E6)
             max_secs = datamax.days * (24 * 60 * 60) + datamax.seconds + \
-                       (datamax.microseconds / 1E6)
+                (datamax.microseconds / 1E6)
             errmsg = "Request for %.2fs exceeds limit of allowed data time" \
                      " range of %.2fs. Abort request..." % \
                      (range_secs, max_secs)
@@ -141,51 +141,34 @@ class Worker(HsRSyncFiles):
             logging.error(errmsg)
             return None
 
-        # send conversion of the timestamps:
-        self.send_alert({
-            "START": sn_start,
-            "STOP": sn_stop,
-            "UTCSTART": str(alertstart),
-            "UTCSTOP": str(alertstop)
-        })
-
-        rtnval = self.request_parser(alertstart, alertstop, hs_user_machinedir,
+        result = self.request_parser(req.prefix, alertstart, alertstop,
+                                     hs_user_machinedir,
                                      extract_hits=extract_hits,
                                      sender=self.sender,
                                      sleep_secs=sleep_secs,
                                      make_remote_dir=False)
-        if rtnval is None:
+        if result is None:
+            logging.error("Request failed")
             return None
-
-        timetag = rtnval
 
         # -- also transmit the log file to the HitSpool copy directory:
         if self.is_cluster_sps or self.is_cluster_spts:
-            logfiledir = "/mnt/data/pdaqlocal/HsInterface/logs/workerlogs"
-            logtargetdir = self.extract_ssh_access(hs_user_machinedir) + ":" + \
-                           logfiledir
+            logfiledir = os.path.join(HsBase.DEFAULT_LOG_PATH, "workerlogs")
+            user_host, _ = HsUtil.split_rsync_host_and_path(hs_user_machinedir)
+            logtargetdir = "%s:%s" % (user_host, logfiledir)
         else:
             logfiledir = os.path.join(self.TEST_COPY_DIR, "logs")
             logtargetdir = logfiledir
 
-        (log_rsync_out, log_rsync_err) \
-            = self.rsync(logfile, logtargetdir, relative=False)
-        if len(log_rsync_err) > 0:
-            logging.error("failed to rsync logfile:\n%s", log_rsync_err)
+        try:
+            outlines = self.rsync((logfile, ), logtargetdir, relative=False)
+        except HsException:
+            logging.exception("RSync failed")
             return None
 
-        logging.info("logfile transmitted to copydir: %s", log_rsync_out)
-        if self.sender is not None:
-            log_json = {"hubname": self.shorthost,
-                        "alertid": timetag,
-                        "logfiledir": logfiledir,
-                        "logfile_hsworker": logfile,
-                        "msgtype": "log_done"}
-            # XXX lose the json.dumps()
-            self.sender.send_json(json.dumps(log_json))
-            logging.info("sent json to HsSender: %s", log_json)
+        logging.info("logfile transmitted to copydir: %s", outlines)
 
-        return True
+        return result
 
     def add_rsync_delay(self, sleep_secs):
         """
@@ -201,8 +184,8 @@ class Worker(HsRSyncFiles):
 
     def extract_ssh_access(self, hs_user_machinedir):
         if self.is_cluster_sps or self.is_cluster_spts:
-            #for the REAL interface
-            # data goes ALWAYS to 2ndbuild with user pdaq:
+            # for the REAL interface
+            #  data goes ALWAYS to 2ndbuild with user pdaq:
             return 'pdaq@2ndbuild'
 
         return re.sub(r':/[\w+/]*', "", hs_user_machinedir)
@@ -210,10 +193,9 @@ class Worker(HsRSyncFiles):
     def get_copy_destination(self, hs_copydir, timetag_dir):
         return os.path.join(self.__copydir_dft, timetag_dir)
 
-    def get_timetag_tuple(self, hs_copydir, starttime):
-        prefix = HsPrefix.guess_from_dir(hs_copydir)
+    def get_timetag_tuple(self, prefix, hs_copydir, starttime):
         if prefix == HsPrefix.SNALERT:
-            #this is a SNDAQ request -> SNALERT tag
+            # this is a SNDAQ request -> SNALERT tag
             # time window around trigger is [-30,+60], so add 30 seconds
             plus30 = starttime + timedelta(0, 30)
             timetag = plus30.strftime("%Y%m%d_%H%M%S")
@@ -249,18 +231,57 @@ class Worker(HsRSyncFiles):
             raise Exception("Subscriber has not been initialized")
 
         logging.info("ready for new alert...")
-        message = self.subscriber.recv()
-        logging.info("HsWorker received alert message:\n"
-                     "%s\nfrom Publisher", message)
-        logging.info("start processing alert...")
+
         try:
-            self.alert_parser(message, logfile)
+            req = self.receive_request(self.subscriber)
         except KeyboardInterrupt:
-            # allow keyboard interrupts to pass through
+            raise
+        except ZMQError:
             raise
         except:
-            logging.error("Request failed:\n%s\n%s" %
-                          (message, traceback.format_exc()))
+            logging.exception("Cannot read request")
+            return False
+
+        logging.info("HsWorker received request:\n"
+                     "%s\nfrom Publisher", req)
+
+        HsMessage.send(self.sender, HsMessage.MESSAGE_STARTED, req.request_id,
+                       req.username, req.start_time, req.stop_time,
+                       req.copy_dir, req.destination_dir, req.prefix,
+                       req.extract, self.shorthost)
+
+        try:
+            rsyncdir = self.alert_parser(req, logfile)
+        except:
+            logging.exception("Cannot process request \"%s\"", req)
+            rsyncdir = None
+
+        if rsyncdir is not None:
+            msgtype = HsMessage.MESSAGE_DONE
+        else:
+            msgtype = HsMessage.MESSAGE_FAILED
+
+        # send final destination as a simple path
+        _, destdir = HsUtil.split_rsync_host_and_path(req.destination_dir)
+
+        HsMessage.send(self.sender, msgtype, req.request_id, req.username,
+                       req.start_time, req.stop_time, rsyncdir, destdir,
+                       req.prefix, req.extract, self.shorthost)
+
+    def receive_request(self, sock):
+        req_dict = sock.recv_json()
+        if not isinstance(req_dict, dict):
+            raise HsException("JSON message should be a dict: \"%s\"<%s>" %
+                              (req_dict, type(req_dict)))
+
+        # ensure 'extract' field is present and is a boolean value
+        req_dict["extract"] = "extract" in req_dict and \
+            req_dict["extract"] is True
+
+        alert_flds = ("request_id", "username", "start_time", "stop_time",
+                      "destination_dir", "prefix", "extract")
+
+        return HsUtil.dict_to_object(req_dict, alert_flds, 'WorkerRequest')
 
     def rsync_target(self, hs_user_machinedir, hs_ssh_access, timetag_dir,
                      hs_copydest):
@@ -268,16 +289,6 @@ class Worker(HsRSyncFiles):
             return hs_ssh_access + '::hitspool/' + timetag_dir
 
         return os.path.join(self.__copydir_dft, timetag_dir)
-
-    def send_alert(self, value, prio=None):
-        if self.i3socket is not None:
-            alert = {}
-            alert["service"] = self.__service
-            alert["varname"] = self.__varname
-            alert["value"] = value
-            if prio is not None:
-                alert["prio"] = prio
-            self.i3socket.send_json(alert)
 
     def set_default_copydir(self, hs_copydir):
         '''Set default copy destination'''
@@ -296,81 +307,55 @@ class Worker(HsRSyncFiles):
 
 
 if __name__ == '__main__':
-    import getopt
+    import argparse
     import sys
 
+    def main():
+        p = argparse.ArgumentParser()
 
-    def process_args():
-        copydir = None
-        hubdir = None
-        logfile = None
+        add_arguments(p)
+
+        args = p.parse_args()
 
         usage = False
-        try:
-            opts, _ = getopt.getopt(sys.argv[1:], 'C:H:hl:',
-                                    ['copydir', 'hubdir', 'help', 'logfile'])
-        except getopt.GetoptError, err:
-            print >>sys.stderr, str(err)
-            opts = []
-            usage = True
-
-        for opt, arg in opts:
-            if opt == '-C':
-                copydir = str(arg)
-            elif opt == '-H':
-                hubdir = str(arg)
-            elif opt == '-l':
-                logfile = str(arg)
-            elif opt == '-h' or opt == '--help':
-                usage = True
-
         if not usage:
-            if copydir is not None and not os.path.exists(copydir):
+            if args.copydir is not None and not os.path.exists(args.copydir):
                 print >>sys.stderr, \
-                    "Copy directory \"%s\" does not exist" % copydir
+                    "Copy directory \"%s\" does not exist" % args.copydir
                 usage = True
-            elif hubdir is not None and not os.path.exists(hubdir):
+            elif args.hubroot is not None and not os.path.exists(args.hubroot):
                 print >>sys.stderr, \
-                    "Hub directory \"%s\" does not exist" % hubdir
+                    "Hub directory \"%s\" does not exist" % args.hubroot
                 usage = True
 
-        if usage:
-            print >>sys.stderr, "usage :: HsWorker.py [-l logfile]"
-            raise SystemExit(1)
-
-        return (copydir, hubdir, logfile)
-
-    def main():
-        (copydir, hubdir, logfile) = process_args()
-
-        worker = Worker("HsWorker")
-
-        #handler is called when SIGTERM is called (via pkill)
-        signal.signal(signal.SIGTERM, worker.handler)
+        worker = Worker("HsWorker", host=args.hostname)
 
         # override some defaults (generally only used for debugging)
-        if copydir is not None:
-            worker.TEST_COPY_DIR = copydir
-        if hubdir is not None:
-            worker.TEST_HUB_DIR = hubdir
+        if args.copydir is not None:
+            worker.TEST_COPY_DIR = args.copydir
+        if args.hubroot is not None:
+            worker.TEST_HUB_DIR = args.hubroot
 
-        if logfile is None:
-            if worker.is_cluster_sps or worker.is_cluster_spts:
-                logdir = "/mnt/data/pdaqlocal/HsInterface/logs"
-            else:
-                logdir = os.path.join(worker.TEST_HUB_DIR, "logs")
-            logfile = os.path.join(logdir,
-                                   "hsworker_%s.log" % worker.shorthost)
+        # handler is called when SIGTERM is called (via pkill)
+        signal.signal(signal.SIGTERM, worker.handler)
 
-        worker.init_logging(logfile)
+        logfile = worker.init_logging(args.logfile, basename="hsworker",
+                                      basehost="testhub")
 
         logging.info("this Worker runs on: %s", worker.shorthost)
 
         while True:
             try:
                 worker.mainloop(logfile)
+            except SystemExit:
+                raise
             except KeyboardInterrupt:
-                logging.warning("interruption received, shutting down...")
+                logging.warning("Interruption received, shutting down...")
                 raise SystemExit(0)
+            except zmq.ZMQError:
+                logging.exception("ZMQ error received, shutting down...")
+                raise SystemExit(1)
+            except:
+                logging.exception("Caught exception, continuing")
 
     main()

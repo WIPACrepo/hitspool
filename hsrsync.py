@@ -3,7 +3,30 @@
 
 import os
 
+import HsBase
+import HsUtil
+
 from HsRSyncFiles import HsRSyncFiles
+
+
+def add_arguments(parser):
+    dflt_copydir = "%s@%s:%s" % (HsBase.DEFAULT_RSYNC_USER,
+                                 HsBase.DEFAULT_RSYNC_HOST,
+                                 HsBase.DEFAULT_COPY_PATH)
+
+    example_log_path = os.path.join(HsBase.DEFAULT_LOG_PATH, "hsrsync.log")
+
+    parser.add_argument("-b", "--begin", dest="begin_time",
+                        help="Beginning UTC time (YYYY-mm-dd HH:MM:SS[.us])"
+                        " or SnDAQ timestamp (ns from start of year)")
+    parser.add_argument("-c", "--copydir", dest="copydir",
+                        default=dflt_copydir,
+                        help="rsync destination directory for hitspool files")
+    parser.add_argument("-e", "--end", dest="end_time",
+                        help="Ending UTC time (YYYY-mm-dd HH:MM:SS[.us])"
+                        " or SnDAQ timestamp (ns from start of year)")
+    parser.add_argument("-l", "--logfile", dest="logfile",
+                        help="Log file (e.g. %s)" % example_log_path)
 
 
 class HsRSync(HsRSyncFiles):
@@ -13,7 +36,7 @@ class HsRSync(HsRSyncFiles):
     def __init__(self, host=None, is_test=False):
         super(HsRSync, self).__init__(host=host, is_test=is_test)
 
-    def get_timetag_tuple(self, hs_copydir, starttime):
+    def get_timetag_tuple(self, prefix, hs_copydir, starttime):
         # note starting slash!
         return "/HitSpoolData", starttime.strftime("%Y%m%d_%H%M%S")
 
@@ -22,103 +45,54 @@ class HsRSync(HsRSyncFiles):
 
 
 if __name__ == "__main__":
-    import getopt
+    import argparse
     import logging
     import sys
+    import traceback
 
     from HsException import HsException
-    from HsUtil import fix_date_or_timestamp, parse_sntime
 
-
-    def process_args():
+    def main():
         request_start = 0
         request_begin_utc = None
         request_stop = 0
         request_end_utc = None
-        copydir = None
-        logfile = None
 
-        # take arguments from command line and check for correct input
+        desc = "Rsync-wrapper for transferring Hitspool data to" \
+               " destination based on requested time range." \
+               "  MUST BE RUN ON DATA SOURCE MACHINE."
+        p = argparse.ArgumentParser(description=desc)
+
+        add_arguments(p)
+
+        args = p.parse_args()
+
         usage = False
-        try:
-            opts, _ = getopt.getopt(sys.argv[1:], 'b:c:e:hl:',
-                                    ['begin', 'copydir', 'end', 'help',
-                                     'logfile'])
-        except getopt.GetoptError, err:
-            print >>sys.stderr, str(err)
-            opts = []
-            usage = True
-
-        for opt, arg in opts:
-            if opt == '-b':
-                try:
-                    (request_start, request_begin_utc) = parse_sntime(arg)
-                except HsException, hsex:
-                    print >>sys.stderr, str(hsex)
-                    usage = True
-            elif opt == '-e':
-                try:
-                    (request_stop, request_end_utc) = parse_sntime(arg)
-                except HsException, hsex:
-                    print >>sys.stderr, str(hsex)
-                    usage = True
-            elif opt == '-c':
-                copydir = str(arg)
-            elif opt == '-l':
-                logfile = str(arg)
-            elif opt == '-h' or opt == '--help':
+        if not usage:
+            try:
+                # get both pDAQ timestamp (in 0.1 ns) and UTC datetime
+                (alert_start_sn, alert_begin_utc) \
+                    = HsUtil.parse_sntime(args.begin_time, is_sn_ns=False)
+            except HsException, hsex:
+                traceback.print_exc()
                 usage = True
 
         if not usage:
-            # convert times to SN timestamps and/or vice versa
-            (request_start, request_begin_utc) \
-                = fix_date_or_timestamp(request_start, request_begin_utc)
-            if request_begin_utc is None:
-                print >>sys.stderr, "Please specify start time using '-b'"
+            try:
+                # get both pDAQ timestamp (in 0.1 ns) and UTC datetime
+                (alert_stop_sn, alert_end_utc) \
+                    = HsUtil.parse_sntime(args.end_time, is_sn_ns=False)
+            except HsException, hsex:
+                traceback.print_exc()
                 usage = True
-            else:
-                (request_stop, request_end_utc) \
-                    = fix_date_or_timestamp(request_stop, request_end_utc)
-                if request_end_utc is None:
-                    print >>sys.stderr, "Please specify end time using '-e'"
-                    usage = True
-                elif copydir is None:
-                    print >>sys.stderr, \
-                        "Please specify copy directory using '-c'"
-                    usage = True
 
         if usage:
-            print >>sys.stderr, """
-usage :: hsrsync.py [options]
-  -b  |  begin of data: "YYYY-mm-dd HH:MM:SS.[us]"
-      |    or DAQ timestamp [0.1 ns from beginning of the year]
-  -e  |  end of data "YYYY-mm-dd HH:MM:SS.[us]"
-      |    or DAQ timestamp [0.1 ns from beginning of the year]
-  -c  | copydir e.g. "pdaq@2ndbuild:/mnt/data/pdaqlocal/HsDataCopy"
-  -l  | name of log file
-
-Rsync-wrapper for transferring Hitspool data to destination based on
-requested time range.  MUST BE RUN ON DATA SOURCE MACHINE.
-"""
-            raise SystemExit(1)
-
-        return (request_start, request_begin_utc, request_stop,
-                request_end_utc, copydir, logfile)
-
-    def main():
-        (request_start, request_begin_utc, request_stop, request_end_utc,
-         copydir, logfile) = process_args()
+            p.print_help()
+            sys.exit(1)
 
         hsr = HsRSync()
 
-        if logfile is None:
-            if hsr.is_cluster_sps or hsr.is_cluster_spts:
-                logdir = "/mnt/data/pdaqlocal/HsInterface/logs"
-            else:
-                logdir = os.path.join(hsr.TEST_HUB_DIR, "logs")
-            logfile = os.path.join(logdir, "hsrsync_%s.log" % hsr.shorthost)
-
-        hsr.init_logging(logfile)
+        hsr.init_logging(args.logfile, basename="hsrsync", basehost="testhub")
 
         logging.info("This HitSpool Data Grabbing Service runs on: %s",
                      hsr.shorthost)
@@ -131,9 +105,9 @@ requested time range.  MUST BE RUN ON DATA SOURCE MACHINE.
         logging.info("HS REQUEST DATA END UTC time: %s", request_end_utc)
         logging.info("HS REQUEST DATA BEGIN DAQ time: %s", request_start)
         logging.info("HS REQUEST DATA END DAQ time: %s", request_stop)
-        logging.info("HS Data Destination: %s", copydir)
+        logging.info("HS Data Destination: %s", args.copydir)
 
-        hsr.request_parser(request_begin_utc, request_end_utc, copydir)
-
+        hsr.request_parser(None, request_begin_utc, request_end_utc,
+                           args.copydir)
 
     main()
