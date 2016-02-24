@@ -201,6 +201,7 @@ def send_live_status(i3socket, req_id, username, prefix, start_utc, stop_utc,
         "varname": "hsrequest_info",
         "time": nowstr,
         "value": value,
+        "prio": 1,
     }
     i3socket.send_json(i3json)
 

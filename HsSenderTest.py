@@ -139,7 +139,8 @@ class MockRequestBuilder(object):
 
         # add all expected I3Live messages
         i3socket.addExpectedMessage(value, service="hitspool",
-                                    varname="hsrequest_info", time=TIME_PAT)
+                                    varname="hsrequest_info", time=TIME_PAT,
+                                    prio=1)
 
     @classmethod
     def add_reporter_request(cls, reporter, msgtype, req_id, start_time,
