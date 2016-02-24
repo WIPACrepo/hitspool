@@ -95,6 +95,7 @@ class RequestMonitor(threading.Thread):
             now = datetime.datetime.now()
             expire_time = datetime.timedelta(seconds=self.EXPIRE_SECONDS)
 
+            deleted = []
             for req_id in self.__requests:
                 # find last update for this request
                 latest = None
@@ -119,16 +120,22 @@ class RequestMonitor(threading.Thread):
                         = self.__get_request_status(req_id)
                     details = self.__requests[req_id][self.DETAIL_KEY]
                     status = HsUtil.STATUS_FAIL
+
+                    # remember to delete this request later
+                    deleted.append(req_id)
+
+                    # send final message to Live
                     self.__finish_request(req_id, details[0], details[1],
                                           details[2], details[3], details[4],
                                           status, success, failed)
 
+            # delete any expired requests
+            for req_id in deleted:
+                self.__delete_request(req_id)
+
     def __finish_request(self, req_id, username, prefix, start_time, stop_time,
                          dest_dir, status, success=None, failed=None):
-        # remove request from database
-        self.__delete_request(req_id)
-
-        # send final message to LIVE
+        "send final message to LIVE"
         HsUtil.send_live_status(self.__sender.i3socket, req_id, username,
                                 prefix, start_time, stop_time, dest_dir,
                                 status, success=success, failed=failed)
@@ -283,10 +290,14 @@ class RequestMonitor(threading.Thread):
             if status is None:
                 self.__update_db(msg.request_id, msg.host, dbstate)
             else:
+                # send final message to Live
                 self.__finish_request(msg.request_id, msg.username, msg.prefix,
                                       msg.start_time, msg.stop_time,
                                       msg.destination_dir, status,
                                       success=success, failed=failed)
+
+                # remove request from database
+                self.__delete_request(msg.request_id)
 
     def __handle_success(self, msg, force_spade=False):
         copydir = msg.copy_dir
@@ -304,7 +315,7 @@ class RequestMonitor(threading.Thread):
             if no_spade and not force_spade:
                 logging.info("Not scheduling for SPADE pickup")
             else:
-                result = self.spade_pickup_data(copydir, hs_basedir)
+                result = self.__sender.spade_pickup_data(copydir, hs_basedir)
                 if result is None:
                     return False
         return True
