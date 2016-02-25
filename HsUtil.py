@@ -175,9 +175,10 @@ def send_live_status(i3socket, req_id, username, prefix, start_utc, stop_utc,
         raise HsException("Destination directory is not set")
 
     if not isinstance(start_utc, datetime.datetime):
-        raise Exception("Bad start time %s<%s>" % (start_utc, type(start_utc)))
+        raise HsException("Bad start time %s<%s>" %
+                          (start_utc, type(start_utc)))
     if not isinstance(stop_utc, datetime.datetime):
-        raise Exception("Bad stop time %s<%s>" % (stop_utc, type(stop_utc)))
+        raise HsException("Bad stop time %s<%s>" % (stop_utc, type(stop_utc)))
 
     nowstr = str(datetime.datetime.utcnow())
 

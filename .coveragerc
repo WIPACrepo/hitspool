@@ -1,0 +1,17 @@
+[report]
+exclude_lines =
+    # Have to re-enable the standard pragma
+    pragma: no cover
+
+    # Don't complain if tests don't hit defensive assertion code
+    raise AssertionError
+    raise NotImplementedError
+
+    # Don't complain if non-runnable code isn't run:
+    if 0:
+    if False:
+    if False or .*:
+    if __name__ == .__main__.:
+
+    # ignore standard argument-building function
+    def add_arguments.*

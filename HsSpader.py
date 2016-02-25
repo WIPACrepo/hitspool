@@ -7,7 +7,7 @@ import glob
 import logging
 import os
 
-import HsBase
+from HsBase import HsBase
 
 
 def add_arguments(parser):
@@ -25,7 +25,7 @@ def add_arguments(parser):
                         " <yyyymmdd>_<hhmmss>, e.g. 20131101_045126")
 
 
-class HsSpader(HsBase.HsBase):
+class HsSpader(HsBase):
     '''
     Copy the HS data to the SPADE queue on sps-2ndbuild.
     Create tarballs and semafore files for each hub's data

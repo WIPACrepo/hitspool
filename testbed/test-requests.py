@@ -105,7 +105,8 @@ class HsEnvironment(object):
 class Request(object):
     def __init__(self, env, succeed, start_time, stop_time, expected_hubs,
                  expected_files, request_id=None, username=None, prefix=None,
-                 copydir=None, extract=False, send_json=False):
+                 copydir=None, extract=False, send_json=False,
+                 send_old_dates=False):
         # get both SnDAQ timestamp (in ns) and UTC datetime
         (self.__start_sn, self.__start_utc) \
             = HsUtil.parse_sntime(start_time)
@@ -127,6 +128,7 @@ class Request(object):
         self.__copydir = copydir
         self.__extract = extract
         self.__send_json = send_json
+        self.__send_old_dates = send_old_dates
 
     def __str__(self):
         secs = (self.__stop_sn - self.__start_sn) / 1E9
@@ -135,6 +137,11 @@ class Request(object):
             rstr = ""
         else:
             rstr = "Request %s " % str(self.__req_id)
+
+        if self.__send_old_dates:
+            dstr = " (as dates)"
+        else:
+            dstr = " (as ticks)"
 
         if self.__username is None:
             ustr = ""
@@ -146,17 +153,18 @@ class Request(object):
         else:
             pstr = " for %s" % str(self.__prefix)
 
-        if self.__extract:
-            estr = ", extract to file"
-        else:
-            estr = ""
         if self.__send_json:
             jstr = " as JSON"
         else:
             jstr = ""
 
-        return "%s%.2f secs%s%s to %s%s%s\n\t[%s :: %s]" % \
-            (rstr, secs, ustr, pstr, self.__copydir, estr, jstr,
+        if self.__extract:
+            estr = ", extract to file"
+        else:
+            estr = ""
+
+        return "%s%.2f secs%s%s%s to %s%s%s\n\t[%s :: %s]" % \
+            (rstr, secs, dstr, ustr, pstr, self.__copydir, jstr, estr,
              self.__start_utc, self.__stop_utc)
 
     def __check_destination(self, destination):
@@ -237,13 +245,21 @@ class Request(object):
         return self.__copydir
 
     def run(self, requester):
+        if self.__send_old_dates:
+            start = self.__start_utc
+            stop = self.__stop_utc
+        else:
+            start = self.__start_sn
+            stop = self.__stop_sn
+
         return requester.send_alert(self.__start_sn, self.__start_utc,
                                     self.__stop_sn, self.__stop_utc,
                                     self.__copydir, request_id=self.__req_id,
                                     username=self.__username,
                                     prefix=self.__prefix,
                                     extract_hits=self.__extract,
-                                    send_json=self.__send_json)
+                                    send_json=self.__send_json,
+                                    send_old_dates=self.__send_old_dates)
 
     @property
     def should_succeed(self):
@@ -595,6 +611,9 @@ if __name__ == "__main__":
             Request(env, True, single_start_utc, single_stop_utc, hubs,
                     ("HitSpool-1.dat", ), prefix=HsPrefix.SNALERT,
                     copydir=env.copydst, send_json=True),
+            Request(env, True, single_start_utc, single_stop_utc, hubs,
+                    ("HitSpool-1.dat", ), copydir=env.copydst,
+                    send_old_dates=True),
         )
 
         if len(hubs) != 1:
