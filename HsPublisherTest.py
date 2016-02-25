@@ -8,6 +8,7 @@ import HsConstants
 import HsMessage
 import HsPublisher
 import HsTestUtil
+import HsUtil
 
 from HsPrefix import HsPrefix
 from LoggingTestCase import LoggingTestCase
@@ -199,8 +200,22 @@ class HsPublisherTest(LoggingTestCase):
         # add all expected log messages
         self.expectLogMessage("received request:\n%s" % req_str)
         self.expectLogMessage("Bad start time \"XXX\"")
-        self.expectLogMessage(re.compile("Request failed: .*"))
+        self.expectLogMessage(re.compile("Request contains bad start time: .*"))
+        self.expectLogMessage("Bad stop time \"TBD\"")
         self.expectLogMessage("Sent response back to requester: ERROR")
+
+        # initialize I3Live socket and add all expected I3Live messages
+        rcvr.i3socket.addExpectedMessage({
+            'username': HsPublisher.Receiver.DEFAULT_USERNAME,
+            'status': HsUtil.STATUS_REQUEST_ERROR,
+            'prefix': HsPrefix.ANON,
+            'request_id': self.MATCH_ANY,
+            'start_time': self.MATCH_ANY,
+            'stop_time': self.MATCH_ANY,
+            'destination_dir': HsPublisher.Receiver.BAD_DESTINATION,
+            'update_time': self.MATCH_ANY,
+        }, service="hitspool", varname="hsrequest_info", prio=1,
+                                         time=self.MATCH_ANY)
 
         # run it!
         rcvr.reply_request()
@@ -230,8 +245,21 @@ class HsPublisherTest(LoggingTestCase):
         # add all expected log messages
         self.expectLogMessage("received request:\n%s" % req_str)
         self.expectLogMessage("Bad stop time \"%s\"" % stop_utc)
-        self.expectLogMessage(re.compile("Request failed: .*"))
+        self.expectLogMessage(re.compile("Request contains bad stop time: .*"))
         self.expectLogMessage("Sent response back to requester: ERROR")
+
+        # initialize I3Live socket and add all expected I3Live messages
+        rcvr.i3socket.addExpectedMessage({
+            'username': HsPublisher.Receiver.DEFAULT_USERNAME,
+            'status': HsUtil.STATUS_REQUEST_ERROR,
+            'prefix': HsPrefix.ANON,
+            'request_id': self.MATCH_ANY,
+            'start_time': self.MATCH_ANY,
+            'stop_time': self.MATCH_ANY,
+            'destination_dir': copydir,
+            'update_time': self.MATCH_ANY,
+        }, service="hitspool", varname="hsrequest_info", prio=1,
+                                         time=self.MATCH_ANY)
 
         # run it!
         rcvr.reply_request()
@@ -258,6 +286,19 @@ class HsPublisherTest(LoggingTestCase):
         self.expectLogMessage("Request did not contain a copy directory: %s" %
                               req_str)
         self.expectLogMessage("Sent response back to requester: ERROR")
+
+        # initialize I3Live socket and add all expected I3Live messages
+        rcvr.i3socket.addExpectedMessage({
+            'username': HsPublisher.Receiver.DEFAULT_USERNAME,
+            'status': HsUtil.STATUS_REQUEST_ERROR,
+            'prefix': HsPrefix.ANON,
+            'request_id': self.MATCH_ANY,
+            'start_time': self.MATCH_ANY,
+            'stop_time': self.MATCH_ANY,
+            'destination_dir': HsPublisher.Receiver.BAD_DESTINATION,
+            'update_time': self.MATCH_ANY,
+        }, service="hitspool", varname="hsrequest_info", prio=1,
+                                         time=self.MATCH_ANY)
 
         # run it!
         rcvr.reply_request()

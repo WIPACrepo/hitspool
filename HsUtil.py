@@ -16,6 +16,7 @@ LOG_PATH = "/mnt/data/pdaqlocal/HsInterface/logs/"
 JAN1 = {}
 
 # I3Live status types
+STATUS_REQUEST_ERROR = "REQUEST ERROR"
 STATUS_QUEUED = "QUEUED"
 STATUS_IN_PROGRESS = "IN PROGRESS"
 STATUS_SUCCESS = "SUCCESS"
