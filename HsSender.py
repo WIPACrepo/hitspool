@@ -632,7 +632,6 @@ class HsSender(HsBase):
     def mainloop(self, force_spade=False):
         msg = HsMessage.receive(self.__reporter)
         if msg is None:
-            logging.error("Ignoring empty (None) message")
             return
 
         self.__monitor.add_message(msg, force_spade)

@@ -667,8 +667,6 @@ class HsSenderTest(LoggingTestCase):
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
-        self.expectLogMessage("Ignoring empty (None) message")
-
         # run it!
         sender.mainloop()
 
