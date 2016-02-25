@@ -133,7 +133,7 @@ class HsGrabber(HsBase):
     def send_alert(self, alert_start_sn, alert_begin_utc, alert_stop_sn,
                    alert_end_utc, copydir, request_id=None, username=None,
                    prefix=None, extract_hits=False, send_json=True,
-                   print_to_console=False):
+                   send_old_dates=False, print_to_console=False):
         '''
         Send request to Publisher and wait for response
         '''
@@ -178,12 +178,23 @@ class HsGrabber(HsBase):
                      secrange, alert_start_sn, alert_stop_sn)
 
         if prefix is None and username is None:
+            if send_old_dates:
+                start = str(alert_begin_utc)
+                stop = str(alert_end_utc)
+            else:
+                start = alert_start_sn
+                stop = alert_stop_sn
+
             alert = {
-                "start": alert_start_sn,
-                "stop": alert_stop_sn,
+                "start": start,
+                "stop": stop,
                 "copy": copydir,
             }
         else:
+            if send_old_dates:
+                logging.error("Requested old-dates but sending a new-style"
+                              " request")
+
             if prefix is None:
                 prefix = HsPrefix.guess_from_dir(copydir)
 

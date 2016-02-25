@@ -174,24 +174,24 @@ class Receiver(HsBase):
         return True
 
     def __parse_time(self, alertdict, name):
-        nsec = 0
-        utc = None
+        fldname = None
         if name + '_time' in alertdict:
-            tstr = alertdict[name + '_time']
-            try:
-                nsec, utc = HsUtil.parse_sntime(tstr)
-            except HsException, hsex:
-                logging.error("Bad %s time: %s", name, hsex)
+            fldname = name + '_time'
         elif name in alertdict:
-            tstr = alertdict[name]
-            try:
-                nsec = int(tstr)
-                utc = self.jan1 + timedelta(seconds=nsec*1.0E-9)
-            except ValueError:
-                logging.error("Bad %s time \"%s\"", name, tstr)
+            fldname = name
         else:
             logging.error("Request did not contain a %s time:\n%s", name,
                           alertdict)
+
+        nsec = 0
+        utc = None
+        if fldname is not None:
+            tstr = alertdict[fldname]
+            try:
+                nsec, utc = HsUtil.parse_sntime(tstr)
+            except HsException, hsex:
+                logging.exception("Bad %s \"%s\"", fldname, tstr)
+
         return nsec, utc
 
     @property

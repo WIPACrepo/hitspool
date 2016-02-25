@@ -199,7 +199,7 @@ class HsPublisherTest(LoggingTestCase):
         # add all expected log messages
         self.expectLogMessage("received request:\n%s" % req_str)
         self.expectLogMessage("Bad start time \"XXX\"")
-        self.expectLogMessage(re.compile("Request contains bad start time.*"))
+        self.expectLogMessage(re.compile("Request failed: .*"))
         self.expectLogMessage("Sent response back to requester: ERROR")
 
         # run it!
@@ -230,7 +230,7 @@ class HsPublisherTest(LoggingTestCase):
         # add all expected log messages
         self.expectLogMessage("received request:\n%s" % req_str)
         self.expectLogMessage("Bad stop time \"%s\"" % stop_utc)
-        self.expectLogMessage(re.compile("Request contains bad stop time.*"))
+        self.expectLogMessage(re.compile("Request failed: .*"))
         self.expectLogMessage("Sent response back to requester: ERROR")
 
         # run it!
