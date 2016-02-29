@@ -311,7 +311,8 @@ class RequestMonitor(threading.Thread):
             # failed to move the files
             return False
 
-        if force_spade or self.__sender.is_cluster_sps:
+        if force_spade or self.__sender.is_cluster_sps or \
+           self.__sender.is_cluster_spts:
             if no_spade and not force_spade:
                 logging.info("Not scheduling for SPADE pickup")
             else:
