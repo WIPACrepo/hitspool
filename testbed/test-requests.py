@@ -5,6 +5,7 @@ import os
 import shutil
 import sqlite3
 import sys
+import tarfile
 import time
 import traceback
 import zmq
@@ -30,6 +31,7 @@ class HsEnvironment(object):
         self.__explog = os.path.join(rootdir, "expcont", "logs")
         self.__hubtmp = os.path.join(self.__hubroot, "tmp")
         self.__hubspool = os.path.join(self.__hubroot, "hitspool")
+        self.__spadequeue = os.path.join(rootdir, "SpadeQueue")
 
     def __create_files(self, cursor, first_time, last_time, hits_per_file):
         file_interval = 15 * TICKS_PER_SECOND
@@ -74,7 +76,8 @@ class HsEnvironment(object):
 
     def create(self, first_time, last_time, hits_per_file):
         for path in (self.__hubroot, self.__copysrc, self.__copydst,
-                     self.__explog, self.__hubtmp, self.__hubspool):
+                     self.__explog, self.__hubtmp, self.__hubspool,
+                     self.__spadequeue):
             if not os.path.exists(path):
                 os.makedirs(path)
 
@@ -101,6 +104,11 @@ class HsEnvironment(object):
     @property
     def hubspool(self):
         return self.__hubspool
+
+    @property
+    def spadequeue(self):
+        "SPADE queue directory"
+        return self.__spadequeue
 
 class Request(object):
     def __init__(self, env, succeed, start_time, stop_time, expected_hubs,
@@ -129,6 +137,7 @@ class Request(object):
         self.__extract = extract
         self.__send_json = send_json
         self.__send_old_dates = send_old_dates
+        self.__spadequeue = env.spadequeue
 
     def __str__(self):
         secs = (self.__stop_sn - self.__start_sn) / 1E9
@@ -173,16 +182,26 @@ class Request(object):
                               destination)
 
         # get the name of the single subdirectory in the destination directory
-        found = []
+        found_subdir = False
+        extralist = []
         for entry in os.listdir(destination):
-            found.append(entry)
-        if len(found) == 0:
-            raise HsException("Destination directory %s is empty" %
-                              destination)
-        elif len(found) != 1:
-            raise HsException("Found multiple entries under %s: %s" %
-                              (destination, found))
+            path = os.path.join(destination, entry)
+            if os.path.isdir(path) and not found_subdir:
+                self.__check_destination_subdir(destination, entry)
+                found_subdir = True
+                continue
 
+            extralist.append(entry)
+
+        if not found_subdir:
+            raise HsException("Destination directory %s didn't contain"
+                              " expected subdirectory" % destination)
+        if len(extralist) != 0:
+            raise HsException("Destination directory %s contained"
+                              " unexpected files: %s" %
+                              (destination, extralist))
+
+    def __check_destination_subdir(self, destination, subdir):
         # gather all expected subdirectory pieces
         if self.__prefix is not None:
             exp_prefix = self.__prefix
@@ -191,7 +210,6 @@ class Request(object):
         exp_yymmdd = self.__start_utc.strftime("%Y%m%d")
 
         # make sure the subdirectory has all the expected pieces
-        subdir = found[0]
         subpieces = subdir.split("_")
         if len(subpieces) != 4:
             raise HsException("Subdirectory \"%s\" doesn't have enough"
@@ -240,6 +258,69 @@ class Request(object):
             raise HsException("Found files under %s: %s" %
                               (destination, found))
 
+    def __check_spadequeue(self):
+        tarname = None
+        semname = None
+        extralist = []
+        for entry in os.listdir(self.__spadequeue):
+            if entry.endswith(".sem") and semname is None:
+                semname = entry
+                continue
+            if entry.find(".tar") > 0 and tarname is None:
+                tarname = entry
+                continue
+
+            extralist.append(entry)
+
+        if len(extralist) > 0:
+            raise HsException("Found extra files in SPADE queue: %s" %
+                              str(extralist))
+        if semname is None:
+            if tarname is None:
+                raise HsException("No files found in SPADE queue")
+            raise HsException("Found tar file %s without semaphore file" %
+                              tarname)
+        elif tarname is None:
+            raise HsException("Found semaphore %s without tar file" %
+                              semname)
+
+        try:
+            tar = tarfile.open(os.path.join(self.__spadequeue, tarname), "r")
+        except StandardError, err:
+            raise HsException("Cannot read %s in %s: %s" %
+                              (tarname, self.__spadequeue, err))
+
+        unknown = []
+        try:
+            import sys
+            subdir = None
+            count = 0
+            for info in tar:
+                if info.isdir() and subdir is None:
+                    subdir = info.name
+                    continue
+
+                found = False
+                for name in self.__expected_files:
+                    if info.name.endswith(name):
+                        count += 1
+                        found = True
+                        break
+                if not found:
+                    unknown.append(info.name)
+        finally:
+            tar.close()
+
+        if len(unknown) > 0:
+            raise HsException("Found %d unknown entries in tar file %s: %s" %
+                              (count, tarname, unknown))
+        if len(self.__expected_files) != count:
+            raise HsException("Expected %d files in %s, found %d" %
+                              (len(self.__expected_files), tarname, count))
+
+        print "SPADE file %s looks good (found %d file%s)" % \
+            (tarname, count, "" if count == 1 else "s")
+
     @property
     def copydir(self):
         return self.__copydir
@@ -265,12 +346,17 @@ class Request(object):
     def should_succeed(self):
         return self.__expected_result
 
+    @property
+    def spadequeue(self):
+        return self.__spadequeue
+
     def update_copydir(self, user, host, path):
         self.__copydir = "%s@%s:%s" % (user, host, path)
 
     def validate(self, destination):
         if self.__expected_result:
             self.__check_destination(destination)
+            self.__check_spadequeue()
         else:
             self.__check_empty(destination)
 
@@ -522,6 +608,9 @@ class Processor(object):
         request.update_copydir(user, host, path)
 
         self.__clear_destination(path)
+        self.__clear_destination(request.spadequeue)
+        if not os.path.exists(request.spadequeue):
+            os.makedirs(request.spadequeue)
 
         try:
             if not self.__submit(request):
@@ -529,6 +618,7 @@ class Processor(object):
             return self.__process_responses(request, path)
         finally:
             self.__clear_destination(path)
+            self.__clear_destination(request.spadequeue)
 
 
 if __name__ == "__main__":
@@ -627,7 +717,9 @@ if __name__ == "__main__":
                                     "-H", hubs[0],
                                     "-R", env.hubroot)):
                 with run_and_terminate(("python", "HsSender.py",
-                                        "-l", "/tmp/sender.log")):
+                                        "-l", "/tmp/sender.log",
+                                        "-F",
+                                        "-S", env.spadequeue)):
                     # give everything a chance to start up
                     time.sleep(5)
                     process_requests(requests)
