@@ -724,7 +724,7 @@ class HsSender(HsBase):
 
         logging.info("Preparation for SPADE Pickup of HS data started...")
 
-        hs_basedir, data_dir = os.path.split(copydir)
+        _, data_dir = os.path.split(copydir)
         if not self.__validate_destination_dir(copydir, data_dir, prefix):
             logging.error("Please put the data manually in the SPADE"
                           " directory. Use HsSpader.py, for example.")
