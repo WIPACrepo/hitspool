@@ -243,7 +243,7 @@ class HsGrabber(HsBase):
 
         if user is None:
             if self.is_cluster_sps or self.is_cluster_spts:
-                user = self.DEFAULT_RSYNC_HOST
+                user = self.DEFAULT_RSYNC_USER
             else:
                 user = getpass.getuser()
 
