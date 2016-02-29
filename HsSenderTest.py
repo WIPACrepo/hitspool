@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import tarfile
+import tempfile
 import unittest
 
 import HsSender
@@ -604,14 +605,25 @@ class HsSenderTest(LoggingTestCase):
         sender.i3socket.addExpectedValue("SPADE-ing of %s done" % hsdir)
 
         # set SPADE path to something which exists everywhere
-        sender.HS_SPADE_DIR = "/tmp"
-
-        # don't check DEBUG/INFO log messages
-        self.setLogLevel(logging.WARN)
+        sender.HS_SPADE_DIR = tempfile.mkdtemp(prefix="SPADE_")
 
         mybase = "%s_%s_%s" % (category, timetag, host)
         mytar = "HS_%s.dat.tar.bz2" % mybase
         mysem = "HS_%s.sem" % mybase
+
+        # create intermediate directory
+        movetop = tempfile.mkdtemp(prefix="Intermediate_")
+        movedir = os.path.join(movetop, mybase)
+        os.makedirs(movedir)
+
+        # copy hitspool files to intermediate directory
+        shutil.copytree(hsdir, os.path.join(movedir,
+                                            os.path.basename(hsdir)))
+
+        # don't check DEBUG/INFO log messages
+        self.setLogLevel(logging.WARN)
+
+        # add all expected log messages
 
         # clean up test files
         for fnm in (mytar, mysem):
@@ -620,8 +632,7 @@ class HsSenderTest(LoggingTestCase):
                 os.unlink(tmppath)
 
         # run it!
-        (tarname, semname) \
-            = sender.spade_pickup_data(hsdir, "/foo/bar")
+        (tarname, semname) = sender.spade_pickup_data(hsdir, movedir)
         self.assertEquals(mytar, tarname,
                           "Expected tarfile to be named \"%s\" not \"%s\"" %
                           (mytar, tarname))
