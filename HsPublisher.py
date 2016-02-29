@@ -7,6 +7,7 @@ import logging
 import os
 import signal
 import struct
+import sys
 import threading
 import time
 import zmq
@@ -58,6 +59,7 @@ class Receiver(HsBase):
     """
 
     DEFAULT_USERNAME = 'unknown'
+    BAD_DESTINATION = "/unknown/path"
 
     def __init__(self, host=None, is_test=False):
         super(Receiver, self).__init__(host=host, is_test=is_test)
@@ -95,29 +97,41 @@ class Receiver(HsBase):
                                           notify_desc, alertmsg, prio=1)
 
     def __handle_request(self, alertdict):
+        bad_request = False
+
         start_ns, sn_start_utc = self.__parse_time(alertdict, "start")
         if start_ns == 0 or sn_start_utc is None:
-            logging.error("Request contains bad start time: %s",
-                          str(alertdict))
-            return False
+            if not bad_request:
+                logging.error("Request contains bad start time: %s",
+                              str(alertdict))
+                bad_request = True
+            if sn_start_utc is None:
+                sn_start_utc = datetime.now()
 
         stop_ns, sn_stop_utc = self.__parse_time(alertdict, "stop")
         if stop_ns == 0 or sn_stop_utc is None:
-            logging.error("Request contains bad stop time: %s",
-                          str(alertdict))
-            return False
+            if not bad_request:
+                logging.error("Request contains bad stop time: %s",
+                              str(alertdict))
+                bad_request = True
+            if sn_stop_utc is None:
+                sn_stop_utc = datetime.now()
 
         if 'destination_dir' in alertdict:
             destdir = alertdict['destination_dir']
         elif 'copy' in alertdict:
             destdir = alertdict['copy']
         else:
-            logging.error("Request did not contain a copy directory: %s",
-                          alertdict)
-            return False
+            destdir = None
+            if not bad_request:
+                logging.error("Request did not contain a copy directory: %s",
+                              alertdict)
+                bad_request = True
         if destdir is None:
-            logging.error("Destination directory is not specified")
-            return False
+            if not bad_request:
+                logging.error("Destination directory is not specified")
+                bad_request = True
+            destdir = self.BAD_DESTINATION
 
         if 'request_id' in alertdict:
             req_id = alertdict['request_id']
@@ -139,39 +153,59 @@ class Receiver(HsBase):
         elif isinstance(alertdict['extract'], bool):
             extract = alertdict['extract']
         else:
-            logging.error("Assuming 'extract' value \"%s\" is True",
-                          alertdict["extract"])
+            if not bad_request:
+                logging.error("Assuming 'extract' value \"%s\" is True",
+                              alertdict["extract"])
             extract = True
 
-        # fill in new fields
-        copydir = None
-        host = self.shorthost
+        exc_info = None
+        if not bad_request:
+            try:
+                # fill in new fields
+                copydir = None
+                host = self.shorthost
 
-        # convert nanoseconds to datetime
-        _, start_utc = HsUtil.fix_date_or_timestamp(start_ns, None,
-                                                    is_sn_ns=True)
-        _, stop_utc = HsUtil.fix_date_or_timestamp(stop_ns, None,
-                                                   is_sn_ns=True)
+                # convert nanoseconds to datetime
+                _, start_utc = HsUtil.fix_date_or_timestamp(start_ns, None,
+                                                            is_sn_ns=True)
+                _, stop_utc = HsUtil.fix_date_or_timestamp(stop_ns, None,
+                                                           is_sn_ns=True)
 
-        # tell HsSender about the request
-        HsMessage.send(self.__sender, HsMessage.MESSAGE_INITIAL, req_id, user,
-                       start_utc, stop_utc, copydir, destdir, prefix,
-                       extract, host)
+                # tell HsSender about the request
+                HsMessage.send(self.__sender, HsMessage.MESSAGE_INITIAL,
+                               req_id, user, start_utc, stop_utc, copydir,
+                               destdir, prefix, extract, host)
 
-        # send request to workers
-        HsMessage.send(self.__workers, HsMessage.MESSAGE_INITIAL, req_id, user,
-                       start_ns, stop_ns, copydir, destdir, prefix, extract,
-                       host)
+                # send request to workers
+                HsMessage.send(self.__workers, HsMessage.MESSAGE_INITIAL,
+                               req_id, user, start_ns, stop_ns, copydir,
+                               destdir, prefix, extract, host)
 
-        # log alert
-        logging.info("Publisher published: %s", str(alertdict))
+                # log alert
+                logging.info("Publisher published: %s", str(alertdict))
 
-        # send Live alert JSON for email notification:
-        alertjson = self.__build_json_email(alertdict, sn_start_utc,
-                                            sn_stop_utc, extract)
-        self.__i3socket.send_json(alertjson)
+                # send Live alert JSON for email notification:
+                alertjson = self.__build_json_email(alertdict, sn_start_utc,
+                                                    sn_stop_utc, extract)
+                self.__i3socket.send_json(alertjson)
+            except:
+                exc_info = sys.exc_info()
+                bad_request = True
 
-        return True
+        if not bad_request:
+            # all is well!
+            return True
+
+        # let Live know there was a problem with this request
+        HsUtil.send_live_status(self.__i3socket, req_id, user, prefix,
+                                sn_start_utc, sn_stop_utc, destdir,
+                                HsUtil.STATUS_REQUEST_ERROR)
+        if exc_info is not None:
+            # if there was an exception, re-raise it
+            raise exc_info[0], exc_info[1], exc_info[2]
+
+        # let caller know there was a problem
+        return False
 
     def __parse_time(self, alertdict, name):
         fldname = None
@@ -190,7 +224,7 @@ class Receiver(HsBase):
             try:
                 nsec, utc = HsUtil.parse_sntime(tstr)
             except HsException, hsex:
-                logging.exception("Bad %s \"%s\"", fldname, tstr)
+                logging.exception("Bad %s time \"%s\"", fldname, tstr)
 
         return nsec, utc
 
@@ -294,7 +328,7 @@ class Receiver(HsBase):
                 success = self.__handle_request(alertdict)
             except:
                 success = False
-                logging.exception("Request failed: %s", alertdict)
+                logging.exception("Request error: %s", alertdict)
 
         if success:
             rtnmsg = "DONE"

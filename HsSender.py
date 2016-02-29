@@ -311,7 +311,8 @@ class RequestMonitor(threading.Thread):
             # failed to move the files
             return False
 
-        if force_spade or self.__sender.is_cluster_sps:
+        if force_spade or self.__sender.is_cluster_sps or \
+           self.__sender.is_cluster_spts:
             if no_spade and not force_spade:
                 logging.info("Not scheduling for SPADE pickup")
             else:
@@ -632,7 +633,6 @@ class HsSender(HsBase):
     def mainloop(self, force_spade=False):
         msg = HsMessage.receive(self.__reporter)
         if msg is None:
-            logging.error("Ignoring empty (None) message")
             return
 
         self.__monitor.add_message(msg, force_spade)
@@ -724,7 +724,7 @@ class HsSender(HsBase):
 
         logging.info("Preparation for SPADE Pickup of HS data started...")
 
-        hs_basedir, data_dir = os.path.split(copydir)
+        _, data_dir = os.path.split(copydir)
         if not self.__validate_destination_dir(copydir, data_dir, prefix):
             logging.error("Please put the data manually in the SPADE"
                           " directory. Use HsSpader.py, for example.")
