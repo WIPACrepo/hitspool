@@ -184,14 +184,15 @@ class HsBase(object):
         else:
             sourcelist = [sourcefiles, ]
 
-        for fnm in sourcelist:
-            try:
-                tar.add(fnm)
-            except StandardError, err:
-                logging.error("Failed to add \"%s\" to \"%s\": %s",
-                              fnm, os.path.join(sourcedir, tarname), err)
-
-        tar.close()
+        try:
+            for fnm in sourcelist:
+                try:
+                    tar.add(fnm)
+                except StandardError, err:
+                    logging.error("Failed to add \"%s\" to \"%s\": %s",
+                                  fnm, os.path.join(sourcedir, tarname), err)
+        finally:
+            tar.close()
 
 
 if __name__ == "__main__":
