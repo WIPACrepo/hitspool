@@ -47,9 +47,7 @@ class Payload(object):  # pragma: no cover
         "Return the binary representation of this payload"
         if not self.__valid_data:
             raise PayloadException("Data was discarded; cannot return bytes")
-        envelope = struct.pack(">2IQ", len(self.__data) + self.ENVELOPE_LENGTH,
-                               self.payload_type_id(), self.__utime)
-        return envelope + self.__data
+        return self.envelope + self.__data
 
     @property
     def data_bytes(self):
@@ -57,6 +55,17 @@ class Payload(object):  # pragma: no cover
         if not self.__valid_data:
             raise PayloadException("Data was discarded; cannot return bytes")
         return self.__data
+
+    @property
+    def data_length(self):
+        if not self.__valid_data:
+            raise PayloadException("Data was discarded; cannot return length")
+        return len(self.__data)
+
+    @property
+    def envelope(self):
+        return struct.pack(">2IQ", self.data_length + self.ENVELOPE_LENGTH,
+                           self.payload_type_id(), self.__utime)
 
     @property
     def has_data(self):
@@ -334,6 +343,10 @@ class DeltaCompressedHit(Payload):  # pragma: no cover
         return self.__domclk
 
     @property
+    def envelope(self):
+        return struct.pack(">2IQ", self.data_length + self.ENVELOPE_LENGTH,
+                           self.payload_type_id(), self.__mbid)
+    @property
     def fadc(self):
         "fADC values"
         if not self.has_fadc:
@@ -478,8 +491,23 @@ class EventV5(Payload):  # pragma: no cover
 
         return recs, offset
 
+    def hit(self, idx):
+        if idx < 0 or idx >= len(self.__hit_records):
+            return None
+        return self.__hit_records[idx]
+
+    @property
+    def hit_count(self):
+        return len(self.__hit_records)
+
+    @property
     def hits(self):
         return self.__hit_records[:]
+
+    @property
+    def run(self):
+        "Run number"
+        return self.__run
 
     @property
     def start_time(self):
@@ -492,24 +520,26 @@ class EventV5(Payload):  # pragma: no cover
         return self.__stop_time
 
     @property
-    def run(self):
-        "Run number"
-        return self.__run
-
-    @property
     def subrun(self):
         "Subrun number"
         return self.__subrun
 
     @property
-    def year(self):
-        "Year this event was seen"
-        return self.__year
+    def trigger_count(self):
+        return len(self.__trig_records)
+
+    def triggers(self):
+        return self.__trig_records[:]
 
     @property
     def uid(self):
         "Unique event ID"
         return self.__uid
+
+    @property
+    def year(self):
+        "Year this event was seen"
+        return self.__year
 
 
 class BaseHitRecord(object):  # pragma: no cover
@@ -558,6 +588,65 @@ class EngineeringHitRecord(BaseHitRecord):  # pragma: no cover
                                                    offset)
 
 
+class TimeCalibration(Payload):  # pragma: no cover
+    TYPE_ID = 4
+    LENGTH = 322
+
+    def __init__(self, utime, data, keep_data=True):
+        """
+        Extract time calibration data from the buffer
+        """
+        if len(data) != self.LENGTH:
+            raise PayloadException("Expected %d data bytes, got %d" %
+                                   (self.LENGTH, len(data)))
+
+        super(TimeCalibration, self).__init__(utime, data, keep_data=keep_data)
+
+        hdr = struct.unpack("<QHHQQ128xQQ128xB12sc", data[:314])
+        self.__dom_id = hdr[0]
+        self.__pktlen = hdr[1]
+        self.__format = hdr[2]
+        self.__dor_tx = hdr[3]
+        self.__dor_rx = hdr[4]
+        self.__dor_waveform = data[28:156]
+        self.__dom_rx = hdr[5]
+        self.__dom_tx = hdr[6]
+        self.__dom_waveform = data[172:300]
+        self.__start_of_gps = hdr[7]
+        self.__julianstr = hdr[8]
+        self.__quality = hdr[9]
+
+        st = struct.unpack(">Q", data[314:])
+        self.__synctime = st[0]
+
+    def __str__(self):
+        "Payload description"
+        return "TimeCalibration[dor:tx#%d rx#%d,dom:rx#%d tx#%d," \
+            " \"%s\" Q'%s' S%d]" % \
+            (self.__dor_tx, self.__dor_rx, self.__dom_rx, self.__dom_tx,
+             self.__julianstr, self.__quality, self.__synctime)
+
+    @property
+    def dom_id(self):
+        return self.__dom_id
+
+    @property
+    def dom_rx(self):
+        return self.__dom_rx
+
+    @property
+    def dom_tx(self):
+        return self.__dom_tx
+
+    @property
+    def dor_rx(self):
+        return self.__dor_rx
+
+    @property
+    def dor_tx(self):
+        return self.__dor_tx
+
+
 class TriggerRecord(object):  # pragma: no cover
     "Encoded trigger request inside V5 event payload"
     HEADER_LEN = 24
@@ -582,12 +671,49 @@ class TriggerRecord(object):  # pragma: no cover
     def __str__(self):
         "Payload description"
         return "TriggerRecord[%s typ %d cfg %d [%d-%d] hits*%d]" % \
-            (self.source_name(), self.__type, self.__config_id,
-             self.__start_time, self.__end_time, len(self.__hit_index))
+            (self.source_name, self.__type, self.__config_id,
+             self.__start_time, self.__end_time, self.hit_count)
 
+    @property
+    def config_id(self):
+        "Return the configuration ID of the trigger which created this payload"
+        return self.__config_id
+
+    @property
+    def end_time(self):
+        "Return the end of the time window (in DAQ ticks)"
+        return self.__end_time
+
+    @property
+    def hit_count(self):
+        "Return the total number of hits bundled with this trigger"
+        return len(self.__hit_index)
+
+    @property
+    def hit_indexes(self):
+        "Iterate through the list of hit indexes"
+        for idx in self.__hit_index:
+            yield idx
+
+    @property
+    def source_id(self):
+        "Return the ID of the component which created this payload"
+        return self.__source_id
+
+    @property
     def source_name(self):
         "Return the component name which created this payload"
         return Payload.source_name(self.__source_id)
+
+    @property
+    def start_time(self):
+        "Return the start of the time window (in DAQ ticks)"
+        return self.__start_time
+
+    @property
+    def trigger_type(self):
+        "Return the type of the trigger which created this payload"
+        return self.__type
 
 
 class PayloadReader(object):
@@ -682,6 +808,8 @@ class PayloadReader(object):
             return DeltaCompressedHit(utime, rawdata, keep_data=keep_data)
         if type_id == EventV5.TYPE_ID:
             return EventV5(utime, rawdata, keep_data=keep_data)
+        if type_id == TimeCalibration.TYPE_ID:
+            return TimeCalibration(utime, rawdata, keep_data=keep_data)
 
         return UnknownPayload(type_id, utime, rawdata, keep_data=keep_data)
 
@@ -710,7 +838,7 @@ if __name__ == "__main__":
             with PayloadReader(fnm) as rdr:
                 for pay in rdr:
                     if args.max_payloads is not None and \
-                       rdr.nrec >= args.max_payloads:
+                       rdr.nrec > args.max_payloads:
                         break
 
                     print str(pay)
