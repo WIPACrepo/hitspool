@@ -14,10 +14,10 @@ class HsPrefix(object):
 
     @classmethod
     def guess_from_dir(cls, copydir):
-        if copydir.endswith("HsDataCopy"):
-            return cls.SNALERT
-        elif 'hese' in copydir:
+        if 'hese' in copydir:
             return cls.HESE
+        elif 'HsDataCopy' in copydir:
+            return cls.SNALERT
         return cls.ANON
 
     @classmethod
