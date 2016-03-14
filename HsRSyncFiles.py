@@ -196,9 +196,8 @@ class HsRSyncFiles(HsBase.HsBase):
 
     def __copy_and_rsync(self, tmp_dir, src_tuples_list, alert_start,
                          start_ticks, alert_stop, stop_ticks, extract_hits,
-                         sleep_secs, prefix, hs_dest_mchn, hs_copydir,
-                         hs_user_machinedir, hs_ssh_access, sender,
-                         make_remote_dir=False):
+                         sleep_secs, prefix, hs_copydir, hs_user_machinedir,
+                         sender, make_remote_dir=False):
         if not extract_hits:
             # link files to tmp directory
             copy_files_list = self.__link_files(src_tuples_list, tmp_dir)
@@ -219,9 +218,8 @@ class HsRSyncFiles(HsBase.HsBase):
 
         logging.info("list of relevant files: %s", copy_files_list)
         return self.__rsync_files(alert_start, alert_stop, prefix,
-                                  copy_files_list, sleep_secs, hs_dest_mchn,
-                                  hs_copydir, hs_user_machinedir,
-                                  hs_ssh_access, sender,
+                                  copy_files_list, sleep_secs, hs_copydir,
+                                  hs_user_machinedir, sender,
                                   make_remote_dir=make_remote_dir)
 
     @staticmethod
@@ -534,8 +532,8 @@ class HsRSyncFiles(HsBase.HsBase):
         return src_tuples_list
 
     def __rsync_files(self, alert_start, alert_stop, prefix, copy_files_list,
-                      sleep_secs, hs_dest_mchn, hs_copydir, hs_user_machinedir,
-                      hs_ssh_access, sender, make_remote_dir=False):
+                      sleep_secs, hs_copydir, hs_user_machinedir, sender,
+                      make_remote_dir=False):
         """
         Copy requested files to remote machine
         """
@@ -548,7 +546,7 @@ class HsRSyncFiles(HsBase.HsBase):
 
         if make_remote_dir:
             # mkdir destination copydir
-            self.mkdir(hs_dest_mchn, os.path.join(hs_copydir, timetag_dir))
+            self.mkdir(self.rsync_host, os.path.join(hs_copydir, timetag_dir))
 
         hs_copydest = self.get_copy_destination(hs_copydir, timetag_dir)
         logging.info("unique naming for folder: %s", hs_copydest)
@@ -558,8 +556,8 @@ class HsRSyncFiles(HsBase.HsBase):
 
         # ------- the REAL rsync command for SPS and SPTS:-----#
         # rsync daemon maps hitspool/ to /mnt/data/pdaqlocal/HsDataCopy/
-        target = self.rsync_target(hs_user_machinedir, hs_ssh_access,
-                                   timetag_dir, hs_copydest)
+        target = self.rsync_target(hs_user_machinedir, timetag_dir,
+                                   hs_copydest)
 
         try:
             outlines = self.rsync(copy_files_list, target, log_format="%i%n%L")
@@ -568,14 +566,14 @@ class HsRSyncFiles(HsBase.HsBase):
             return None
 
         logging.info("successful copy of HS data from %s to %s at %s",
-                     self.fullhost, hs_copydest, hs_ssh_access)
+                     self.fullhost, hs_copydest, self.rsync_host)
 
         dataload_mb = self.__compute_dataload(outlines)
         logging.info("dataload of %s in [MB]:\t%s", hs_copydest, dataload_mb)
 
         if self.__i3socket is not None:
             self.send_alert(" %s [MB] HS data transferred to %s " %
-                            (dataload_mb, hs_ssh_access), prio=1)
+                            (dataload_mb, self.rsync_host), prio=1)
 
         return hs_copydest
 
@@ -686,15 +684,15 @@ class HsRSyncFiles(HsBase.HsBase):
             hs_ssh_access, hs_copydir \
                 = HsUtil.split_rsync_host_and_path(hs_user_machinedir)
             if hs_ssh_access is None:
-                raise HsException("No rsync host specified")
+                raise HsException("Illegal copy directory \"%s\"<%s>",
+                                  hs_user_machinedir,
+                                  type(hs_user_machinedir))
+            if hs_ssh_access != "":
+                logging.info("Ignoring rsync user/host \"%s\"", hs_ssh_access)
 
-            logging.info("HS COPY SSH ACCESS: %s", hs_ssh_access)
             logging.info("HS COPYDIR = %s", hs_copydir)
 
             self.set_default_copydir(hs_copydir)
-
-            hs_dest_mchn = re.sub(r'\w+@', '', hs_ssh_access)
-            logging.info("HS DESTINATION HOST: %s", hs_dest_mchn)
         except Exception, err:
             self.send_alert("ERROR: destination parsing failed for"
                             " \"%s\". Abort request." % hs_user_machinedir)
@@ -755,9 +753,7 @@ class HsRSyncFiles(HsBase.HsBase):
                 = self.__copy_and_rsync(tmp_dir, src_tuples_list, alert_start,
                                         start_ticks, alert_stop, stop_ticks,
                                         extract_hits, sleep_secs, prefix,
-                                        hs_dest_mchn, hs_copydir,
-                                        hs_user_machinedir, hs_ssh_access,
-                                        sender,
+                                        hs_copydir, hs_user_machinedir, sender,
                                         make_remote_dir=make_remote_dir)
         finally:
             if hs_copydest is None:
@@ -812,7 +808,7 @@ class HsRSyncFiles(HsBase.HsBase):
                      rsync_out)
         return rsync_out
 
-    def rsync_target(self, hs_user_machinedir, _, timetag_dir, hs_copydest):
+    def rsync_target(self, hs_user_machinedir, timetag_dir, hs_copydest):
         if self.is_cluster_sps or self.is_cluster_spts:
             return os.path.join(hs_user_machinedir, timetag_dir)
 

@@ -292,7 +292,6 @@ class Request(object):
 
         unknown = []
         try:
-            import sys
             subdir = None
             count = 0
             for info in tar:

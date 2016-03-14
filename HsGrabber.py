@@ -229,16 +229,10 @@ class HsGrabber(HsBase):
             path = m.group(5)
 
         if user is None:
-            if self.is_cluster_sps or self.is_cluster_spts:
-                user = self.DEFAULT_RSYNC_USER
-            else:
-                user = getpass.getuser()
+            user = self.rsync_user
 
         if host is None:
-            if self.is_cluster_sps or self.is_cluster_spts:
-                host = self.DEFAULT_RSYNC_HOST
-            else:
-                host = "localhost"
+            host = self.rsync_host
 
         return (user, host, path)
 

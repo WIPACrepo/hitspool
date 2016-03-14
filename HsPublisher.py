@@ -12,7 +12,7 @@ import threading
 import time
 import zmq
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import HsConstants
 import HsMessage
@@ -132,6 +132,30 @@ class Receiver(HsBase):
                 logging.error("Destination directory is not specified")
                 bad_request = True
             destdir = self.BAD_DESTINATION
+        elif not bad_request:
+            hs_ssh_access, hs_ssh_dir \
+                = HsUtil.split_rsync_host_and_path(destdir)
+            if hs_ssh_access is None:
+                logging.error("Unusable destination directory \"%s\"<%s>" %
+                              (destdir, type(destdir)))
+                bad_request = True
+            elif hs_ssh_access != "":
+                if hs_ssh_access.find("@") < 0:
+                    hs_user = rsync_host
+                    hs_host = hs_ssh_access
+                else:
+                    hs_user, hs_host = hs_ssh_access.split("@", 1)
+
+                if hs_user != self.rsync_user:
+                    logging.error("rsync user must be %s, not %s",
+                                  self.rsync_user, hs_user)
+                    bad_request = True
+                if hs_host != self.rsync_host:
+                    logging.error("rsync host must be %s, not %s",
+                                  self.rsync_host, hs_host)
+                    bad_request = True
+                if not bad_request:
+                    destdir = hs_ssh_dir
 
         if 'request_id' in alertdict:
             req_id = alertdict['request_id']

@@ -79,10 +79,9 @@ class HsRSyncTestCase(LoggingTestCase):
         # check all log messages
         self.setLogLevel(0)
 
-        self.expectLogMessage("HS COPY SSH ACCESS: %s@%s" %
+        self.expectLogMessage("Ignoring rsync user/host \"%s@%s\"" %
                               (copyuser, copyhost))
         self.expectLogMessage("HS COPYDIR = %s" % copypath)
-        self.expectLogMessage("HS DESTINATION HOST: %s" % copyhost)
         self.expectLogMessage("HsInterface running on: %s" % hsr.cluster)
         self.expectLogMessage("%s reading/parsing failed" % cur_info)
 

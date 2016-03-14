@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import getpass
 import logging
 import logging.handlers
 import os
@@ -49,6 +50,13 @@ class HsBase(object):
             self.__cluster = self.SPTS
         else:
             self.__cluster = self.LOCALHOST
+
+        if self.is_cluster_sps or self.is_cluster_spts:
+            self.__rsync_host = self.DEFAULT_RSYNC_HOST
+            self.__rsync_user = self.DEFAULT_RSYNC_USER
+        else:
+            self.__rsync_host = "localhost"
+            self.__rsync_user = getpass.getuser()
 
     @property
     def cluster(self):
@@ -138,6 +146,14 @@ class HsBase(object):
             return False
 
         return True
+
+    @property
+    def rsync_host(self):
+        return self.__rsync_host
+
+    @property
+    def rsync_user(self):
+        return self.__rsync_user
 
     @property
     def shorthost(self):

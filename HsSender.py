@@ -18,6 +18,7 @@ import HsUtil
 
 from HsBase import HsBase
 from HsConstants import I3LIVE_PORT, SENDER_PORT
+from HsException import HsException
 from HsPrefix import HsPrefix
 
 
@@ -275,7 +276,7 @@ class RequestMonitor(threading.Thread):
                                      msg.destination_dir)
 
             if (msg.msgtype == HsMessage.MESSAGE_FAILED or
-                (moved is not None and not moved)):
+                 (moved is not None and not moved)):
                 # if files were not queued for SPADE, record an error
                 dbstate = HsMessage.DBSTATE_ERROR
             else:
