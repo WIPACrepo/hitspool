@@ -346,6 +346,7 @@ class DeltaCompressedHit(Payload):  # pragma: no cover
     def envelope(self):
         return struct.pack(">2IQ", self.data_length + self.ENVELOPE_LENGTH,
                            self.payload_type_id(), self.__mbid)
+
     @property
     def fadc(self):
         "fADC values"

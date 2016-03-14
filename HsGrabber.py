@@ -16,7 +16,7 @@ import zmq
 import HsUtil
 
 from HsBase import HsBase
-from HsConstants import ALERT_PORT, I3LIVE_PORT
+from HsConstants import ALERT_PORT
 from HsException import HsException
 from HsPrefix import HsPrefix
 
@@ -89,11 +89,8 @@ class HsGrabber(HsBase):
         self.__context = zmq.Context()
         self.__grabber = self.create_grabber(expcont)
         self.__poller = self.create_poller(self.__grabber)
-        self.__i3socket = self.create_i3socket(expcont)
 
     def close_all(self):
-        if self.__i3socket is not None:
-            self.__i3socket.close()
         if self.__poller is not None:
             self.__poller.close()
         if self.__grabber is not None:
@@ -112,19 +109,9 @@ class HsGrabber(HsBase):
         sock.register(grabber, zmq.POLLIN)
         return sock
 
-    def create_i3socket(self, host):  # pragma: no cover
-        # Socket for I3Live on expcont
-        sock = self.__context.socket(zmq.PUSH)
-        sock.connect("tcp://%s:%d" % (host, I3LIVE_PORT))
-        return sock
-
     @property
     def grabber(self):
         return self.__grabber
-
-    @property
-    def i3socket(self):
-        return self.__i3socket
 
     @property
     def poller(self):
@@ -242,16 +229,10 @@ class HsGrabber(HsBase):
             path = m.group(5)
 
         if user is None:
-            if self.is_cluster_sps or self.is_cluster_spts:
-                user = self.DEFAULT_RSYNC_USER
-            else:
-                user = getpass.getuser()
+            user = self.rsync_user
 
         if host is None:
-            if self.is_cluster_sps or self.is_cluster_spts:
-                host = self.DEFAULT_RSYNC_HOST
-            else:
-                host = "localhost"
+            host = self.rsync_host
 
         return (user, host, path)
 

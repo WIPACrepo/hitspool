@@ -155,7 +155,8 @@ class Worker(HsRSyncFiles):
         if self.is_cluster_sps or self.is_cluster_spts:
             logfiledir = os.path.join(HsBase.DEFAULT_LOG_PATH, "workerlogs")
             user_host, _ = HsUtil.split_rsync_host_and_path(hs_user_machinedir)
-            logtargetdir = "%s:%s" % (user_host, logfiledir)
+            logtargetdir = "%s@%s:%s" % (self.rsync_user, self.rsync_host,
+                                         logfiledir)
         else:
             logfiledir = os.path.join(self.TEST_COPY_DIR, "logs")
             logtargetdir = logfiledir
@@ -185,8 +186,8 @@ class Worker(HsRSyncFiles):
     def extract_ssh_access(self, hs_user_machinedir):
         if self.is_cluster_sps or self.is_cluster_spts:
             # for the REAL interface
-            #  data goes ALWAYS to 2ndbuild with user pdaq:
-            return 'pdaq@2ndbuild'
+            #  data ALWAYS goes to the default user/host target
+            return '%s@%s' % (self.rsync_user, self.rsync_host)
 
         return re.sub(r':/[\w+/]*', "", hs_user_machinedir)
 
@@ -283,10 +284,10 @@ class Worker(HsRSyncFiles):
 
         return HsUtil.dict_to_object(req_dict, alert_flds, 'WorkerRequest')
 
-    def rsync_target(self, hs_user_machinedir, hs_ssh_access, timetag_dir,
-                     hs_copydest):
+    def rsync_target(self, hs_user_machinedir, timetag_dir, hs_copydest):
         if self.is_cluster_sps or self.is_cluster_spts:
-            return hs_ssh_access + '::hitspool/' + timetag_dir
+            return '%s@%s::hitspool/%s' % (self.rsync_user, self.rsync_host,
+                                           timetag_dir)
 
         return os.path.join(self.__copydir_dft, timetag_dir)
 
@@ -303,7 +304,7 @@ class Worker(HsRSyncFiles):
             logging.warning("data will be sent to default destination: %s",
                             self.__copydir_dft)
             logging.info("HsSender will redirect it later on to:"
-                         " %s on 2ndbuild", hs_copydir)
+                         " %s on %s", hs_copydir, HsBase.DEFAULT_RSYNC_HOST)
 
 
 if __name__ == '__main__':

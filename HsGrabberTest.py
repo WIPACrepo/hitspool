@@ -19,14 +19,10 @@ class MyGrabber(HsGrabber.HsGrabber):
     def create_poller(self, grabber):
         return HsTestUtil.Mock0MQSocket("Poller")
 
-    def create_i3socket(self, host):
-        return HsTestUtil.MockI3Socket("HsGrabber")
-
     def validate(self):
         self.close_all()
         val = self.grabber.validate()
         val |= self.poller.validate()
-        val |= self.i3socket.validate()
         return val
 
 

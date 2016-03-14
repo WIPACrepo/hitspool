@@ -200,7 +200,8 @@ class HsPublisherTest(LoggingTestCase):
         # add all expected log messages
         self.expectLogMessage("received request:\n%s" % req_str)
         self.expectLogMessage("Bad start time \"XXX\"")
-        self.expectLogMessage(re.compile("Request contains bad start time: .*"))
+        self.expectLogMessage(re.compile(r"Request contains bad start"
+                                         r" time: .*"))
         self.expectLogMessage("Bad stop time \"TBD\"")
         self.expectLogMessage("Sent response back to requester: ERROR")
 
@@ -336,7 +337,7 @@ class HsPublisherTest(LoggingTestCase):
             "start_time": start_ticks / 10,
             "stop_time": stop_ticks / 10,
             "copy_dir": None,
-            "destination_dir": alertdict["copy"],
+            "destination_dir": copydir,
             "extract": False,
             "host": rcvr.shorthost,
         }
@@ -423,7 +424,7 @@ class HsPublisherTest(LoggingTestCase):
             "start_time": start_ticks / 10,
             "stop_time": stop_ticks / 10,
             "copy_dir": None,
-            "destination_dir": alertdict["copy"],
+            "destination_dir": copydir,
             "extract": False,
             "host": rcvr.shorthost,
         }
@@ -512,7 +513,7 @@ class HsPublisherTest(LoggingTestCase):
             "start_time": start_ticks / 10,
             "stop_time": stop_ticks / 10,
             "copy_dir": None,
-            "destination_dir": alertdict["destination_dir"],
+            "destination_dir": copydir,
             "extract": False,
             "host": rcvr.shorthost,
         }
@@ -602,7 +603,7 @@ class HsPublisherTest(LoggingTestCase):
             "start_time": start_ticks / 10,
             "stop_time": stop_ticks / 10,
             "copy_dir": None,
-            "destination_dir": alertdict["destination_dir"],
+            "destination_dir": copydir,
             "extract": False,
             "host": rcvr.shorthost,
         }
