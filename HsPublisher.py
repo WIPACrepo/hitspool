@@ -122,7 +122,7 @@ class Receiver(HsBase):
         elif 'copy' in alertdict:
             destdir = alertdict['copy']
         else:
-            destdir = None
+            destdir = self.BAD_DESTINATION
             if not bad_request:
                 logging.error("Request did not contain a copy directory: %s",
                               alertdict)
@@ -141,16 +141,16 @@ class Receiver(HsBase):
                 bad_request = True
             elif hs_ssh_access != "":
                 if hs_ssh_access.find("@") < 0:
-                    hs_user = rsync_host
+                    hs_user = self.rsync_user
                     hs_host = hs_ssh_access
                 else:
                     hs_user, hs_host = hs_ssh_access.split("@", 1)
 
-                if hs_user != self.rsync_user:
+                if not bad_request and hs_user != self.rsync_user:
                     logging.error("rsync user must be %s, not %s",
                                   self.rsync_user, hs_user)
                     bad_request = True
-                if hs_host != self.rsync_host:
+                if not bad_request and hs_host != self.rsync_host:
                     logging.error("rsync host must be %s, not %s",
                                   self.rsync_host, hs_host)
                     bad_request = True
@@ -333,8 +333,7 @@ class Receiver(HsBase):
         alert = str(self.__socket.recv())
         logging.info("received request:\n%s", alert)
 
-        # alert is NOT a real JSON or dict here
-        # because it comes from C code it is only a string
+        # SnDAQ alerts are NOT real JSON so try to eval first
         try:
             alertdict = ast.literal_eval(alert)
         except (SyntaxError, ValueError):
