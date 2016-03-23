@@ -27,6 +27,9 @@ class HsBase(object):
     # default destination directory
     DEFAULT_COPY_PATH = "/mnt/data/pdaqlocal/HsDataCopy"
 
+    # maximum number of seconds of data which can be requested
+    MAX_REQUEST_SECONDS = 3610
+
     def __init__(self, host=None, is_test=False):
         # allow caller to override the host name
         if host is not None:

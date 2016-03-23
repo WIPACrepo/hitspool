@@ -380,7 +380,7 @@ class HsWorkerTest(LoggingTestCase):
         # define alert times
         start_ticks = 157886364643994920
         stop_ticks = start_ticks + self.TICKS_PER_SECOND * \
-            (HsWorker.MAX_REQUEST_SECONDS + 1)
+            (hsr.MAX_REQUEST_SECONDS + 1)
 
         # create the alert
         alert = {
@@ -392,8 +392,8 @@ class HsWorkerTest(LoggingTestCase):
 
         errmsg = "Request for %.2fs exceeds limit of allowed data time range" \
                  " of %.2fs. Abort request..." % \
-                 (HsWorker.MAX_REQUEST_SECONDS + 1,
-                  HsWorker.MAX_REQUEST_SECONDS)
+                 (hsr.MAX_REQUEST_SECONDS + 1,
+                  hsr.MAX_REQUEST_SECONDS)
 
         # add all expected log messages
         self.expectLogMessage(errmsg)

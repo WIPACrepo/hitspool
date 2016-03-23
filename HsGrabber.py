@@ -21,8 +21,9 @@ from HsException import HsException
 from HsPrefix import HsPrefix
 
 
-STD_SECONDS = 95
-MAX_SECONDS = 610
+# requests longer than this will provoke a warning message
+#  (requests longer than HsBase.MAX_REQUEST_SECONDS will fail)
+WARN_SECONDS = 95
 
 
 def add_arguments(parser):
@@ -140,17 +141,17 @@ class HsGrabber(HsBase):
             return False
 
         # catch large ranges
-        if secrange > MAX_SECONDS:
+        if secrange > self.MAX_REQUEST_SECONDS:
             print_log.error("Request for %.2f seconds is too huge.\nHsWorker "
                             "processes request only up to %d seconds.\n"
                             "Try a smaller time window.", secrange,
-                            MAX_SECONDS)
+                            self.MAX_REQUEST_SECONDS)
             return False
 
-        if secrange > STD_SECONDS:
+        if secrange > WARN_SECONDS:
             print_log.error("Warning: You are requesting %.2f seconds of"
                             " data\nNormal requests are %d seconds or less",
-                            secrange, STD_SECONDS)
+                            secrange, WARN_SECONDS)
 
         if copydir is None:
             print_log.error("Destination directory has not been specified")
