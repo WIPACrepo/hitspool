@@ -3,6 +3,7 @@
 import logging
 import unittest
 
+import HsBase
 import HsGrabber
 import HsTestUtil
 
@@ -67,7 +68,7 @@ class HsGrabberTest(LoggingTestCase):
         alert_start_ns = 1578900679602462
         alert_start_utc = HsTestUtil.get_time(alert_start_ns, is_sn_ns=True)
         alert_stop_ns = alert_start_ns + \
-            1E9 * (HsGrabber.STD_SECONDS + 1)
+            1E9 * (HsGrabber.WARN_SECONDS + 1)
         alert_stop_utc = HsTestUtil.get_time(alert_stop_ns, is_sn_ns=True)
         copydir = "/not/valid/path"
 
@@ -90,7 +91,7 @@ class HsGrabberTest(LoggingTestCase):
         # add all expected log messages
         msg = "Warning: You are requesting %.2f seconds of data\n" \
               "Normal requests are %d seconds or less" % \
-              (secrange, HsGrabber.STD_SECONDS)
+              (secrange, HsGrabber.WARN_SECONDS)
         self.expectLogMessage(msg)
 
         # run it!
@@ -112,7 +113,7 @@ class HsGrabberTest(LoggingTestCase):
         alert_start_ns = 1578900679602462
         alert_start_utc = HsTestUtil.get_time(alert_start_ns, is_sn_ns=True)
         alert_stop_ns = alert_start_ns + \
-            1E9 * (HsGrabber.MAX_SECONDS + 1)
+            1E9 * (HsBase.HsBase.MAX_REQUEST_SECONDS + 1)
         alert_stop_utc = HsTestUtil.get_time(alert_stop_ns, is_sn_ns=True)
         copydir = None
 
@@ -128,7 +129,7 @@ class HsGrabberTest(LoggingTestCase):
         msg = "Request for %.2f seconds is too huge.\n" \
               "HsWorker processes request only up to %d seconds.\n" \
               "Try a smaller time window." % \
-              (secrange, HsGrabber.MAX_SECONDS)
+              (secrange, HsBase.HsBase.MAX_REQUEST_SECONDS)
         self.expectLogMessage(msg)
 
         # run it!
