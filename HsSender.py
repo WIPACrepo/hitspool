@@ -746,9 +746,6 @@ class HsSender(HsBase):
             return None
 
         logging.info("Preparation for SPADE Pickup of %s DONE", copydir)
-        self.__i3socket.send_json({"service": "HSiface",
-                                   "varname": "HsSender@%s" % self.shorthost,
-                                   "value": "SPADE-ing of %s done" % copydir})
 
         return (hs_bzipname, hs_spade_semfile)
 
