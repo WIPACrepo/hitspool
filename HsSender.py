@@ -745,7 +745,13 @@ class HsSender(HsBase):
                           " directory. Use HsSpader.py, for example.")
             return None
 
-        logging.info("Preparation for SPADE Pickup of %s DONE", copydir)
+        try:
+            shutil.rmtree(copydir)
+        except:
+            logging.exception("Could not remove copied directory \"%s\"" %
+                              copydir)
+
+        logging.info("SPADE file is %s", hs_bzipname)
 
         return (hs_bzipname, hs_spade_semfile)
 
