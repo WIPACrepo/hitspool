@@ -117,45 +117,16 @@ class Receiver(HsBase):
             if sn_stop_utc is None:
                 sn_stop_utc = datetime.now()
 
-        if 'destination_dir' in alertdict:
-            destdir = alertdict['destination_dir']
-        elif 'copy' in alertdict:
-            destdir = alertdict['copy']
-        else:
+        try:
+            destdir, bad_flag = self.__parse_destination_dir(alertdict)
+            bad_request |= bad_flag
+        except:
+            logging.exception("Failed to parse destination directory")
+            destdir = None
+            bad_request = True
+        if destdir == None:
             destdir = self.BAD_DESTINATION
-            if not bad_request:
-                logging.error("Request did not contain a copy directory: %s",
-                              alertdict)
-                bad_request = True
-        if destdir is None:
-            if not bad_request:
-                logging.error("Destination directory is not specified")
-                bad_request = True
-            destdir = self.BAD_DESTINATION
-        elif not bad_request:
-            hs_ssh_access, hs_ssh_dir \
-                = HsUtil.split_rsync_host_and_path(destdir)
-            if hs_ssh_access is None:
-                logging.error("Unusable destination directory \"%s\"<%s>" %
-                              (destdir, type(destdir)))
-                bad_request = True
-            elif hs_ssh_access != "":
-                if hs_ssh_access.find("@") < 0:
-                    hs_user = self.rsync_user
-                    hs_host = hs_ssh_access
-                else:
-                    hs_user, hs_host = hs_ssh_access.split("@", 1)
-
-                if not bad_request and hs_user != self.rsync_user:
-                    logging.error("rsync user must be %s, not %s",
-                                  self.rsync_user, hs_user)
-                    bad_request = True
-                if not bad_request and hs_host != self.rsync_host:
-                    logging.error("rsync host must be %s, not %s",
-                                  self.rsync_host, hs_host)
-                    bad_request = True
-                if not bad_request:
-                    destdir = hs_ssh_dir
+            bad_request = True
 
         if 'request_id' in alertdict:
             req_id = alertdict['request_id']
@@ -189,21 +160,15 @@ class Receiver(HsBase):
                 copydir = None
                 host = self.shorthost
 
-                # convert nanoseconds to datetime
-                _, start_utc = HsUtil.fix_date_or_timestamp(start_ns, None,
-                                                            is_sn_ns=True)
-                _, stop_utc = HsUtil.fix_date_or_timestamp(stop_ns, None,
-                                                           is_sn_ns=True)
-
                 # tell HsSender about the request
                 HsMessage.send(self.__sender, HsMessage.MESSAGE_INITIAL,
-                               req_id, user, start_utc, stop_utc, copydir,
-                               destdir, prefix, extract, host)
+                               req_id, user, sn_start_utc, sn_stop_utc,
+                               copydir, destdir, prefix, extract, host)
 
                 # send request to workers
                 HsMessage.send(self.__workers, HsMessage.MESSAGE_INITIAL,
-                               req_id, user, start_ns, stop_ns, copydir,
-                               destdir, prefix, extract, host)
+                               req_id, user, start_ns, stop_ns,
+                               copydir, destdir, prefix, extract, host)
 
                 # log alert
                 logging.info("Publisher published: %s", str(alertdict))
@@ -231,8 +196,50 @@ class Receiver(HsBase):
         # let caller know there was a problem
         return False
 
+    def __parse_destination_dir(self, alertdict):
+        # extract destination directory from initial request
+        if 'destination_dir' in alertdict:
+            destdir = alertdict['destination_dir']
+        elif 'copy' in alertdict:
+            destdir = alertdict['copy']
+        else:
+            logging.error("Request did not contain a copy directory: %s",
+                          alertdict)
+            return None, True
+
+        # if no destination directory was provided, we're done
+        if destdir is None:
+            logging.error("Destination directory is not specified")
+            return None, True
+
+        # split directory into 'user@host' and path
+        hs_ssh_access, hs_ssh_dir = HsUtil.split_rsync_host_and_path(destdir)
+        if hs_ssh_access is None:
+            logging.error("Unusable destination directory \"%s\"<%s>" %
+                          (destdir, type(destdir)))
+            return destdir, True
+
+        # if no user/hst was specified, return the path
+        if hs_ssh_access != "":
+            # only the standard user and host are allowed
+            if hs_ssh_access.find("@") < 0:
+                hs_user = self.rsync_user
+                hs_host = hs_ssh_access
+            else:
+                hs_user, hs_host = hs_ssh_access.split("@", 1)
+
+            if hs_user != self.rsync_user:
+                logging.error("rsync user must be %s, not %s (from \"%s\")",
+                              self.rsync_user, hs_user, destdir)
+                return destdir, True
+            if hs_host != self.rsync_host:
+                logging.error("rsync host must be %s, not %s (from \"%s\")",
+                              self.rsync_host, hs_host, destdir)
+                return destdir, True
+
+        return hs_ssh_dir, False
+
     def __parse_time(self, alertdict, name):
-        fldname = None
         if name + '_time' in alertdict:
             fldname = name + '_time'
         elif name in alertdict:
@@ -240,6 +247,7 @@ class Receiver(HsBase):
         else:
             logging.error("Request did not contain a %s time:\n%s", name,
                           alertdict)
+            fldname = None
 
         nsec = 0
         utc = None

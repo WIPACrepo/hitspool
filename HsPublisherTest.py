@@ -190,10 +190,13 @@ class HsPublisherTest(LoggingTestCase):
         rcvr = MyReceiver()
 
         # expected start/stop times
+        start_utc = "XXX"
         stop_utc = "TBD"
+        copydir = "XXX"
 
         # request message
-        req_str = "{\"start\": \"XXX\", \"stop\": \"%s\"}" % stop_utc
+        req_str = "{\"start\": \"%s\", \"stop\": \"%s\", \"copy\": \"%s\"}" % \
+                  (start_utc, stop_utc, copydir)
 
         # initialize incoming socket and add expected message(s)
         rcvr.alert_socket.addIncoming(req_str)
@@ -201,10 +204,10 @@ class HsPublisherTest(LoggingTestCase):
 
         # add all expected log messages
         self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage("Bad start time \"XXX\"")
+        self.expectLogMessage("Bad start time \"%s\"" % start_utc)
         self.expectLogMessage(re.compile(r"Request contains bad start"
                                          r" time: .*"))
-        self.expectLogMessage("Bad stop time \"TBD\"")
+        self.expectLogMessage("Bad stop time \"%s\"" % stop_utc)
         self.expectLogMessage("Sent response back to requester: ERROR")
 
         # initialize I3Live socket and add all expected I3Live messages
@@ -215,7 +218,7 @@ class HsPublisherTest(LoggingTestCase):
             'request_id': self.MATCH_ANY,
             'start_time': self.MATCH_ANY,
             'stop_time': self.MATCH_ANY,
-            'destination_dir': HsPublisher.Receiver.BAD_DESTINATION,
+            'destination_dir': copydir,
             'update_time': self.MATCH_ANY,
         }, service="hitspool", varname="hsrequest_info", prio=1,
                                          time=self.MATCH_ANY)
@@ -298,7 +301,7 @@ class HsPublisherTest(LoggingTestCase):
             'request_id': self.MATCH_ANY,
             'start_time': self.MATCH_ANY,
             'stop_time': self.MATCH_ANY,
-            'destination_dir': HsPublisher.Receiver.BAD_DESTINATION,
+            'destination_dir': rcvr.BAD_DESTINATION,
             'update_time': self.MATCH_ANY,
         }, service="hitspool", varname="hsrequest_info", prio=1,
                                          time=self.MATCH_ANY)
@@ -368,8 +371,8 @@ class HsPublisherTest(LoggingTestCase):
 
         # add all expected log messages
         self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage("rsync user must be %s, not %s" %
-                              (rcvr.rsync_user, copy_user))
+        self.expectLogMessage("rsync user must be %s, not %s (from \"%s\")" %
+                              (rcvr.rsync_user, copy_user, copydir))
         self.expectLogMessage("Sent response back to requester: ERROR")
 
         # initialize I3Live socket and add all expected I3Live messages
@@ -412,8 +415,8 @@ class HsPublisherTest(LoggingTestCase):
 
         # add all expected log messages
         self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage("rsync host must be %s, not %s" %
-                              (rcvr.rsync_host, copy_host))
+        self.expectLogMessage("rsync host must be %s, not %s (from \"%s\")" %
+                              (rcvr.rsync_host, copy_host, copydir))
         self.expectLogMessage("Sent response back to requester: ERROR")
 
         # initialize I3Live socket and add all expected I3Live messages
