@@ -416,21 +416,21 @@ class Processor(object):
             logging.error("Request ID #%s username changed"
                           " from \"%s\" (for %s) to \"%s\" (for %s)",
                           newmsg.request_id, oldmsg.username, oldmsg.status,
-                          newmsg.username, newmsg,status)
+                          newmsg.username, newmsg.status)
             return self.RUN_ERR_MSGCHG
 
         if oldmsg.start_time != newmsg.start_time:
             logging.error("Request ID #%s start time changed"
                           " from \"%s\" (for %s) to \"%s\" (for %s)",
                           newmsg.request_id, oldmsg.start_time, oldmsg.status,
-                          newmsg.start_time, newmsg,status)
+                          newmsg.start_time, newmsg.status)
             return self.RUN_ERR_MSGCHG
 
         if oldmsg.stop_time != newmsg.stop_time:
             logging.error("Request ID #%s stop time changed"
                           " from \"%s\" (for %s) to \"%s\" (for %s)",
                           newmsg.request_id, oldmsg.stop_time, oldmsg.status,
-                          newmsg.stop_time, newmsg,status)
+                          newmsg.stop_time, newmsg.status)
             return self.RUN_ERR_MSGCHG
 
         return None
