@@ -416,21 +416,21 @@ class Processor(object):
             logging.error("Request ID #%s username changed"
                           " from \"%s\" (for %s) to \"%s\" (for %s)",
                           newmsg.request_id, oldmsg.username, oldmsg.status,
-                          newmsg.username, newmsg,status)
+                          newmsg.username, newmsg.status)
             return self.RUN_ERR_MSGCHG
 
         if oldmsg.start_time != newmsg.start_time:
             logging.error("Request ID #%s start time changed"
                           " from \"%s\" (for %s) to \"%s\" (for %s)",
                           newmsg.request_id, oldmsg.start_time, oldmsg.status,
-                          newmsg.start_time, newmsg,status)
+                          newmsg.start_time, newmsg.status)
             return self.RUN_ERR_MSGCHG
 
         if oldmsg.stop_time != newmsg.stop_time:
             logging.error("Request ID #%s stop time changed"
                           " from \"%s\" (for %s) to \"%s\" (for %s)",
                           newmsg.request_id, oldmsg.stop_time, oldmsg.status,
-                          newmsg.stop_time, newmsg,status)
+                          newmsg.stop_time, newmsg.status)
             return self.RUN_ERR_MSGCHG
 
         return None
@@ -668,8 +668,9 @@ if __name__ == "__main__":
             Request(env, True, single_start_ns, single_stop_ns, hubs,
                     ("HitSpool-1.dat", ), prefix=HsPrefix.SNALERT,
                     copydir=env.copydst),
-            Request(env, False, first_ticks - 6 * TICKS_PER_SECOND,
-                    first_ticks - 100, hubs, None, prefix=HsPrefix.SNALERT),
+            Request(env, False, (first_ticks - 6 * TICKS_PER_SECOND) / 10,
+                    (first_ticks - 1 * TICKS_PER_SECOND) / 10, hubs, None,
+                    prefix=HsPrefix.SNALERT),
             Request(env, True, single_start_ns, single_stop_ns, hubs,
                     ("hits_157890077960249984_157890127960249984.dat", ),
                     copydir=os.path.join(ROOTDIR, "hese_hs"), extract=True),
@@ -727,27 +728,33 @@ if __name__ == "__main__":
     def process_requests(requests):
         processor = Processor()
 
-        failed = 0
+        failed = []
 
-        first = True
+        num = 0
         for request in requests:
+            if num > 0:
+                # print a separator so it's easy to see different requests
+                print >>sys.stderr, "="*75
+
+            # keep track of request numbers to make debugging easier
+            num += 1
+            print "::: Request #%d" % num
+
             try:
                 if not processor.run(request):
-                    failed += 1
+                    failed.append(num)
             except:
                 logging.exception("Request failed")
-                failed += 1
-
-            # print a separator so it's easy to see different requests
-            print >>sys.stderr, "="*75
+                failed.append(num)
 
         open_reqs = find_open_requests()
 
-        if failed == 0 and open_reqs == 0:
+        if len(failed) == 0 and open_reqs == 0:
             print "No problems found"
         else:
-            print >>sys.stderr, "Found problems with %d requests!" % failed
-            if open_reqs > 0 and open_reqs != failed:
+            print >>sys.stderr, "Found problems with %d requests: %s" % \
+                (len(failed), failed)
+            if open_reqs > 0 and open_reqs != len(failed):
                 print >>sys.stderr, "Found %d open requests in state DB" % \
                     open_reqs
 

@@ -4,6 +4,8 @@ import json
 import re
 import unittest
 
+from datetime import datetime
+
 import HsConstants
 import HsMessage
 import HsPublisher
@@ -188,10 +190,13 @@ class HsPublisherTest(LoggingTestCase):
         rcvr = MyReceiver()
 
         # expected start/stop times
+        start_utc = "XXX"
         stop_utc = "TBD"
+        copydir = "XXX"
 
         # request message
-        req_str = "{\"start\": \"XXX\", \"stop\": \"%s\"}" % stop_utc
+        req_str = "{\"start\": \"%s\", \"stop\": \"%s\", \"copy\": \"%s\"}" % \
+                  (start_utc, stop_utc, copydir)
 
         # initialize incoming socket and add expected message(s)
         rcvr.alert_socket.addIncoming(req_str)
@@ -199,10 +204,10 @@ class HsPublisherTest(LoggingTestCase):
 
         # add all expected log messages
         self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage("Bad start time \"XXX\"")
+        self.expectLogMessage("Bad start time \"%s\"" % start_utc)
         self.expectLogMessage(re.compile(r"Request contains bad start"
                                          r" time: .*"))
-        self.expectLogMessage("Bad stop time \"TBD\"")
+        self.expectLogMessage("Bad stop time \"%s\"" % stop_utc)
         self.expectLogMessage("Sent response back to requester: ERROR")
 
         # initialize I3Live socket and add all expected I3Live messages
@@ -213,7 +218,7 @@ class HsPublisherTest(LoggingTestCase):
             'request_id': self.MATCH_ANY,
             'start_time': self.MATCH_ANY,
             'stop_time': self.MATCH_ANY,
-            'destination_dir': HsPublisher.Receiver.BAD_DESTINATION,
+            'destination_dir': copydir,
             'update_time': self.MATCH_ANY,
         }, service="hitspool", varname="hsrequest_info", prio=1,
                                          time=self.MATCH_ANY)
@@ -296,7 +301,133 @@ class HsPublisherTest(LoggingTestCase):
             'request_id': self.MATCH_ANY,
             'start_time': self.MATCH_ANY,
             'stop_time': self.MATCH_ANY,
-            'destination_dir': HsPublisher.Receiver.BAD_DESTINATION,
+            'destination_dir': rcvr.BAD_DESTINATION,
+            'update_time': self.MATCH_ANY,
+        }, service="hitspool", varname="hsrequest_info", prio=1,
+                                         time=self.MATCH_ANY)
+
+        # run it!
+        rcvr.reply_request()
+
+        rcvr.validate()
+
+    def test_null_copydir(self):
+        rcvr = MyReceiver()
+
+        # expected start/stop times
+        start_ticks = 98765432101234
+        stop_ticks = 98899889980000
+
+        # request message
+        req_str = '{"start": %d, "stop": %s, "copy": null}' % \
+                  (start_ticks / 10, stop_ticks / 10)
+
+        # initialize incoming socket and add expected message(s)
+        rcvr.alert_socket.addIncoming(req_str)
+        rcvr.alert_socket.addExpected("ERROR\0")
+
+        # add all expected log messages
+        self.expectLogMessage("received request:\n%s" % req_str)
+        self.expectLogMessage("Destination directory is not specified")
+        self.expectLogMessage("Sent response back to requester: ERROR")
+
+        # initialize I3Live socket and add all expected I3Live messages
+        rcvr.i3socket.addExpectedMessage({
+            'username': HsPublisher.Receiver.DEFAULT_USERNAME,
+            'status': HsUtil.STATUS_REQUEST_ERROR,
+            'prefix': HsPrefix.ANON,
+            'request_id': self.MATCH_ANY,
+            'start_time': self.MATCH_ANY,
+            'stop_time': self.MATCH_ANY,
+            'destination_dir': rcvr.BAD_DESTINATION,
+            'update_time': self.MATCH_ANY,
+        }, service="hitspool", varname="hsrequest_info", prio=1,
+                                         time=self.MATCH_ANY)
+
+        # run it!
+        rcvr.reply_request()
+
+        rcvr.validate()
+
+    def test_bad_copydir_user(self):
+        rcvr = MyReceiver()
+
+        # expected start/stop times
+        start_ticks = 98765432101234
+        stop_ticks = 98899889980000
+
+        copy_user = "xxx"
+        copy_host = "xxxhost"
+        copy_path = "/not/really"
+        copydir = "%s@%s:%s" % (copy_user, copy_host, copy_path)
+
+        # request message
+        req_str = "{'start': %d, 'stop': %s, 'copy': '%s'}" % \
+                  (start_ticks / 10, stop_ticks / 10, copydir)
+
+        # initialize incoming socket and add expected message(s)
+        rcvr.alert_socket.addIncoming(req_str)
+        rcvr.alert_socket.addExpected("ERROR\0")
+
+        # add all expected log messages
+        self.expectLogMessage("received request:\n%s" % req_str)
+        self.expectLogMessage("rsync user must be %s, not %s (from \"%s\")" %
+                              (rcvr.rsync_user, copy_user, copydir))
+        self.expectLogMessage("Sent response back to requester: ERROR")
+
+        # initialize I3Live socket and add all expected I3Live messages
+        rcvr.i3socket.addExpectedMessage({
+            'username': HsPublisher.Receiver.DEFAULT_USERNAME,
+            'status': HsUtil.STATUS_REQUEST_ERROR,
+            'prefix': HsPrefix.ANON,
+            'request_id': self.MATCH_ANY,
+            'start_time': self.MATCH_ANY,
+            'stop_time': self.MATCH_ANY,
+            'destination_dir': copydir,
+            'update_time': self.MATCH_ANY,
+        }, service="hitspool", varname="hsrequest_info", prio=1,
+                                         time=self.MATCH_ANY)
+
+        # run it!
+        rcvr.reply_request()
+
+        rcvr.validate()
+
+    def test_bad_copydir_host(self):
+        rcvr = MyReceiver()
+
+        # expected start/stop times
+        start_ticks = 98765432101234
+        stop_ticks = 98899889980000
+
+        copy_user = rcvr.rsync_user
+        copy_host = "xxxhost"
+        copy_path = "/not/really"
+        copydir = "%s@%s:%s" % (copy_user, copy_host, copy_path)
+
+        # request message
+        req_str = "{'start': %d, 'stop': %s, 'copy': '%s'}" % \
+                  (start_ticks / 10, stop_ticks / 10, copydir)
+
+        # initialize incoming socket and add expected message(s)
+        rcvr.alert_socket.addIncoming(req_str)
+        rcvr.alert_socket.addExpected("ERROR\0")
+
+        # add all expected log messages
+        self.expectLogMessage("received request:\n%s" % req_str)
+        self.expectLogMessage("rsync host must be %s, not %s (from \"%s\")" %
+                              (rcvr.rsync_host, copy_host, copydir))
+        self.expectLogMessage("Sent response back to requester: ERROR")
+
+        # initialize I3Live socket and add all expected I3Live messages
+        rcvr.i3socket.addExpectedMessage({
+            'username': HsPublisher.Receiver.DEFAULT_USERNAME,
+            'status': HsUtil.STATUS_REQUEST_ERROR,
+            'prefix': HsPrefix.ANON,
+            'request_id': self.MATCH_ANY,
+            'start_time': self.MATCH_ANY,
+            'stop_time': self.MATCH_ANY,
+            'destination_dir': copydir,
             'update_time': self.MATCH_ANY,
         }, service="hitspool", varname="hsrequest_info", prio=1,
                                          time=self.MATCH_ANY)
@@ -604,6 +735,190 @@ class HsPublisherTest(LoggingTestCase):
             "stop_time": stop_ticks / 10,
             "copy_dir": None,
             "destination_dir": copydir,
+            "extract": False,
+            "host": rcvr.shorthost,
+        }
+
+        # notification message strings
+        notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % rcvr.cluster
+        notify_desc = 'HsInterface Data Request'
+        notify_lines = [
+            '',
+            'start in UTC : %s' % start_utc,
+            'stop  in UTC : %s' % stop_utc,
+            '(no possible leapseconds applied)',
+        ]
+        notify_pat = re.compile(r".*" + re.escape("\n".join(notify_lines)),
+                                flags=re.MULTILINE)
+
+        notifies = []
+        for addr in HsConstants.ALERT_EMAIL_DEV:
+            notifies.append(
+                {
+                    'notifies_txt': notify_pat,
+                    'notifies_header': notify_hdr,
+                    'receiver': addr,
+                })
+
+        # initialize I3Live socket and add all expected I3Live messages
+        rcvr.i3socket.addExpectedAlert({
+            'condition': notify_hdr,
+            'desc': notify_desc,
+            'notifies': notifies,
+            'short_subject': 'true',
+            'quiet': 'true',
+        })
+
+        # build sender status message
+        send_msg = stddict.copy()
+        send_msg["msgtype"] = HsMessage.MESSAGE_INITIAL
+        send_msg["start_time"] = str(start_utc)
+        send_msg["stop_time"] = str(stop_utc)
+
+        # add expected sender message
+        rcvr.sender.addExpected(send_msg)
+
+        # add expected worker request
+        rcvr.workers.addExpected(stddict)
+
+        # add all expected log messages
+        self.expectLogMessage("received request:\n%s" % req_str)
+        self.expectLogMessage(re.compile("Publisher published: .*"))
+        self.expectLogMessage("Sent response back to requester: DONE")
+
+        # run it!
+        rcvr.reply_request()
+
+        rcvr.validate()
+
+    def test_hese(self):
+        rcvr = MyReceiver()
+
+        # expected start/stop times
+        start_ticks = 98765432100000
+        stop_ticks = 98899889980000
+        start_utc = HsTestUtil.get_time(start_ticks)
+        stop_utc = HsTestUtil.get_time(stop_ticks)
+        copydir = "localhost:/tmp"
+
+        # request message
+        alertdict = {
+            "start_time": start_ticks / 10,
+            "stop_time": stop_ticks / 10,
+            "destination_dir": copydir,
+            "prefix": HsPrefix.ANON,
+            "request_id": "NO ID",
+        }
+        req_str = json.dumps(alertdict)
+
+        # initialize incoming socket and add expected message(s)
+        rcvr.alert_socket.addIncoming(req_str)
+        rcvr.alert_socket.addExpected("DONE\0")
+
+        _, request_dir = copydir.split(":")
+
+        # fill in defaults for worker request
+        stddict = {
+            "msgtype": HsMessage.MESSAGE_INITIAL,
+            "request_id": alertdict["request_id"],
+            "username": HsPublisher.Receiver.DEFAULT_USERNAME,
+            "prefix": HsPrefix.ANON,
+            "start_time": start_ticks / 10,
+            "stop_time": stop_ticks / 10,
+            "copy_dir": None,
+            "destination_dir": request_dir,
+            "extract": False,
+            "host": rcvr.shorthost,
+        }
+
+        # notification message strings
+        notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % rcvr.cluster
+        notify_desc = 'HsInterface Data Request'
+        notify_lines = [
+            '',
+            'start in UTC : %s' % start_utc,
+            'stop  in UTC : %s' % stop_utc,
+            '(no possible leapseconds applied)',
+        ]
+        notify_pat = re.compile(r".*" + re.escape("\n".join(notify_lines)),
+                                flags=re.MULTILINE)
+
+        notifies = []
+        for addr in HsConstants.ALERT_EMAIL_DEV:
+            notifies.append(
+                {
+                    'notifies_txt': notify_pat,
+                    'notifies_header': notify_hdr,
+                    'receiver': addr,
+                })
+
+        # initialize I3Live socket and add all expected I3Live messages
+        rcvr.i3socket.addExpectedAlert({
+            'condition': notify_hdr,
+            'desc': notify_desc,
+            'notifies': notifies,
+            'short_subject': 'true',
+            'quiet': 'true',
+        })
+
+        # build sender status message
+        send_msg = stddict.copy()
+        send_msg["msgtype"] = HsMessage.MESSAGE_INITIAL
+        send_msg["start_time"] = str(start_utc)
+        send_msg["stop_time"] = str(stop_utc)
+
+        # add expected sender message
+        rcvr.sender.addExpected(send_msg)
+
+        # add expected worker request
+        rcvr.workers.addExpected(stddict)
+
+        # add all expected log messages
+        self.expectLogMessage("received request:\n%s" % req_str)
+        self.expectLogMessage(re.compile("Publisher published: .*"))
+        self.expectLogMessage("Sent response back to requester: DONE")
+
+        # run it!
+        rcvr.reply_request()
+
+        rcvr.validate()
+
+    def test_date_requests(self):
+        rcvr = MyReceiver()
+
+        # expected start/stop times
+        start_ticks = 98765432100000
+        stop_ticks = 98899889980000
+        start_utc = HsTestUtil.get_time(start_ticks)
+        stop_utc = HsTestUtil.get_time(stop_ticks)
+        copydir = "localhost:/tmp"
+
+        # request message
+        alertdict = {
+            "start_time": str(start_utc),
+            "stop_time": str(stop_utc),
+            "destination_dir": copydir,
+            "prefix": HsPrefix.ANON,
+            "request_id": "NO ID",
+        }
+        req_str = json.dumps(alertdict)
+
+        # initialize incoming socket and add expected message(s)
+        rcvr.alert_socket.addIncoming(req_str)
+        rcvr.alert_socket.addExpected("DONE\0")
+
+        _, request_dir = copydir.split(":")
+
+        # fill in defaults for worker request
+        stddict = {
+            "msgtype": HsMessage.MESSAGE_INITIAL,
+            "request_id": alertdict["request_id"],
+            "username": HsPublisher.Receiver.DEFAULT_USERNAME,
+            "prefix": HsPrefix.ANON,
+            "start_time": start_ticks / 10,
+            "stop_time": stop_ticks / 10,
+            "copy_dir": None,
+            "destination_dir": request_dir,
             "extract": False,
             "host": rcvr.shorthost,
         }

@@ -28,10 +28,6 @@ from HsPrefix import HsPrefix
 from HsRSyncFiles import HsRSyncFiles
 
 
-# maximum number of seconds of data which can be requested
-MAX_REQUEST_SECONDS = 610
-
-
 def add_arguments(parser):
     dflt_copydir = "%s@%s:%s" % (HsBase.DEFAULT_RSYNC_USER,
                                  HsBase.DEFAULT_RSYNC_HOST,
@@ -128,7 +124,7 @@ class Worker(HsRSyncFiles):
 
         # -----after correcting parsing, check for data range ------------#
         datarange = alertstop - alertstart
-        datamax = timedelta(0, MAX_REQUEST_SECONDS)
+        datamax = timedelta(0, self.MAX_REQUEST_SECONDS)
         if datarange > datamax:
             range_secs = datarange.days * (24 * 60 * 60) + \
                 datarange.seconds + (datarange.microseconds / 1E6)

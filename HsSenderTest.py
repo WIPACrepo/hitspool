@@ -454,8 +454,6 @@ class HsSenderTest(LoggingTestCase):
         hsdir = MockHitspool.create_copy_files(category, timetag, host,
                                                firstnum, numfiles,
                                                real_stuff=True)
-        # add all expected I3Live messages
-        sender.i3socket.addExpectedValue("SPADE-ing of %s done" % hsdir)
 
         # clean up test files
         for fnm in (mytar, mysem):
@@ -601,9 +599,6 @@ class HsSenderTest(LoggingTestCase):
         hsdir = MockHitspool.create_copy_files(category, timetag, host,
                                                firstnum, numfiles,
                                                real_stuff=True)
-
-        # add all expected I3Live messages
-        sender.i3socket.addExpectedValue("SPADE-ing of %s done" % hsdir)
 
         # set SPADE path to something which exists everywhere
         sender.HS_SPADE_DIR = tempfile.mkdtemp(prefix="SPADE_")
