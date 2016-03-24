@@ -614,12 +614,14 @@ class IntegrationTest(LoggingTestCase):
             thrd.start()
 
         # wait for threads to finish
-        for _ in range(10):
+        for _ in range(25):
             alive = False
             for thrd in thrds:
                 if thrd.isAlive():
                     thrd.join(1)
-                    alive |= thrd.isAlive()
+                    if thrd.isAlive():
+                        alive = True
+                        break
             if not alive:
                 break
 
