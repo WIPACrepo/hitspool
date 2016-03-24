@@ -727,27 +727,33 @@ if __name__ == "__main__":
     def process_requests(requests):
         processor = Processor()
 
-        failed = 0
+        failed = []
 
-        first = True
+        num = 0
         for request in requests:
+            if num > 0:
+                # print a separator so it's easy to see different requests
+                print >>sys.stderr, "="*75
+
+            # keep track of request numbers to make debugging easier
+            num += 1
+            print "::: Request #%d" % num
+
             try:
                 if not processor.run(request):
-                    failed += 1
+                    failed.append(num)
             except:
                 logging.exception("Request failed")
-                failed += 1
-
-            # print a separator so it's easy to see different requests
-            print >>sys.stderr, "="*75
+                failed.append(num)
 
         open_reqs = find_open_requests()
 
-        if failed == 0 and open_reqs == 0:
+        if len(failed) == 0 and open_reqs == 0:
             print "No problems found"
         else:
-            print >>sys.stderr, "Found problems with %d requests!" % failed
-            if open_reqs > 0 and open_reqs != failed:
+            print >>sys.stderr, "Found problems with %d requests: %s" % \
+                (len(failed), failed)
+            if open_reqs > 0 and open_reqs != len(failed):
                 print >>sys.stderr, "Found %d open requests in state DB" % \
                     open_reqs
 
