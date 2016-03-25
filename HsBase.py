@@ -138,17 +138,25 @@ class HsBase(object):
             raise HsException("Cannot move \"%s\" to \"%s\": %s" %
                               (src, dst, sex))
 
-    def queue_for_spade(self, sourcedir, sourcefiles, spadedir, tarname,
+    def queue_for_spade(self, sourcedir, sourcefile, spadedir, tarname,
                         semname):
         try:
-            self.write_tarfile(sourcedir, sourcefiles, tarname)
-            self.move_file(os.path.join(sourcedir, tarname), spadedir)
+            self.write_tarfile(sourcedir, sourcefile, tarname)
+            if os.path.normpath(sourcedir) != os.path.normpath(spadedir):
+                self.move_file(os.path.join(sourcedir, tarname), spadedir)
             self.touch_file(os.path.join(spadedir, semname))
+            self.remove_tree(os.path.join(sourcedir, sourcefile))
         except HsException, hsex:
             logging.error(str(hsex))
             return False
 
         return True
+
+    def remove_tree(self, path):
+        try:
+            shutil.rmtree(path)
+        except:
+            logging.exception("Cannot remove %s", path)
 
     @property
     def rsync_host(self):
