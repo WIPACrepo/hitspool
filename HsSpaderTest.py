@@ -40,6 +40,9 @@ class MySpader(HsSpader.HsSpader):
         if self.__fail_move_file:
             raise HsException("Fake Move Error")
 
+    def remove_tree(self, path):
+        pass
+
     def set_file_list(self, files):
         self.__filelist = files
 

@@ -73,6 +73,9 @@ class FailableSender(MySender):
         self.__moved_files = True
         return True
 
+    def remove_tree(self, path):
+        pass
+
     def touch_file(self, name, times=None):
         if self.__fail_touch_file:
             raise HsException("Fake Touch Error")
@@ -447,8 +450,8 @@ class HsSenderTest(LoggingTestCase):
         self.setLogLevel(logging.WARN)
 
         mybase = "%s_%s_%s" % (category, timetag, host)
-        mytar = "HS_%s.dat.tar.bz2" % mybase
-        mysem = "HS_%s.sem" % mybase
+        mytar = "%s.dat.tar.bz2" % mybase
+        mysem = "%s.sem" % mybase
 
         # create real directories
         hsdir = MockHitspool.create_copy_files(category, timetag, host,
@@ -463,7 +466,7 @@ class HsSenderTest(LoggingTestCase):
 
         # run it!
         (tarname, semname) \
-            = sender.spade_pickup_data(hsdir, "/foo/bar")
+            = sender.spade_pickup_data(hsdir, mybase, prefix=category)
         self.assertEquals(mytar, tarname,
                           "Expected tarfile to be named \"%s\" not \"%s\"" %
                           (mytar, tarname))
@@ -503,7 +506,7 @@ class HsSenderTest(LoggingTestCase):
                               " directory. Use HsSpader.py, for example.")
 
         # run it!
-        result = sender.spade_pickup_data(hsdir, "/foo/bar")
+        result = sender.spade_pickup_data(hsdir, "ignored", prefix=category)
         self.assertIsNone(result, "spade_pickup_data() should return None,"
                           " not %s" % str(result))
 
@@ -539,7 +542,7 @@ class HsSenderTest(LoggingTestCase):
                               " directory. Use HsSpader.py, for example.")
 
         # run it!
-        result = sender.spade_pickup_data(hsdir, "/foo/bar")
+        result = sender.spade_pickup_data(hsdir, "ignored", prefix=category)
         self.assertIsNone(result, "spade_pickup_data() should return None,"
                           " not %s" % str(result))
 
@@ -575,7 +578,7 @@ class HsSenderTest(LoggingTestCase):
                               " directory. Use HsSpader.py, for example.")
 
         # run it!
-        result = sender.spade_pickup_data(hsdir, "/foo/bar")
+        result = sender.spade_pickup_data(hsdir, "ignored", prefix=category)
         self.assertIsNone(result, "spade_pickup_data() should return None,"
                           " not %s" % str(result))
 
@@ -628,7 +631,8 @@ class HsSenderTest(LoggingTestCase):
                 os.unlink(tmppath)
 
         # run it!
-        (tarname, semname) = sender.spade_pickup_data(hsdir, movedir)
+        (tarname, semname) = sender.spade_pickup_data(movedir, mybase,
+                                                      prefix=category)
         self.assertEquals(mytar, tarname,
                           "Expected tarfile to be named \"%s\" not \"%s\"" %
                           (mytar, tarname))

@@ -59,13 +59,16 @@ def add_arguments(parser):
 
 
 class LogToConsole(object):  # pragma: no cover
-    def info(self, msg, *args):
+    @staticmethod
+    def info(msg, *args):
         print msg % args
 
-    def warn(self, msg, *args):
+    @staticmethod
+    def warn(msg, *args):
         print >>sys.stderr, msg % args
 
-    def error(self, msg, *args):
+    @staticmethod
+    def error(msg, *args):
         print >>sys.stderr, msg % args
 
 
