@@ -317,7 +317,9 @@ class RequestMonitor(threading.Thread):
             if no_spade and not force_spade:
                 logging.info("Not scheduling for SPADE pickup")
             else:
-                result = self.__sender.spade_pickup_data(copydir, hs_basedir)
+                _, data_dir = os.path.split(copydir)
+                result = self.__sender.spade_pickup_data(hs_basedir, data_dir,
+                                                         prefix=msg.prefix)
                 if result is None:
                     return False
         return True
@@ -563,7 +565,7 @@ class HsSender(HsBase):
         self.__monitor = RequestMonitor(self)
         self.__monitor.start()
 
-    def __validate_destination_dir(self, copydir, dirname, prefix):
+    def __validate_destination_dir(self, dirname, prefix):
         if prefix is None:
             match = re.match(r'(\S+)_[0-9]{8}_[0-9]{6}', dirname)
             if match is None:
@@ -575,7 +577,7 @@ class HsSender(HsBase):
 
         if not HsPrefix.is_valid(prefix):
             logging.info("Unexpected prefix for destination directory"
-                         " name \"%s\" (from \"%s\")", dirname, copydir)
+                         " name \"%s\"", dirname)
 
         return True
 
@@ -656,8 +658,7 @@ class HsSender(HsBase):
 
         no_spade = False
         if not force_spade:
-            if not self.__validate_destination_dir(copydir, data_dir_name,
-                                                   prefix):
+            if not self.__validate_destination_dir(data_dir_name, prefix):
                 logging.error("Please put the data manually in the desired"
                               " location: %s", copydir_user)
                 no_spade = True
@@ -716,7 +717,7 @@ class HsSender(HsBase):
     def reporter(self):
         return self.__reporter
 
-    def spade_pickup_data(self, copydir, hs_basedir, prefix=None):
+    def spade_pickup_data(self, hs_basedir, data_dir, prefix=None):
         '''
         tar & bzip folder
         create semaphore file for folder
@@ -725,8 +726,7 @@ class HsSender(HsBase):
 
         logging.info("Preparation for SPADE Pickup of HS data started...")
 
-        _, data_dir = os.path.split(copydir)
-        if not self.__validate_destination_dir(copydir, data_dir, prefix):
+        if not self.__validate_destination_dir(data_dir, prefix):
             logging.error("Please put the data manually in the SPADE"
                           " directory. Use HsSpader.py, for example.")
             return None
@@ -735,23 +735,23 @@ class HsSender(HsBase):
 
         logging.info("copy_basedir is: %s", hs_basedir)
 
-        hs_basename = "HS_" + data_dir
+        if prefix == HsPrefix.SNALERT or prefix == HsPrefix.HESE:
+            hs_basename = "HS_" + data_dir
+            spade_dir = self.HS_SPADE_DIR
+        else:
+            hs_basename = data_dir
+            spade_dir = hs_basedir
+
         hs_bzipname = hs_basename + ".dat.tar.bz2"
         hs_spade_semfile = hs_basename + ".sem"
 
-        if not self.queue_for_spade(hs_basedir, data_dir, self.HS_SPADE_DIR,
+        if not self.queue_for_spade(hs_basedir, data_dir, spade_dir,
                                     hs_bzipname, hs_spade_semfile):
             logging.error("Please put the data manually in the SPADE"
                           " directory. Use HsSpader.py, for example.")
             return None
 
-        try:
-            shutil.rmtree(copydir)
-        except:
-            logging.exception("Could not remove copied directory \"%s\"" %
-                              copydir)
-
-        logging.info("SPADE file is %s", hs_bzipname)
+        logging.info("SPADE file is %s", os.path.join(spade_dir, hs_bzipname))
 
         return (hs_bzipname, hs_spade_semfile)
 
