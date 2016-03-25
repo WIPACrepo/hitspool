@@ -15,6 +15,7 @@ ALERT_EMAIL_SN = ["icecube-sn-dev@lists.uni-mainz.de", ]
 
 # Location of development sandbox on SPTS
 SANDBOX_SPTS = "/home/dglo/prj/hitspool"
+SANDBOX_SPTS = "/home/pdaq/HsInterface/current"
 # Location of release on sps-access
 SANDBOX_SPS = "/home/pdaq/HsInterface/current"
 # Location of release on other sps machines
