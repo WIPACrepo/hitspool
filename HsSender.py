@@ -41,7 +41,7 @@ class RequestMonitor(threading.Thread):
     DETAIL_KEY = "@detail@"
     # number of seconds a request can be "idle" before it's closed and
     # declared incomplete
-    EXPIRE_SECONDS = 300.0
+    EXPIRE_SECONDS = 3600.0
 
     def __init__(self, sender):
         self.__sender = sender
