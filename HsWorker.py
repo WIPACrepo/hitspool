@@ -68,6 +68,9 @@ class Worker(HsRSyncFiles):
     # location of copy directory used for testing HsInterface
     TEST_COPY_DIR = "/home/david/data/HitSpool/copytest"
 
+    # should worker logfiles be rsynced to 2ndbuild after every request?
+    RSYNC_LOGFILE = False
+
     def __init__(self, progname, host=None, is_test=False):
         super(Worker, self).__init__(host=host, is_test=is_test)
 
@@ -147,23 +150,26 @@ class Worker(HsRSyncFiles):
             logging.error("Request failed")
             return None
 
-        # -- also transmit the log file to the HitSpool copy directory:
-        if self.is_cluster_sps or self.is_cluster_spts:
-            logfiledir = os.path.join(HsBase.DEFAULT_LOG_PATH, "workerlogs")
-            user_host, _ = HsUtil.split_rsync_host_and_path(hs_user_machinedir)
-            logtargetdir = "%s@%s:%s" % (self.rsync_user, self.rsync_host,
-                                         logfiledir)
-        else:
-            logfiledir = os.path.join(self.TEST_COPY_DIR, "logs")
-            logtargetdir = logfiledir
+        if self.RSYNC_LOGFILE:
+            # -- also transmit the log file to the HitSpool copy directory:
+            if self.is_cluster_sps or self.is_cluster_spts:
+                logfiledir = os.path.join(HsBase.DEFAULT_LOG_PATH,
+                                          "workerlogs")
+                user_host, _ \
+                    = HsUtil.split_rsync_host_and_path(hs_user_machinedir)
+                logtargetdir = "%s@%s:%s" % (self.rsync_user, self.rsync_host,
+                                             logfiledir)
+            else:
+                logfiledir = os.path.join(self.TEST_COPY_DIR, "logs")
+                logtargetdir = logfiledir
 
-        try:
-            outlines = self.rsync((logfile, ), logtargetdir, relative=False)
-        except HsException:
-            logging.exception("RSync failed")
-            return None
-
-        logging.info("logfile transmitted to copydir: %s", outlines)
+            try:
+                outlines = self.rsync((logfile, ), logtargetdir,
+                                      relative=False)
+                logging.info("logfile transmitted to copydir: %s", outlines)
+            except HsException:
+                logging.exception("Logfile RSync failed")
+                # rsync of logfile should not cause request to fail
 
         return result
 
