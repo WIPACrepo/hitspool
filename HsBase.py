@@ -86,6 +86,14 @@ class HsBase(object):
                 logdir = "/home/david/TESTCLUSTER/%s/logs" % basehost
             logfile = os.path.join(logdir,
                                    "%s_%s.log" % (basename, self.shorthost))
+        else:
+            logdir = os.path.dirname(logfile)
+
+        if not os.path.exists(logdir):
+            os.makedirs(logdir)
+        elif not os.path.isdir(logdir):
+            raise HsException("Base log directory \"%s\" isn't a directory!" %
+                              logdir)
 
         logger = logging.getLogger()
         if len(logger.handlers) > 0:
