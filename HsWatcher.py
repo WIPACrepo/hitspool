@@ -374,7 +374,7 @@ class HsWatcher(HsBase):
             return self.create_watchee("HsSender")
         elif "expcont" in self.fullhost:
             return self.create_watchee("HsPublisher")
-        elif "hub" in self.fullhost:
+        elif "hub" in self.fullhost or "scube" in self.fullhost:
             return self.create_watchee("HsWorker")
         elif "david" in self.fullhost:
             return self.create_watchee("HsWorker")
