@@ -258,11 +258,14 @@ class Request(object):
             raise HsException("Found files under %s: %s" %
                               (destination, found))
 
-    def __check_spadequeue(self):
+    def __check_spadequeue(self, directory=None):
+        if directory is None:
+            directory = self.__spadequeue
+
         tarname = None
         semname = None
         extralist = []
-        for entry in os.listdir(self.__spadequeue):
+        for entry in os.listdir(directory):
             if entry.endswith(".sem") and semname is None:
                 semname = entry
                 continue
@@ -273,8 +276,8 @@ class Request(object):
             extralist.append(entry)
 
         if len(extralist) > 0:
-            raise HsException("Found extra files in SPADE queue: %s" %
-                              str(extralist))
+            raise HsException("Found extra files in SPADE queue %s: %s" %
+                              (directory, extralist))
         if semname is None:
             if tarname is None:
                 raise HsException("No files found in SPADE queue")
@@ -285,10 +288,10 @@ class Request(object):
                               semname)
 
         try:
-            tar = tarfile.open(os.path.join(self.__spadequeue, tarname), "r")
+            tar = tarfile.open(os.path.join(directory, tarname), "r")
         except StandardError, err:
             raise HsException("Cannot read %s in %s: %s" %
-                              (tarname, self.__spadequeue, err))
+                              (tarname, directory, err))
 
         unknown = []
         try:
@@ -353,11 +356,21 @@ class Request(object):
         self.__copydir = "%s@%s:%s" % (user, host, path)
 
     def validate(self, destination):
+        if self.__prefix is not None:
+            exp_prefix = self.__prefix
+        else:
+            exp_prefix = HsPrefix.guess_from_dir(destination)
+
         if self.__expected_result:
-            self.__check_destination(destination)
-            self.__check_spadequeue()
+            if exp_prefix == HsPrefix.SNALERT or \
+               exp_prefix == HsPrefix.HESE:
+                self.__check_empty(destination)
+                self.__check_spadequeue()
+            else:
+                self.__check_spadequeue(directory=destination)
         else:
             self.__check_empty(destination)
+            self.__check_empty(self.__spadequeue)
 
         return True
 
