@@ -11,6 +11,8 @@ import tempfile
 import threading
 import zmq
 
+from HsRSyncFiles import HsRSyncFiles
+
 
 # January 1 of this year
 JAN1 = None
@@ -48,7 +50,7 @@ def create_hits(filename, start_tick, stop_tick, interval):
 
 def create_hitspool_db(spooldir):
     # create database
-    dbpath = os.path.join(spooldir, "hitspool.db")
+    dbpath = os.path.join(spooldir, HsRSyncFiles.DEFAULT_SPOOL_DB)
 
     conn = sqlite3.connect(dbpath)
     try:
@@ -113,14 +115,14 @@ def jan1():
 
 
 def update_hitspool_db(spooldir, alert_start, alert_stop, run_start, run_stop,
-                       interval, max_files, offset=0, create_files=False):
+                       interval, max_files=1000, offset=0, create_files=False):
     """
     Create entries in the hitspool database based on the supplied times.
     If "create_files" is True, create hit files as well.
     Return the first file number and the total number of files.
     """
 
-    dbpath = os.path.join(spooldir, "hitspool.db")
+    dbpath = os.path.join(spooldir, HsRSyncFiles.DEFAULT_SPOOL_DB)
 
     conn = sqlite3.connect(dbpath)
     cursor = conn.cursor()
@@ -171,13 +173,14 @@ class CompareException(Exception):
 
 
 class CompareObjects(object):
-    def __init__(self, obj, exp):
-        self.__compare_objects(obj, exp)
+    def __init__(self, name, obj, exp):
+        self.__compare_objects(name, obj, exp)
 
-    def __compare_dicts(self, json, jexp):
+    def __compare_dicts(self, name, json, jexp):
         if not isinstance(json, dict):
-            raise CompareException("Expected dict %s<%s>, not %s<%s>" %
-                                   (jexp, type(jexp), json, type(json)))
+            raise CompareException("%sExpected dict %s<%s>, not %s<%s>" %
+                                   (self.__namestr(name), jexp, type(jexp),
+                                    json, type(json)))
 
         extra = {}
         badval = {}
@@ -190,75 +193,78 @@ class CompareObjects(object):
                 expval = self.__unicode_to_ascii(jexp[key])
 
                 try:
-                    self.__compare_objects(val, expval)
+                    self.__compare_objects(None, val, expval)
                 except CompareException, ce:
                     badval[key] = str(ce)
 
                 del jexp[key]
 
         errstr = None
-        if len(jexp) > 0:
-            if errstr is None:
-                errstr = ""
-            else:
-                errstr += ","
-            errstr += " missing " + str(jexp)
-        if len(badval) > 0:
-            if errstr is None:
-                errstr = ""
-            else:
-                errstr += ","
-            errstr += " bad values " + str(badval)
-        if len(extra) > 0:
-            if errstr is None:
-                errstr = ""
-            else:
-                errstr += ","
-            errstr += " extra values " + str(extra)
-
+        for pair in ((jexp, "missing"), (badval, "bad values"),
+                     (extra, "extra values")):
+            if len(pair[0]) > 0:
+                if errstr is None:
+                    errstr = self.__namestr(name)
+                else:
+                    errstr += ", "
+                errstr += "%s %s" % (pair[1], pair[0])
         if errstr is not None:
             raise CompareException(errstr)
 
-    def __compare_lists(self, obj, exp):
+    def __compare_lists(self, name, obj, exp):
         if not isinstance(obj, list):
-            raise CompareException("Expected list %s<%s>, not %s<%s>" %
-                                   (exp, type(exp), obj, type(obj)))
+            raise CompareException("%sExpected list %s<%s>, not %s<%s>" %
+                                   (self.__namestr(name), exp, type(exp), obj,
+                                    type(obj)))
 
         if len(obj) != len(exp):
-            raise CompareException("Expected %d list entries, not %d in %s" %
-                                   (len(exp), len(obj), obj))
+            raise CompareException("%sExpected %d list entries,"
+                                   " not %d in %s" %
+                                   (self.__namestr(name), len(exp), len(obj),
+                                    obj))
 
         for i in range(len(obj)):
             try:
-                self.__compare_objects(obj[i], exp[i])
+                self.__compare_objects(name, obj[i], exp[i])
             except CompareException, ce:
-                raise CompareException("List#%d: %s" % (i, ce))
+                raise CompareException("%slist#%d: %s" %
+                                       (self.__namestr(name), i, ce))
 
-    def __compare_objects(self, obj, exp):
+    def __compare_objects(self, name, obj, exp):
         if isinstance(exp, list):
-            self.__compare_lists(obj, exp)
+            self.__compare_lists(name, obj, exp)
         elif isinstance(exp, dict):
-            self.__compare_dicts(obj, exp)
+            self.__compare_dicts(name, obj, exp)
         elif hasattr(exp, 'flags') and hasattr(exp, 'pattern'):
             # try to match regular expression
             if exp.match(str(obj)) is None:
-                raise CompareException("'%s' does not match '%s'" %
-                                       (obj, exp.pattern))
+                raise CompareException("%s'%s' does not match '%s'" %
+                                       (self.__namestr(name), obj,
+                                        exp.pattern))
 
         else:
             expstr = self.__unicode_to_ascii(exp)
             objstr = self.__unicode_to_ascii(obj)
             if isinstance(objstr, type(expstr)):
                 if objstr != expstr:
-                    raise CompareException("Expected str \"%s\"<%s>, not"
+                    raise CompareException("%sExpected str \"%s\"<%s>, not"
                                            " \"%s\"<%s>" %
-                                           (expstr, type(exp), objstr,
-                                            type(obj)))
+                                           (self.__namestr(name), expstr,
+                                            type(exp), objstr, type(obj)))
             else:
-                raise CompareException("Expected obj %s<%s> not %s<%s>" %
-                                       (exp, type(exp), obj, type(obj)))
+                raise CompareException("%sExpected obj %s<%s> not %s<%s>" %
+                                       (self.__namestr(name), exp, type(exp),
+                                        obj, type(obj)))
 
-    def __unicode_to_ascii(self, xstr):
+    @classmethod
+    def __namestr(cls, name):
+        if name is None:
+            return ""
+
+        return "%s: " % name
+
+    @classmethod
+    def __unicode_to_ascii(cls, xstr):
         if isinstance(xstr, unicode):
             return xstr.encode('ascii', 'ignore')
 
@@ -330,9 +336,9 @@ class Mock0MQSocket(object):
             msgjson = None
 
         if msgjson is not None:
-            CompareObjects(msgjson, expmsg)
+            CompareObjects(self.__name, msgjson, expmsg)
         else:
-            CompareObjects(msgstr, expmsg)
+            CompareObjects(self.__name, msgstr, expmsg)
 
         expkey = str(expmsg)
         if expkey in self.__answer:
@@ -350,7 +356,7 @@ class Mock0MQSocket(object):
             print "I3Socket(%s) <- %s (exp %s)" % \
                 (self.__name, str(json), str(expjson))
 
-        CompareObjects(json, expjson)
+        CompareObjects(self.__name, json, expjson)
 
     def set_verbose(self, value=True):
         self.__verbose = (value is True)
@@ -376,10 +382,11 @@ class MockHitspool(object):
     COPY_DIR = None
     HUB_DIR = None
     LOCK = threading.Lock()
+    # default maximum number of hitspool files
+    MAX_FILES = 1000
 
     @classmethod
-    def create(cls, hsr, subdir, t0, t_cur, interval, max_f=1000,
-               make_bad=False, debug=False):
+    def create(cls, hsr, subdir=HsRSyncFiles.DEFAULT_SPOOL_NAME):
         with cls.LOCK:
             if cls.HUB_DIR is None:
                 # create temporary hub directory and set in HsRSyncFiles
@@ -387,32 +394,26 @@ class MockHitspool(object):
                 hsr.TEST_HUB_DIR = cls.HUB_DIR
 
         # create subdir if necessary
-        path = os.path.join(cls.HUB_DIR, subdir)
-        if not os.path.exists(path):
-            os.makedirs(path)
+        hspath = os.path.join(cls.HUB_DIR, subdir)
+        if not os.path.exists(hspath):
+            os.makedirs(hspath)
 
-        # compute "current file"
-        cur_f = int((t_cur - t0) / interval)
+        return hspath
 
-        # create info.txt
-        infopath = os.path.join(path, "info.txt")
-        with open(infopath, "w") as fout:
-            if not make_bad:
-                print >>fout, "T0 %d" % t0
-            print >>fout, "CURT %d" % t_cur
-            print >>fout, "IVAL %d" % interval
-            print >>fout, "CURF %d" % cur_f
-            print >>fout, "MAXF %d" % max_f
+    @classmethod
+    def add_files(cls, hspath, t0, t_cur, interval, max_f=None,
+                  make_bad=False, create_files=True, debug=False):
+        if max_f is None:
+            max_f = cls.MAX_FILES
 
-        if debug:
-            import sys
-            print >>sys.stderr, "=== %s" % infopath
-            print >>sys.stderr, "=== start %d :: %s" % (t0, get_time(t0))
-            print >>sys.stderr, "=== stop  %d :: %s" % (t_cur, get_time(t_cur))
-            with open(infopath, "r") as fin:
-                for line in fin:
-                    print >>sys.stderr, line,
+        run_start = t0
+        run_stop = t_cur
+        create_hitspool_db(hspath)
+        update_hitspool_db(hspath, t0, t_cur, run_start, run_stop, interval,
+                           max_files=max_f, offset=0,
+                           create_files=create_files)
 
+        return hspath
     @classmethod
     def create_copy_dir(cls, hsr=None, suffix="_HsDataCopy"):
         with cls.LOCK:
@@ -548,40 +549,16 @@ class HsTestRunner(object):
         self.__cur_run = RunParam(cur_start, cur_stop, interval,
                                   self.MAX_FILES)
 
-    @classmethod
-    def __create_info_txt(cls, path, t0, t_cur, interval, cur_f, max_f,
-                          make_bad=False, debug=False):
-        # create info.txt
-        infopath = os.path.join(path, "info.txt")
-        with open(infopath, "w") as fout:
-            if not make_bad:
-                print >>fout, "T0 %d" % t0
-            print >>fout, "CURT %d" % t_cur
-            print >>fout, "IVAL %d" % interval
-            print >>fout, "CURF %d" % cur_f
-            print >>fout, "MAXF %d" % max_f
-
-        if debug:
-            import sys
-            print >>sys.stderr, "=== %s" % infopath
-            print >>sys.stderr, "=== start %d :: %s" % \
-                (t0, get_time(t0))
-            print >>sys.stderr, "=== stop  %d :: %s" % \
-                (t_cur, get_time(t_cur))
-            with open(infopath, "r") as fin:
-                for line in fin:
-                    print >>sys.stderr, line,
-
     def add_debug_email(self):
         notify_hdr = re.compile(r"Query for \[\d+-\d+\] failed on .*$")
         notify_txt = re.compile(r"DB contains \d+ entries from .* to .*$")
-        notifies = [
-            {
+        notifies = []
+        for email in HsRSyncFiles.DEBUG_EMAIL:
+            notifies.append({
                 'notifies_txt': notify_txt,
                 'notifies_header': notify_hdr,
-                'receiver': "dglo@icecube.wisc.edu",
-            },
-        ]
+                'receiver': email,
+            })
 
         # add all expected I3Live messages
         self.__hsr.i3socket.addExpectedAlert({
@@ -596,13 +573,8 @@ class HsTestRunner(object):
                            destdir=None, fail_links=False):
         if firstfile is not None and destdir is None and not fail_links:
             utc = get_time(alert_start)
-            self.__hsr.add_expected_links(utc, "hitspool", firstfile, numfiles)
-
-        self.__check_links = True
-
-    def add_expected_links(self, start_ticks, subdir, firstfile, numfiles):
-        utc = get_time(start_ticks)
-        self.__hsr.add_expected_links(utc, subdir, firstfile, numfiles)
+            self.__hsr.add_expected_links(utc, HsRSyncFiles.DEFAULT_SPOOL_NAME,
+                                          firstfile, numfiles)
 
         self.__check_links = True
 
@@ -612,45 +584,26 @@ class HsTestRunner(object):
     def make_bad_last(self):
         self.__last_run.set_make_bad(True)
 
-    def populate(self, testobj, use_db=False):
+    def populate(self, testobj):
         if testobj.HUB_DIR is None:
             # create temporary hub directory and set in HsRSyncFiles
             testobj.HUB_DIR = tempfile.mkdtemp(prefix="HubDir_")
             self.__hsr.TEST_HUB_DIR = testobj.HUB_DIR
 
         for is_last in (False, True):
-            if use_db:
-                hdir = 'hitspool'
-            elif is_last:
-                hdir = 'lastRun'
-            else:
-                hdir = 'currentRun'
-
             if is_last:
                 rundata = self.__last_run
             else:
                 rundata = self.__cur_run
 
             # create subdir if necessary
-            path = os.path.join(testobj.HUB_DIR, hdir)
+            path = os.path.join(testobj.HUB_DIR,
+                                HsRSyncFiles.DEFAULT_SPOOL_NAME)
             if not os.path.exists(path):
                 os.makedirs(path)
 
-            if use_db:
-                create_hitspool_db(path)
-                self.SPOOL_PATH = path
-            else:
-                t0 = rundata.start()
-                t_cur = rundata.stop()
-                interval = rundata.interval()
-                max_f = rundata.max_files()
-                make_bad = rundata.make_bad()
-
-                # compute "current file"
-                cur_f = int((t_cur - t0) / interval)
-
-                self.__create_info_txt(path, t0, t_cur, interval, cur_f, max_f,
-                                       make_bad=make_bad, debug=False)
+            create_hitspool_db(path)
+            self.SPOOL_PATH = path
 
     def run(self, start_ticks, stop_ticks, copydir="me@host:/a/b/c",
             extract_hits=False):
@@ -664,7 +617,7 @@ class HsTestRunner(object):
             stop_time = get_time(stop_ticks)
 
         self.__hsr.request_parser(None, start_time, stop_time, copydir,
-                                  extract_hits=extract_hits, sleep_secs=0)
+                                  extract_hits=extract_hits, delay_rsync=False)
 
         if self.__check_links:
             self.__hsr.check_for_unused_links()
@@ -682,5 +635,6 @@ class HsTestRunner(object):
 
         return update_hitspool_db(self.SPOOL_PATH, alert_start, alert_stop,
                                   run_start, run_stop, interval,
-                                  self.MAX_FILES, create_files=create_files,
+                                  max_files=self.MAX_FILES,
+                                  create_files=create_files,
                                   offset=offset)

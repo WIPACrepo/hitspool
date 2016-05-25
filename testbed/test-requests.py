@@ -258,11 +258,14 @@ class Request(object):
             raise HsException("Found files under %s: %s" %
                               (destination, found))
 
-    def __check_spadequeue(self):
+    def __check_spadequeue(self, directory=None):
+        if directory is None:
+            directory = self.__spadequeue
+
         tarname = None
         semname = None
         extralist = []
-        for entry in os.listdir(self.__spadequeue):
+        for entry in os.listdir(directory):
             if entry.endswith(".sem") and semname is None:
                 semname = entry
                 continue
@@ -273,8 +276,8 @@ class Request(object):
             extralist.append(entry)
 
         if len(extralist) > 0:
-            raise HsException("Found extra files in SPADE queue: %s" %
-                              str(extralist))
+            raise HsException("Found extra files in SPADE queue %s: %s" %
+                              (directory, extralist))
         if semname is None:
             if tarname is None:
                 raise HsException("No files found in SPADE queue")
@@ -285,10 +288,10 @@ class Request(object):
                               semname)
 
         try:
-            tar = tarfile.open(os.path.join(self.__spadequeue, tarname), "r")
+            tar = tarfile.open(os.path.join(directory, tarname), "r")
         except StandardError, err:
             raise HsException("Cannot read %s in %s: %s" %
-                              (tarname, self.__spadequeue, err))
+                              (tarname, directory, err))
 
         unknown = []
         try:
@@ -311,11 +314,14 @@ class Request(object):
             tar.close()
 
         if len(unknown) > 0:
-            raise HsException("Found %d unknown entries in tar file %s: %s" %
-                              (count, tarname, unknown))
-        if len(self.__expected_files) != count:
-            raise HsException("Expected %d files in %s, found %d" %
-                              (len(self.__expected_files), tarname, count))
+            raise HsException("Found %d unknown entr%ss in tar file %s: %s" %
+                              (count, "y" if count == 1 else "ies", tarname,
+                               unknown))
+        num_exp = len(self.__expected_files)
+        if num_exp != count:
+            raise HsException("Expected %d file%s in %s, found %d" %
+                              (num_exp, "" if num_exp == 1 else "s", tarname,
+                               count))
 
         print "SPADE file %s looks good (found %d file%s)" % \
             (tarname, count, "" if count == 1 else "s")
@@ -353,11 +359,21 @@ class Request(object):
         self.__copydir = "%s@%s:%s" % (user, host, path)
 
     def validate(self, destination):
+        if self.__prefix is not None:
+            exp_prefix = self.__prefix
+        else:
+            exp_prefix = HsPrefix.guess_from_dir(destination)
+
         if self.__expected_result:
-            self.__check_destination(destination)
-            self.__check_spadequeue()
+            if exp_prefix == HsPrefix.SNALERT or \
+               exp_prefix == HsPrefix.HESE:
+                self.__check_empty(destination)
+                self.__check_spadequeue()
+            else:
+                self.__check_spadequeue(directory=destination)
         else:
             self.__check_empty(destination)
+            self.__check_empty(self.__spadequeue)
 
         return True
 
@@ -395,7 +411,7 @@ class Processor(object):
         self.__socket.bind("tcp://127.0.0.1:%d" % HsConstants.I3LIVE_PORT)
 
         # create object to submit requests
-        self.__requester = HsGrabber()
+        self.__requester = HsGrabber(is_test=True)
 
         # create dictionary to track requests
         self.__requests = {}
@@ -568,9 +584,9 @@ class Processor(object):
         if expected == actual:
             rstr = "succeeded" if expected else "failed (as expected)"
         elif expected:
-            rstr = "succeeded (but should have FAILED!)"
-        else:
             rstr = "FAILED!"
+        else:
+            rstr = "succeeded (but should have FAILED!)"
 
         logging.info("Request %s %s", message.request_id, rstr)
 
@@ -710,16 +726,19 @@ if __name__ == "__main__":
             raise HsException("Expected 1 hub, not %d" % len(hubs))
 
         with run_and_terminate(("python", "HsPublisher.py",
-                                "-l", "/tmp/publish.log")):
+                                "-l", "/tmp/publish.log",
+                                "-T")):
             with run_and_terminate(("python", "HsWorker.py",
                                     "-l", "/tmp/worker.log",
                                     "-C", env.copysrc,
                                     "-H", hubs[0],
-                                    "-R", env.hubroot)):
+                                    "-R", env.hubroot,
+                                    "-T")):
                 with run_and_terminate(("python", "HsSender.py",
                                         "-l", "/tmp/sender.log",
                                         "-F",
-                                        "-S", env.spadequeue)):
+                                        "-S", env.spadequeue,
+                                        "-T")):
                     # give everything a chance to start up
                     time.sleep(5)
                     process_requests(requests)
@@ -755,8 +774,8 @@ if __name__ == "__main__":
             print >>sys.stderr, "Found problems with %d requests: %s" % \
                 (len(failed), failed)
             if open_reqs > 0 and open_reqs != len(failed):
-                print >>sys.stderr, "Found %d open requests in state DB" % \
-                    open_reqs
+                print >>sys.stderr, "Found %d open request%s in state DB" % \
+                    (open_reqs, "" if open_reqs == 1 else "s")
 
 
     @contextmanager

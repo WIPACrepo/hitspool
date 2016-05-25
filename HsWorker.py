@@ -46,6 +46,9 @@ def add_arguments(parser):
     parser.add_argument("-R", "--hubroot", dest="hubroot",
                         default=os.path.join(dflt_copydir, "test"),
                         help="Final directory on 2ndbuild as user pdaq")
+    parser.add_argument("-T", "--is-test", dest="is_test",
+                        action="store_true", default=False,
+                        help="Ignore SPS/SPTS status for tests")
 
 
 class Worker(HsRSyncFiles):
@@ -65,17 +68,16 @@ class Worker(HsRSyncFiles):
     4. writes a short report about was has been done.
     """
 
-    # location of copy directory used for testing HsInterface
-    TEST_COPY_DIR = "/home/david/data/HitSpool/copytest"
+    # should worker logfiles be rsynced to 2ndbuild after every request?
+    RSYNC_LOGFILE = False
 
     def __init__(self, progname, host=None, is_test=False):
         super(Worker, self).__init__(host=host, is_test=is_test)
 
-        self.__copydir_dft = None
         self.__service = "HSiface"
         self.__varname = "%s@%s" % (progname, self.shorthost)
 
-    def alert_parser(self, req, logfile, sleep_secs=4):
+    def alert_parser(self, req, logfile, delay_rsync=True):
         """
         Parse the Alert message for starttime, stoptime, sn-alert-time-stamp
         and directory where-to the data has to be copied.
@@ -104,9 +106,19 @@ class Worker(HsRSyncFiles):
         # should we extract only the matching hits to a new file?
         extract_hits = req.extract
 
-        # should be something like: pdaq@expcont:/mnt/data/pdaqlocal/HsDataCopy
-        hs_user_machinedir = req.destination_dir
-        logging.info("HS machinedir = %s", hs_user_machinedir)
+        # parse destination string
+        try:
+            hs_ssh_access, hs_copydir \
+                = HsUtil.split_rsync_host_and_path(req.destination_dir)
+        except Exception, err:
+            self.send_alert("ERROR: destination parsing failed for"
+                            " \"%s\". Abort request." % req.destination_dir)
+            logging.error("Destination parsing failed for \"%s\":\n"
+                          "Abort request.", req.destination_dir)
+            return None
+
+        if hs_ssh_access != "":
+            logging.info("Ignoring rsync user/host \"%s\"", hs_ssh_access)
 
         # initialize a couple of time values
         utc_now = datetime.utcnow()
@@ -137,69 +149,35 @@ class Worker(HsRSyncFiles):
             logging.error(errmsg)
             return None
 
-        result = self.request_parser(req.prefix, alertstart, alertstop,
-                                     hs_user_machinedir,
-                                     extract_hits=extract_hits,
-                                     sender=self.sender,
-                                     sleep_secs=sleep_secs,
-                                     make_remote_dir=False)
-        if result is None:
+        rsyncdir = self.request_parser(req.prefix, alertstart, alertstop,
+                                       hs_copydir, extract_hits=extract_hits,
+                                       sender=self.sender,
+                                       delay_rsync=delay_rsync,
+                                       make_remote_dir=False)
+        if rsyncdir is None:
             logging.error("Request failed")
             return None
 
-        # -- also transmit the log file to the HitSpool copy directory:
-        if self.is_cluster_sps or self.is_cluster_spts:
-            logfiledir = os.path.join(HsBase.DEFAULT_LOG_PATH, "workerlogs")
-            user_host, _ = HsUtil.split_rsync_host_and_path(hs_user_machinedir)
-            logtargetdir = "%s@%s:%s" % (self.rsync_user, self.rsync_host,
-                                         logfiledir)
-        else:
-            logfiledir = os.path.join(self.TEST_COPY_DIR, "logs")
-            logtargetdir = logfiledir
+        if self.RSYNC_LOGFILE:
+            # -- also transmit the log file to the HitSpool copy directory:
+            if self.is_cluster_sps or self.is_cluster_spts:
+                logfiledir = os.path.join(HsBase.DEFAULT_LOG_PATH,
+                                          "workerlogs")
+                logtargetdir = "%s@%s:%s" % (self.rsync_user, self.rsync_host,
+                                             logfiledir)
+            else:
+                logfiledir = os.path.join(self.TEST_COPY_DIR, "logs")
+                logtargetdir = logfiledir
 
-        try:
-            outlines = self.rsync((logfile, ), logtargetdir, relative=False)
-        except HsException:
-            logging.exception("RSync failed")
-            return None
+            try:
+                outlines = self.rsync((logfile, ), logtargetdir,
+                                      relative=False)
+                logging.info("logfile transmitted to copydir: %s", outlines)
+            except HsException:
+                logging.exception("Logfile RSync failed")
+                # rsync of logfile should not cause request to fail
 
-        logging.info("logfile transmitted to copydir: %s", outlines)
-
-        return result
-
-    def add_rsync_delay(self, sleep_secs):
-        """
-        Add random Sleep time window
-        Necessary in order to stretch time window of rsync requests.
-        Simultaneously rsyncing from 97 hubs caused issues in the past
-        """
-        if sleep_secs > 0:
-            wait_time = random.uniform(1, 3)
-            logging.info("wait with the rsync request for some seconds: %d",
-                         wait_time)
-            time.sleep(wait_time)
-
-    def extract_ssh_access(self, hs_user_machinedir):
-        if self.is_cluster_sps or self.is_cluster_spts:
-            # for the REAL interface
-            #  data ALWAYS goes to the default user/host target
-            return '%s@%s' % (self.rsync_user, self.rsync_host)
-
-        return re.sub(r':/[\w+/]*', "", hs_user_machinedir)
-
-    def get_copy_destination(self, hs_copydir, timetag_dir):
-        return os.path.join(self.__copydir_dft, timetag_dir)
-
-    def get_timetag_tuple(self, prefix, hs_copydir, starttime):
-        if prefix == HsPrefix.SNALERT:
-            # this is a SNDAQ request -> SNALERT tag
-            # time window around trigger is [-30,+60], so add 30 seconds
-            plus30 = starttime + timedelta(0, 30)
-            timetag = plus30.strftime("%Y%m%d_%H%M%S")
-        else:
-            timetag = starttime.strftime("%Y%m%d_%H%M%S")
-
-        return prefix, timetag
+        return rsyncdir
 
     # --- Clean exit when program is terminated from outside (via pkill) ---#
     def handler(self, signum, _):
@@ -242,6 +220,14 @@ class Worker(HsRSyncFiles):
         logging.info("HsWorker received request:\n"
                      "%s\nfrom Publisher", req)
 
+        # extract actual directory from rsync path
+        try:
+            _, destdir = HsUtil.split_rsync_host_and_path(req.destination_dir)
+        except:
+            logging.exception("Illegal destination directory \"%s\"<%s>",
+                              req.destination_dir, type(req.destination_dir))
+            return False
+
         HsMessage.send(self.sender, HsMessage.MESSAGE_STARTED, req.request_id,
                        req.username, req.start_time, req.stop_time,
                        req.copy_dir, req.destination_dir, req.prefix,
@@ -257,9 +243,6 @@ class Worker(HsRSyncFiles):
             msgtype = HsMessage.MESSAGE_DONE
         else:
             msgtype = HsMessage.MESSAGE_FAILED
-
-        # send final destination as a simple path
-        _, destdir = HsUtil.split_rsync_host_and_path(req.destination_dir)
 
         HsMessage.send(self.sender, msgtype, req.request_id, req.username,
                        req.start_time, req.stop_time, rsyncdir, destdir,
@@ -279,28 +262,6 @@ class Worker(HsRSyncFiles):
                       "destination_dir", "prefix", "extract")
 
         return HsUtil.dict_to_object(req_dict, alert_flds, 'WorkerRequest')
-
-    def rsync_target(self, hs_user_machinedir, timetag_dir, hs_copydest):
-        if self.is_cluster_sps or self.is_cluster_spts:
-            return '%s@%s::hitspool/%s' % (self.rsync_user, self.rsync_host,
-                                           timetag_dir)
-
-        return os.path.join(self.__copydir_dft, timetag_dir)
-
-    def set_default_copydir(self, hs_copydir):
-        '''Set default copy destination'''
-        if self.is_cluster_sps or self.is_cluster_spts:
-            self.__copydir_dft = "/mnt/data/pdaqlocal/HsDataCopy"
-        else:
-            self.__copydir_dft = self.TEST_COPY_DIR
-
-        if self.__copydir_dft != hs_copydir:
-            logging.warning("Requested HS data copy destination differs"
-                            " from default!")
-            logging.warning("data will be sent to default destination: %s",
-                            self.__copydir_dft)
-            logging.info("HsSender will redirect it later on to:"
-                         " %s on %s", hs_copydir, HsBase.DEFAULT_RSYNC_HOST)
 
 
 if __name__ == '__main__':
@@ -325,7 +286,7 @@ if __name__ == '__main__':
                     "Hub directory \"%s\" does not exist" % args.hubroot
                 usage = True
 
-        worker = Worker("HsWorker", host=args.hostname)
+        worker = Worker("HsWorker", host=args.hostname, is_test=args.is_test)
 
         # override some defaults (generally only used for debugging)
         if args.copydir is not None:

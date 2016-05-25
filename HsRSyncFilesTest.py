@@ -20,6 +20,9 @@ class MyHsRSyncFiles(HsRSyncFiles.HsRSyncFiles):
         self.__fail_hardlink = False
         self.__fail_rsync = False
 
+        # don't sleep during unit tests
+        self.MIN_DELAY = 0.0
+
     @classmethod
     def __timetag(cls, starttime):
         return starttime.strftime("%Y%m%d+%H%M%S")
@@ -51,8 +54,8 @@ class MyHsRSyncFiles(HsRSyncFiles.HsRSyncFiles):
     def fail_rsync(self):
         self.__fail_rsync = True
 
-    def get_timetag_tuple(self, prefix, hs_copydir, starttime):
-        return "TestHS", self.__timetag(starttime)
+    def get_timetag_tuple(self, prefix, starttime):
+        return self.__timetag(starttime)
 
     def hardlink(self, filename, targetdir):
         if self.__fail_hardlink:
@@ -77,11 +80,12 @@ class MyHsRSyncFiles(HsRSyncFiles.HsRSyncFiles):
 
         return 0
 
-    def rsync(self, source, target, bwlimit=None, log_format=None,
-              relative=True):
+    def send_files(self, source_list, rsync_user, rsync_host, rsync_dir,
+                   timetag_dir, use_daemon, bwlimit=None, log_format=None,
+                   relative=True):
         if self.__fail_rsync:
             raise HsException("FakeFail")
-        return ("", )
+        return True
 
 
 class HsRSyncFilesTest(HsRSyncTestCase.HsRSyncTestCase):

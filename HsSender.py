@@ -32,6 +32,9 @@ def add_arguments(parser):
                         help="Log file (e.g. %s)" % example_log_path)
     parser.add_argument("-S", "--spadedir", dest="spadedir",
                         help="Directory where files are queued to SPADE")
+    parser.add_argument("-T", "--is-test", dest="is_test",
+                        action="store_true", default=False,
+                        help="Ignore SPS/SPTS status for tests")
 
 
 class RequestMonitor(threading.Thread):
@@ -41,7 +44,7 @@ class RequestMonitor(threading.Thread):
     DETAIL_KEY = "@detail@"
     # number of seconds a request can be "idle" before it's closed and
     # declared incomplete
-    EXPIRE_SECONDS = 300.0
+    EXPIRE_SECONDS = 3600.0
 
     def __init__(self, sender):
         self.__sender = sender
@@ -113,7 +116,15 @@ class RequestMonitor(threading.Thread):
                 if latest is None:
                     ldiff = expire_time
                 else:
-                    ldiff = now - latest
+                    try:
+                        ldiff = now - latest
+                    except TypeError:
+                        logging.exception("Skipping req#%s: now %s<%s>"
+                                          " latest %s<%s> (host %s)", req_id,
+                                          now, type(now), latest, type(latest),
+                                          host)
+                        continue
+
 
                 # if the last update was a long time ago
                 if ldiff > expire_time:
@@ -128,7 +139,8 @@ class RequestMonitor(threading.Thread):
                     # send final message to Live
                     self.__finish_request(req_id, details[0], details[1],
                                           details[2], details[3], details[4],
-                                          status, success, failed)
+                                          status, success=success,
+                                          failed=failed)
 
             # delete any expired requests
             for req_id in deleted:
@@ -137,6 +149,9 @@ class RequestMonitor(threading.Thread):
     def __finish_request(self, req_id, username, prefix, start_time, stop_time,
                          dest_dir, status, success=None, failed=None):
         "send final message to LIVE"
+        logging.info("Req#%s %s%s%s", req_id, status,
+                     "" if success is None else " success=%s" % success,
+                     "" if failed is None else " failed=%s" % failed)
         HsUtil.send_live_status(self.__sender.i3socket, req_id, username,
                                 prefix, start_time, stop_time, dest_dir,
                                 status, success=success, failed=failed)
@@ -336,18 +351,21 @@ class RequestMonitor(threading.Thread):
         numbers = []
         for hub in hublist:
             hostname = hub.split('.', 1)[0]
-            if hostname.startswith("ichub"):
-                offset = 0
-            elif hostname.startswith("ithub"):
-                offset = 200
+            if hostname == "scube":
+                numbers.append(99)
             else:
-                logging.error("Bad hostname \"%s\" for hub", hub)
-                continue
+                if hostname.startswith("ichub") or hostname.startswith("scube"):
+                    offset = 0
+                elif hostname.startswith("ithub"):
+                    offset = 200
+                else:
+                    logging.error("Bad hostname \"%s\" for hub", hub)
+                    continue
 
-            try:
-                numbers.append(int(hostname[5:]) + offset)
-            except ValueError:
-                logging.error("Bad number for hub \"%s\"", hub)
+                try:
+                    numbers.append(int(hostname[5:]) + offset)
+                except ValueError:
+                    logging.error("Bad number for hub \"%s\"", hub)
 
         # sort hub numbers
         numbers.sort()
@@ -367,7 +385,7 @@ class RequestMonitor(threading.Thread):
                     if inRange:
                         numStr += "-" + str(prevNum)
                         inRange = False
-                    numStr += " " + str(n)
+                    numStr += "," + str(n)
             prevNum = n
         if numStr is None:
             # this should never happen?
@@ -375,6 +393,8 @@ class RequestMonitor(threading.Thread):
         elif inRange:
             # append end of final range
             numStr += "-" + str(prevNum)
+
+        return numStr
 
     def __insert_detail(self, request_id, username, prefix, start_time,
                         stop_time, dest_dir):
@@ -454,8 +474,13 @@ class RequestMonitor(threading.Thread):
             stop_time = row[4]
             dest_dir = row[5]
 
-            requests[req_id][self.DETAIL_KEY] = (username, prefix, start_time,
-                                                 stop_time, dest_dir)
+            try:
+                requests[req_id][self.DETAIL_KEY] = (username, prefix,
+                                                     start_time, stop_time,
+                                                     dest_dir)
+            except KeyError:
+                logging.error("Req#%s is in request_details table"
+                              " but not requests table; ignored", req_id)
 
         return requests
 
@@ -630,15 +655,20 @@ class HsSender(HsBase):
         raise SystemExit(1)
 
     @property
+    def has_monitor(self):
+        return self.__monitor is not None and self.__monitor.is_alive()
+
+    @property
     def i3socket(self):
         return self.__i3socket
 
     def mainloop(self, force_spade=False):
         msg = HsMessage.receive(self.__reporter)
         if msg is None:
-            return
+            return False
 
         self.__monitor.add_message(msg, force_spade)
+        return True
 
     def move_to_destination_dir(self, copydir, copydir_user, prefix=None,
                                 force_spade=False):
@@ -668,7 +698,12 @@ class HsSender(HsBase):
             logging.info("HS data name: %s", data_dir_name)
 
             # strip rsync hostname if present
-            _, target_base = HsUtil.split_rsync_host_and_path(copydir_user)
+            try:
+                _, target_base = HsUtil.split_rsync_host_and_path(copydir_user)
+            except:
+                logging.error("Illegal destination directory \"%s\"<%s>",
+                              copydir_user, type(copydir_user))
+                return None, True
 
             # build full path to target directory
             if target_base.endswith(data_dir_name):
@@ -793,7 +828,7 @@ if __name__ == "__main__":
 
         args = p.parse_args()
 
-        sender = HsSender()
+        sender = HsSender(is_test=args.is_test)
 
         # override some defaults (generally only used for debugging)
         if args.spadedir is not None:

@@ -129,7 +129,7 @@ class MockRequestBuilder(object):
             return reqtype
         raise NotImplementedError("Unknown request type #%s" % reqtype)
 
-    def add_i3live_message(self, i3socket, status):
+    def add_i3live_message(self, i3socket, status, success=None, failed=None):
         # build I3Live success message
         value = {
             'status': status,
@@ -142,6 +142,11 @@ class MockRequestBuilder(object):
             'update_time': TIME_PAT,
         }
 
+        if success is not None:
+            value["success"] = success
+        if failed is not None:
+            value["success"] = failed
+
         # add all expected I3Live messages
         i3socket.addExpectedMessage(value, service="hitspool",
                                     varname="hsrequest_info", time=TIME_PAT,
@@ -149,7 +154,8 @@ class MockRequestBuilder(object):
 
     @classmethod
     def add_reporter_request(cls, reporter, msgtype, req_id, start_time,
-                             stop_time, host, hsdir, destdir):
+                             stop_time, host, hsdir, destdir, success=None,
+                             failed=None):
         # initialize message
         rcv_msg = {
             "msgtype": msgtype,
@@ -164,13 +170,19 @@ class MockRequestBuilder(object):
             "host": host,
         }
 
+        if success is not None:
+            rcv_msg["success"] = success
+        if failed is not None:
+            rcv_msg["failed"] = failed
+
         # add all expected JSON messages
         reporter.addIncoming(rcv_msg)
 
-    def add_request(self, reporter, msgtype):
+    def add_request(self, reporter, msgtype, success=None, failed=None):
         self.add_reporter_request(reporter, msgtype, self.__req_id,
                                   self.__start_utc, self.__stop_utc,
-                                  self.__host, self.__hsdir, self.__destdir)
+                                  self.__host, self.__hsdir, self.__destdir,
+                                  success=success, failed=failed)
 
     def check_files(self):
         if os.path.exists(self.__hsdir):
@@ -293,30 +305,43 @@ class HsSenderTest(LoggingTestCase):
         # by default, check all log messages
         self.setLogLevel(0)
 
+        # get rid of HsSender's state database
+        dbpath = HsSender.HsSender.get_db_path()
+        if os.path.exists(dbpath):
+            os.unlink(dbpath)
+
     def tearDown(self):
         try:
             super(HsSenderTest, self).tearDown()
         finally:
+            found_error = False
+
             # clear lingering files
             try:
                 MockHitspool.destroy()
             except:
                 import traceback
                 traceback.print_exc()
+                found_error = True
 
             try:
                 MockRequestBuilder.destroy()
             except:
                 import traceback
                 traceback.print_exc()
+                found_error = True
 
             # close all sockets
             if self.SENDER is not None:
+                if not self.SENDER.has_monitor:
+                    logging.error("Sender monitor has died")
+                    found_error = True
                 try:
                     self.SENDER.close_all()
                 except:
                     import traceback
                     traceback.print_exc()
+                    found_error = True
                 self.SENDER = None
 
             # get rid of HsSender's state database
@@ -327,6 +352,10 @@ class HsSenderTest(LoggingTestCase):
                 except:
                     import traceback
                     traceback.print_exc()
+                    found_error = True
+
+            if found_error:
+                self.fail("Found one or more errors during tear-down")
 
     def test_bad_dir_name(self):
         sender = FailableSender()
@@ -809,7 +838,8 @@ class HsSenderTest(LoggingTestCase):
                               " a START message" % (msgtype, req.req_id,
                                                     req.host))
 
-        req.add_i3live_message(sender.i3socket, HsUtil.STATUS_SUCCESS)
+        req.add_i3live_message(sender.i3socket, HsUtil.STATUS_SUCCESS,
+                               success="1")
 
         # run it!
         sender.mainloop()
@@ -867,7 +897,8 @@ class HsSenderTest(LoggingTestCase):
         self.setLogLevel(logging.WARN)
 
         # add final message for Live
-        req2.add_i3live_message(sender.i3socket, HsUtil.STATUS_SUCCESS)
+        req2.add_i3live_message(sender.i3socket, HsUtil.STATUS_SUCCESS,
+                                success="1,86")
 
         # run it!
         while sender.reporter.has_input:
