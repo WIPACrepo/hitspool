@@ -211,7 +211,8 @@ def send_live_status(i3socket, req_id, username, prefix, start_utc, stop_utc,
 def split_rsync_host_and_path(rsync_path):
     "Remove leading 'user@host:' from rsync path"
     if not isinstance(rsync_path, str) and not isinstance(rsync_path, unicode):
-        return None, None
+        raise HsException("Illegal rsync path \"%s\"<%s>" %
+                          (rsync_path, type(rsync_path)))
 
     parts = rsync_path.split(":", 1)
     if len(parts) > 1 and parts[0].find("/") < 0:

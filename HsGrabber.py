@@ -38,7 +38,9 @@ def add_arguments(parser):
                         " or SnDAQ timestamp (ns from start of year)")
     parser.add_argument("-c", "--copydir", dest="copydir", default=copy_dflt,
                         help="rsync destination directory for hitspool files")
-    parser.add_argument("-e", "--end", dest="end_time", required=True,
+    parser.add_argument("-d", "--duration", dest="duration", default=None,
+                        help="Duration of request (1s, 12m, etc.)")
+    parser.add_argument("-e", "--end", dest="end_time",
                         help="Ending UTC time (YYYY-mm-dd HH:MM:SS[.us])"
                         " or SnDAQ timestamp (ns from start of year)")
     parser.add_argument("-i", "--request-id", dest="request_id",
@@ -50,12 +52,38 @@ def add_arguments(parser):
                         help="Log file (e.g. %s)" % example_log_path)
     parser.add_argument("-p", "--prefix", dest="prefix",
                         help="Subsystem prefix (SNALERT, HESE, etc.)")
+    parser.add_argument("-T", "--is-test", dest="is_test",
+                        action="store_true", default=False,
+                        help="Ignore SPS/SPTS status for tests")
     parser.add_argument("-u", "--username", dest="username",
                         help="Name of user making the requests")
     parser.add_argument("-x", "--extract", dest="extract",
                         action="store_true", default=False,
                         help="Don't copy files directory, extract hits into"
                         " a new file")
+
+
+def getDurationFromString(s):
+    """
+    Return duration in seconds based on string <s>
+    """
+    m = re.search(r'^(\d+)$', s)
+    if m:
+        return int(m.group(1))
+    m = re.search(r'^(\d+)s(?:ec(?:s)?)?$', s)
+    if m:
+        return int(m.group(1))
+    m = re.search(r'^(\d+)m(?:in(?:s)?)?$', s)
+    if m:
+        return int(m.group(1)) * 60
+    m = re.search(r'^(\d+)h(?:r(?:s)?)?$', s)
+    if m:
+        return int(m.group(1)) * 3600
+    m = re.search(r'^(\d+)d(?:ay(?:s)?)?$', s)
+    if m:
+        return int(m.group(1)) * 86400
+    raise ValueError('String "%s" is not a known duration format.  Try'
+                     '30sec, 10min, 2days etc.' % s)
 
 
 class LogToConsole(object):  # pragma: no cover
@@ -82,8 +110,8 @@ class HsGrabber(HsBase):
     # pattern used to validate rsync copy URL
     COPY_PATH_PAT = re.compile("((.*)@)?(([^:]+):)?(/.*)$")
 
-    def __init__(self):
-        super(HsGrabber, self).__init__()
+    def __init__(self, is_test=False):
+        super(HsGrabber, self).__init__(is_test=is_test)
 
         if self.is_cluster_sps or self.is_cluster_spts:
             expcont = "expcont"
@@ -284,6 +312,8 @@ class HsGrabber(HsBase):
 
 if __name__ == "__main__":
     import argparse
+    import datetime
+    import sys
     import traceback
 
     def main():
@@ -312,19 +342,39 @@ if __name__ == "__main__":
                 usage = True
 
         if not usage:
-            try:
-                # get both SnDAQ timestamp (in ns) and UTC datetime
-                (alert_stop_sn, alert_end_utc) \
-                    = HsUtil.parse_sntime(args.end_time)
-            except HsException:
-                traceback.print_exc()
+            if args.end_time is not None:
+                if args.duration is not None:
+                    print >>sys.stderr, \
+                        "Cannot specify -d(uration) and -e(nd_time) together"
+                    usage = True
+                else:
+                    try:
+                        # get both SnDAQ timestamp (in ns) and UTC datetime
+                        (alert_stop_sn, alert_end_utc) \
+                            = HsUtil.parse_sntime(args.end_time)
+                    except HsException:
+                        traceback.print_exc()
+                        usage = True
+            elif args.duration is not None:
+                try:
+                    dur = getDurationFromString(args.duration)
+                    alert_stop_sn = alert_start_sn + (dur * 1E9)
+                    alert_end_utc = alert_begin_utc + \
+                                    datetime.timedelta(0, dur)
+                except ValueError:
+                    print >>sys.stderr, "Invalid duration \"%s\"" % \
+                        args.duration
+                    usage = True
+            else:
+                print >>sys.stderr, \
+                    "Please specify either -d(uration) or -e(nd_time)"
                 usage = True
 
         if usage:
             p.print_help()
             sys.exit(1)
 
-        hsg = HsGrabber()
+        hsg = HsGrabber(is_test=args.is_test)
 
         hsg.init_logging(args.logfile, level=logging.INFO)
 

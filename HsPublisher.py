@@ -28,6 +28,9 @@ def add_arguments(parser):
 
     parser.add_argument("-l", "--logfile", dest="logfile",
                         help="Log file (e.g. %s)" % example_log_path)
+    parser.add_argument("-T", "--is-test", dest="is_test",
+                        action="store_true", default=False,
+                        help="Ignore SPS/SPTS status for tests")
 
 
 class MessageID(object):
@@ -213,8 +216,10 @@ class Receiver(HsBase):
             return None, True
 
         # split directory into 'user@host' and path
-        hs_ssh_access, hs_ssh_dir = HsUtil.split_rsync_host_and_path(destdir)
-        if hs_ssh_access is None:
+        try:
+            hs_ssh_access, hs_ssh_dir \
+                = HsUtil.split_rsync_host_and_path(destdir)
+        except:
             logging.error("Unusable destination directory \"%s\"<%s>" %
                           (destdir, type(destdir)))
             return destdir, True
@@ -393,7 +398,7 @@ if __name__ == '__main__':
 
         args = p.parse_args()
 
-        receiver = Receiver()
+        receiver = Receiver(is_test=args.is_test)
 
         # handler is called when SIGTERM is called (via pkill)
         signal.signal(signal.SIGTERM, receiver.handler)

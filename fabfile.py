@@ -464,7 +464,7 @@ def hs_stop():
                          " on %s ...\n" % target)
                     hs_stop_pub()
                     _log("done.")
-                elif "hub" in target or target = "scube":
+                elif "hub" in target or target == "scube":
                     _log("Looking for running HsWorker service on %s ...\n" %
                          target)
                     hs_stop_worker_on_host(target)
@@ -497,7 +497,7 @@ def hs_start():
         elif host == "expcont":
             hs_start_pub_bkg(host, do_local=DO_LOCAL)
             set_up_cronjobs_for_host(host, do_local=DO_LOCAL)
-        elif "hub" in host or host = "scube":
+        elif "hub" in host or host == "scube":
             hs_start_worker_bkg(host, do_local=DO_LOCAL)
             set_up_cronjobs_for_host(host, do_local=DO_LOCAL)
         else:
@@ -520,7 +520,7 @@ def hs_status():
         with settings(host_string=targethost):
             with hide("running", "stdout", "status"):
                 processes = run("ps ax")
-                if "hub" in targethost or targethost = "scube":
+                if "hub" in targethost or targethost == "scube":
                     if "HsWorker" in processes:
                         active_comp.append(targethost)
                     else:

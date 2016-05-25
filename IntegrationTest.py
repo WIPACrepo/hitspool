@@ -7,10 +7,12 @@ import logging
 import os
 import re
 import threading
+import time
 import unittest
 
 import HsConstants
 import HsPublisher
+import HsRSyncFiles
 import HsSender
 import HsWorker
 import HsTestUtil
@@ -76,10 +78,15 @@ class MockPubSubSocket(object):
 
 
 class MockPullSocket(object):
-    def __init__(self):
+    def __init__(self, name):
+        self.__name = name
         self.__queueLock = threading.Condition()
         self.__queue = []
         self.__closed = False
+
+    def __str__(self):
+        cstr = "[CLOSED]" if self.__closed else ""
+        return "%s%s#%d" % (self.__name, cstr, len(self.__queue))
 
     def close(self):
         with self.__queueLock:
@@ -93,12 +100,11 @@ class MockPullSocket(object):
     def recv_json(self):
         with self.__queueLock:
             while True:
-                if self.__closed:
-                    break
-                if len(self.__queue) == 0:
-                    self.__queueLock.wait()
                 if len(self.__queue) > 0:
                     return self.__queue.pop(0)
+                if self.__closed:
+                    break
+                self.__queueLock.wait()
 
     def send_json(self, obj):
         with self.__queueLock:
@@ -124,9 +130,10 @@ class MockPullSocket(object):
 
 
 class MockPushPullSocket(object):
-    def __init__(self):
+    def __init__(self, name):
+        self.__name = name
         self.__pushers = []
-        self.__puller = MockPullSocket()
+        self.__puller = MockPullSocket(self.__name + "Push")
 
     def close_pusher(self, pusher):
         found = False
@@ -267,6 +274,7 @@ class MyPublisher(HsPublisher.Receiver):
             self.reply_request()
             if not self.__alert_sock.has_input:
                 break
+            time.sleep(0.1)
         self.close_all()
 
     def validate(self):
@@ -294,9 +302,11 @@ class MySender(HsSender.HsSender):
 
     def run_test(self):
         while True:
-            self.mainloop()
+            if not self.mainloop():
+                print "RptInput %s" % str(self.__rpt_sock)
             if not self.__rpt_sock.has_input:
                 break
+            time.sleep(0.1)
         self.close_all()
 
     def validate(self):
@@ -319,6 +329,9 @@ class MyWorker(HsWorker.Worker):
         self.__link_paths = []
 
         super(MyWorker, self).__init__(self.name, host=host, is_test=True)
+
+        # don't sleep during unit tests
+        self.MIN_DELAY = 0.0
 
     @classmethod
     def __timetag(cls, starttime):
@@ -415,17 +428,13 @@ class IntegrationTest(LoggingTestCase):
 
     MATCH_ANY = re.compile(r"^.*$")
 
-    def __create_hsdir(self, workers, start_ticks, stop_ticks):
+    def __create_hsdir(self, workers, spoolname, start_ticks, stop_ticks):
         HsTestUtil.MockHitspool.create_copy_dir(workers[0])
-        HsTestUtil.MockHitspool.create(workers[0], "currentRun",
-                                       start_ticks - self.TICKS_PER_SECOND,
-                                       stop_ticks + self.TICKS_PER_SECOND,
-                                       self.INTERVAL)
-        HsTestUtil.MockHitspool.create(workers[0], "lastRun",
-                                       start_ticks - self.INTERVAL,
-                                       start_ticks -
-                                       (self.TICKS_PER_SECOND * 2),
-                                       self.INTERVAL)
+        hspath = HsTestUtil.MockHitspool.create(workers[0], spoolname)
+        HsTestUtil.MockHitspool.add_files(hspath,
+                                          start_ticks - self.TICKS_PER_SECOND,
+                                          stop_ticks + self.TICKS_PER_SECOND,
+                                          self.INTERVAL, create_files=True)
         for i in range(1, len(workers)):
             workers[i].TEST_COPY_DIR = HsTestUtil.MockHitspool.COPY_DIR
             workers[i].TEST_HUB_DIR = HsTestUtil.MockHitspool.HUB_DIR
@@ -444,6 +453,22 @@ class IntegrationTest(LoggingTestCase):
         thrd = threading.Thread(name=wrk.name, target=wrk.run_test, args=())
         thrd.setDaemon(True)
         return thrd
+
+    def __delete_state(self):
+        try:
+            HsTestUtil.MockHitspool.destroy()
+        except:
+            import traceback
+            traceback.print_exc()
+
+        # get rid of HsSender's state database
+        dbpath = HsSender.HsSender.get_db_path()
+        if os.path.exists(dbpath):
+            try:
+                os.unlink(dbpath)
+            except:
+                import traceback
+                traceback.print_exc()
 
     def __init_publisher(self, publisher, req_id, username, prefix,
                          start_ticks, stop_ticks, copydir):
@@ -496,7 +521,8 @@ class IntegrationTest(LoggingTestCase):
             'quiet': 'true',
         })
 
-    def __init_sender(self, sender, req_id, username, prefix, destdir):
+    def __init_sender(self, sender, req_id, username, prefix, destdir,
+                      success=None):
         # I3Live status message value
         status_queued = {
             "request_id": req_id,
@@ -520,11 +546,14 @@ class IntegrationTest(LoggingTestCase):
 
         status_success = status_queued.copy()
         status_success["status"] = HsUtil.STATUS_SUCCESS
+        if success is not None:
+            status_success["success"] = success
         sender.i3socket.addExpectedMessage(status_success, service="hitspool",
                                            varname="hsrequest_info",
                                            time=self.MATCH_ANY, prio=1)
 
-    def __init_worker(self, worker, start_ticks, stop_ticks, copydir):
+    def __init_worker(self, worker, spoolname, start_ticks, stop_ticks,
+                      copydir):
         # build timetag used to construct final destination
         utcstart = HsTestUtil.get_time(start_ticks)
         plus30 = utcstart + datetime.timedelta(0, 30)
@@ -533,7 +562,7 @@ class IntegrationTest(LoggingTestCase):
         timetag = plus30.strftime("%Y%m%d_%H%M%S")
 
         # TODO should compute the expected number of files
-        worker.add_expected_links(plus30, "currentRun", 0, 1,
+        worker.add_expected_links(plus30, spoolname, 658, 2,
                                   i3socket=worker.i3socket,
                                   finaldir=HsTestUtil.MockHitspool.COPY_DIR)
 
@@ -549,29 +578,18 @@ class IntegrationTest(LoggingTestCase):
         # by default, don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
+        self.__delete_state()
+
     def tearDown(self):
         try:
             super(IntegrationTest, self).tearDown()
         finally:
-            try:
-                HsTestUtil.MockHitspool.destroy()
-            except:
-                import traceback
-                traceback.print_exc()
-
-            # get rid of HsSender's state database
-            dbpath = HsSender.HsSender.get_db_path()
-            if os.path.exists(dbpath):
-                try:
-                    os.unlink(dbpath)
-                except:
-                    import traceback
-                    traceback.print_exc()
+            self.__delete_state()
 
     def test_publisher_to_worker(self):
         pub2wrk = MockPubSubSocket()
 
-        push2snd = MockPushPullSocket()
+        push2snd = MockPushPullSocket("Pub2Wrk")
 
         publisher = MyPublisher(pub2wrk.publisher,
                                 push2snd.create_pusher("publisher"))
@@ -588,7 +606,8 @@ class IntegrationTest(LoggingTestCase):
         stop_ticks = 98899889980000
         copydir = "foo@localhost:/tmp/bogus"
 
-        self.__create_hsdir(workers, start_ticks, stop_ticks)
+        spooldir = HsRSyncFiles.HsRSyncFiles.DEFAULT_SPOOL_NAME
+        self.__create_hsdir(workers, spooldir, start_ticks, stop_ticks)
 
         # set up request fields
         req_id = "FAKE_ID"
@@ -599,9 +618,10 @@ class IntegrationTest(LoggingTestCase):
         self.__init_publisher(publisher, req_id, username, prefix, start_ticks,
                               stop_ticks, workers[0].TEST_COPY_DIR)
         for wrk in workers:
-            self.__init_worker(wrk, start_ticks, stop_ticks, copydir)
+            self.__init_worker(wrk, spooldir, start_ticks, stop_ticks,
+                               copydir)
         self.__init_sender(sender, req_id, username, prefix,
-                           workers[0].TEST_COPY_DIR)
+                           workers[0].TEST_COPY_DIR, success="1,66")
 
         # create HS service threads
         thrds = [self.__create_publisher_thread(publisher), ]
@@ -624,6 +644,7 @@ class IntegrationTest(LoggingTestCase):
                         break
             if not alive:
                 break
+            time.sleep(0.1)
 
         # validate services
         progs = [publisher, ]
