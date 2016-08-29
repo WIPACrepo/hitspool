@@ -139,14 +139,15 @@ class HsRSyncFiles(HsBase.HsBase):
         if len(copy_files_list) == 0:
             logging.error("No relevant files found")
             return None, tmp_dir
-        logging.info("list of relevant files: %s", copy_files_list)
+        logging.info("Found %d relevant files", len(copy_files_list))
 
         # build subdirectory name
         timetag_dir = "_".join((prefix, timetag, self.shorthost))
 
         if make_remote_dir:
             # create destination directory
-            self.mkdir(self.rsync_host, os.path.join(hs_copydir, timetag_dir))
+            self.mkdir(self.rsync_host,
+                       os.path.join(hs_copydir, timetag_dir))
 
         # if we want to delay the rsync, get the maximum delay and then sleep
         if not delay_rsync:
@@ -294,8 +295,6 @@ class HsRSyncFiles(HsBase.HsBase):
 
             next_tmpfile = os.path.join(tmp_dir, filename)
             copy_files_list.append(next_tmpfile)
-            logging.info("linked the file: %s to tmp directory", next_file)
-            self.send_alert("linked %s to tmp dir" % next_file)
 
         return copy_files_list
 
@@ -543,68 +542,12 @@ class HsRSyncFiles(HsBase.HsBase):
         logging.info("successful copy of HS data from %s to %s at %s",
                      self.fullhost, timetag_dir, rsync_host)
 
-        logging.info("dataload of %s in [MB]:\t%s", timetag_dir, copier.size)
+        logging.info("dataload of %s in [MB]:\t%s", timetag_dir,
+                     int(float(copier.size) / self.BYTES_PER_MB))
 
         if self.__i3socket is not None:
             self.send_alert(" %s [MB] HS data transferred to %s " %
                             (copier.size, rsync_host), prio=1)
-
-        return True
-
-    def XXXsend_files(self, source_list, rsync_user, rsync_host, rsync_dir,
-                   timetag_dir, use_daemon, bwlimit=None, log_format=None,
-                   relative=True):
-        if source_list is None or len(source_list) == 0:
-            raise HsException("No source specified")
-
-        # get rsync target directory
-        if use_daemon:
-            # rsync daemon maps hitspool/ to /mnt/data/pdaqlocal/HsDataCopy/
-            target = '%s@%s::hitspool/%s/' % \
-                     (rsync_user, rsync_host, timetag_dir)
-        elif rsync_dir is not None and rsync_dir != "":
-            target = rsync_dir
-            if target[-1] != "/":
-                # make sure `rsync` knows the target should be a directory
-                target += "/"
-        else:
-            raise HsException("No target specified")
-
-        # get arguments
-        bwstr = "" if bwlimit is None else " --bwlimit=%d" % bwlimit
-        logstr = "" if log_format is None \
-                 else " --log-format=\"%s\"" % log_format
-        relstr = "" if relative else " --no-relative"
-
-        # build command
-        source_str = " ".join(source_list)
-        rsync_cmd = "nice rsync -avv %s%s%s %s \"%s\"" % \
-                    (bwstr, logstr, relstr, source_str, target)
-
-        logging.info("rsync command: %s", rsync_cmd)
-        proc = subprocess.Popen(rsync_cmd, shell=True, bufsize=256,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE)
-
-        rsync_out = proc.stdout.readlines()
-        err_lines = proc.stderr.readlines()
-
-        proc.stdout.flush()
-        proc.stderr.flush()
-
-        if len(err_lines) > 0:
-            raise HsException("failed to rsync \"%s\" to \"%s\":\n%s" %
-                              (source_str, target, err_lines))
-
-        logging.info("successful copy of HS data from %s to %s at %s",
-                     self.fullhost, target, rsync_host)
-
-        dataload_mb = self.__compute_dataload(rsync_out)
-        logging.info("dataload of %s in [MB]:\t%s", target, dataload_mb)
-
-        if self.__i3socket is not None:
-            self.send_alert(" %s [MB] HS data transferred to %s " %
-                            (dataload_mb, rsync_host), prio=1)
 
         return True
 

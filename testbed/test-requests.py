@@ -13,6 +13,8 @@ import zmq
 import HsConstants
 import HsUtil
 
+from lxml import etree, objectify
+
 from HsException import HsException
 from HsGrabber import HsGrabber
 from HsPrefix import HsPrefix
@@ -111,6 +113,8 @@ class HsEnvironment(object):
         return self.__spadequeue
 
 class Request(object):
+    SCHEMA_PATH = "testbed/schema/IceCubeDIFPlus.xsd"
+
     def __init__(self, env, succeed, start_time, stop_time, expected_hubs,
                  expected_files, request_id=None, username=None, prefix=None,
                  copydir=None, extract=False, send_json=False,
@@ -258,6 +262,33 @@ class Request(object):
             raise HsException("Found files under %s: %s" %
                               (destination, found))
 
+    def __check_spademeta(self, directory, metaname):
+        metapath = os.path.join(directory, metaname)
+
+        # find the schema first
+        schemapath = self.SCHEMA_PATH
+        while not os.path.exists(schemapath):
+            result = schemapath.split(os.path, 1)
+            if len(result) == 1:
+                print >>sys.stderr, "WARNING: Not validating %s" % metapath
+                return
+            schemapath = result[1]
+
+        # read in the metadata XML
+        with open(metapath, "r") as xml:
+            xmlstr = xml.read()
+
+        # validate the metadata
+        try:
+            schema = etree.XMLSchema(file=schemapath)
+            parser = objectify.makeparser(schema=schema)
+            objectify.fromstring(xmlstr, parser)
+        except:
+            raise HsException("Bad metadata file %s: %s" %
+                              (metaname, traceback.format_exc()))
+
+        print "SPADE metadata %s looks good" % metaname
+
     def __check_spadequeue(self, directory=None):
         if directory is None:
             directory = self.__spadequeue
@@ -266,10 +297,15 @@ class Request(object):
         semname = None
         extralist = []
         for entry in os.listdir(directory):
-            if entry.endswith(".sem") and semname is None:
-                semname = entry
-                continue
-            if entry.find(".tar") > 0 and tarname is None:
+            if HsSender.WRITE_META_XML:
+                if entry.endswith(HsSender.META_SUFFIX) and semname is None:
+                    semname = entry
+                    continue
+            else:
+                if entry.endswith(HsSender.SEM_SUFFIX) and semname is None:
+                    semname = entry
+                    continue
+            if entry.endswith(HsSender.TAR_SUFFIX) > 0 and tarname is None:
                 tarname = entry
                 continue
 
@@ -287,6 +323,11 @@ class Request(object):
             raise HsException("Found semaphore %s without tar file" %
                               semname)
 
+        self.__check_spadetar(directory, tarname)
+        if HsSender.WRITE_META_XML:
+            self.__check_spademeta(directory, semname)
+
+    def __check_spadetar(self, directory, tarname):
         try:
             tar = tarfile.open(os.path.join(directory, tarname), "r")
         except StandardError, err:
@@ -323,7 +364,7 @@ class Request(object):
                               (num_exp, "" if num_exp == 1 else "s", tarname,
                                count))
 
-        print "SPADE file %s looks good (found %d file%s)" % \
+        print "SPADE tarfile %s looks good (found %d file%s)" % \
             (tarname, count, "" if count == 1 else "s")
 
     @property

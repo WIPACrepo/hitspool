@@ -519,7 +519,7 @@ def hs_status():
     for targethost in DEPLOY_TARGET:
         with settings(host_string=targethost):
             with hide("running", "stdout", "status"):
-                processes = run("ps ax")
+                processes = run("ps axwww")
                 if "hub" in targethost or targethost == "scube":
                     if "HsWorker" in processes:
                         active_comp.append(targethost)
@@ -558,7 +558,9 @@ def hs_status():
                         "value": value,
                         "prio": 1})
 
-    print "%d HsInterface components are active:\n%s" % \
-        (len(active_comp), active_comp)
-    print "%d HsInterface components are NOT active:\n%s" % \
-        (len(inactive_comp), inactive_comp)
+    if len(active_comp) > 0:
+        print "%d HsInterface components are active:\n%s" % \
+            (len(active_comp), active_comp)
+    if len(inactive_comp) > 0:
+        print "%d HsInterface components are NOT active:\n%s" % \
+            (len(inactive_comp), inactive_comp)
