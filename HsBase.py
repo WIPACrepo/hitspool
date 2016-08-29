@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import datetime
 import getpass
 import logging
 import logging.handlers
@@ -7,6 +8,12 @@ import os
 import shutil
 import socket
 import tarfile
+
+try:
+    from lxml import etree
+    USE_LXML = True
+except ImportError:
+    USE_LXML = False
 
 from HsException import HsException
 
@@ -29,6 +36,15 @@ class HsBase(object):
 
     # maximum number of seconds of data which can be requested
     MAX_REQUEST_SECONDS = 3610
+
+    # if True, write metadata file; otherwise touch semaphore file
+    WRITE_META_XML = True
+    # suffix for semaphore file
+    SEM_SUFFIX = ".sem"
+    # suffix for tar file
+    TAR_SUFFIX = ".dat.tar.bz2"
+    # suffix for metadata file
+    META_SUFFIX = ".meta.xml"
 
     def __init__(self, host=None, is_test=False):
         # allow caller to override the host name
@@ -60,6 +76,23 @@ class HsBase(object):
         else:
             self.__rsync_host = "localhost"
             self.__rsync_user = getpass.getuser()
+
+    @classmethod
+    def __convert_tuples_to_xml(cls, root, xmltuples):
+        for key, val in xmltuples:
+            node = etree.SubElement(root, key)
+            if isinstance(val, tuple):
+                cls.__convert_tuples_to_xml(node, val)
+            else:
+                node.text = str(val)
+
+    def __delta_to_seconds(self, delta):
+        return float(delta.seconds) + (float(delta.microseconds) / 1000000.0)
+
+    def __fmt_time(self, name, secs):
+        if secs is None:
+            return ""
+        return " %s=%.2fs" % (name, secs)
 
     @property
     def cluster(self):
@@ -153,19 +186,31 @@ class HsBase(object):
             raise HsException("Cannot move \"%s\" to \"%s\": %s" %
                               (src, dst, sex))
 
-    def queue_for_spade(self, sourcedir, sourcefile, spadedir, tarname,
-                        semname):
+    def queue_for_spade(self, sourcedir, sourcefile, spadedir, basename,
+                        start_time=None, stop_time=None):
+        tarname = basename + self.TAR_SUFFIX
+        semname = None
+
         try:
             self.write_tarfile(sourcedir, sourcefile, tarname)
             if os.path.normpath(sourcedir) != os.path.normpath(spadedir):
                 self.move_file(os.path.join(sourcedir, tarname), spadedir)
-            self.touch_file(os.path.join(spadedir, semname))
+            if not self.WRITE_META_XML:
+                semname = self.write_sem(spadedir, basename)
+            elif USE_LXML:
+                semname = self.write_meta_xml(spadedir, basename,
+                                              start_time, stop_time)
+            else:
+                semname = None
             self.remove_tree(os.path.join(sourcedir, sourcefile))
         except HsException, hsex:
             logging.error(str(hsex))
-            return False
+            semname = None
 
-        return True
+        if semname is None:
+            return None
+
+        return (tarname, semname)
 
     def remove_tree(self, path):
         try:
@@ -191,6 +236,82 @@ class HsBase(object):
                 os.utime(name, times)
         except StandardError, err:
             raise HsException("Failed to 'touch' \"%s\": %s" % (name, err))
+
+    def write_meta_xml(self, spadedir, basename, start_time, stop_time):
+        # use the tarfile creation time as the DIF_Creation_Date value
+        tarpath = os.path.join(spadedir, basename + self.TAR_SUFFIX)
+        try:
+            tarstamp = os.path.getmtime(tarpath)
+        except OSError:
+            raise HsException("Cannot write metadata file:"
+                              " %s does not exist" % tarpath)
+        tartime = datetime.datetime.fromtimestamp(tarstamp)
+
+        if start_time is None or stop_time is None:
+            if stop_time is None:
+                # set stop time to the time the tarfile was written
+                stop_time = tartime
+            if start_time is None:
+                # set start time to midnight
+                start_time = datetime.datetime(stop_time.year, stop_time.month,
+                                               stop_time.day)
+
+        root = etree.Element("DIF_Plus")
+        root.set("{http://www.w3.org/2001/XMLSchema-instance}"
+                  "noNamespaceSchemaLocation", "IceCubeDIFPlus.xsd")
+
+        # Metadata specification is at:
+        # https://docushare.icecube.wisc.edu/dsweb/Get/Document-20546/metadata_specification.pdf
+        xmldict = (
+            ("DIF", (
+                ("Entry_ID", basename),
+                ("Entry_Title", "Hitspool_data"),
+                ("Parameters",
+                 "SPACE SCIENCE > Astrophysics > Neutrinos"),
+                ("ISO_Topic_Category", "geoscientificinformation"),
+                ("Data_Center", (
+                    ("Data_Center_Name",
+                     "UWI-MAD/A3RI > Antarctic Astronomy and Astrophysics"
+                     " Research Institute, University of Wisconsin, Madison"),
+                    ("Personnel", (
+                        ("Role", "Data Center Contact"),
+                        ("Email", "datacenter@icecube.wisc.edu"),
+                    )),
+                )),
+                ("Summary", "Hitspool data"),
+                ("Metadata_Name", "[CEOS IDN DIF]"),
+                ("Metadata_Version", "9.4"),
+                ("Personnel", (
+                    ("Role", "Technical Contact"),
+                    ("First_Name", "Dave"),
+                    ("Last_Name", "Glowacki"),
+                    ("Email", "dglo@icecube.wisc.edu"),
+                )),
+                ("Sensor_Name", "ICECUBE > IceCube"),
+                ("Source_Name",
+                 "EXPERIMENTAL > Data with an instrumentation based"
+                 " source"),
+                ("DIF_Creation_Date", tartime.strftime("%Y-%m-%d")),
+            )),
+            ("Plus", (
+                ("Start_DateTime", start_time.strftime("%Y-%m-%dT%H:%M:%S")),
+                ("End_DateTime", stop_time.strftime("%Y-%m-%dT%H:%M:%S")),
+                ("Category", "internal-system"),
+                ("Subcategory", "hit-spooling"),
+            )),
+        )
+
+        self.__convert_tuples_to_xml(root, xmldict)
+
+        metaname = basename + self.META_SUFFIX
+        with open(os.path.join(spadedir, metaname), "w") as out:
+            out.write(etree.tostring(root))
+        return metaname
+
+    def write_sem(self, spadedir, basename):
+        semname = basename + self.SEM_SUFFIX
+        self.touch_file(os.path.join(spadedir, semname))
+        return semname
 
     def write_tarfile(self, sourcedir, sourcefiles, tarname):
         if not os.path.exists(sourcedir):

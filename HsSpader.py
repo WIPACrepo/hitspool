@@ -28,7 +28,7 @@ def add_arguments(parser):
 class HsSpader(HsBase):
     '''
     Copy the HS data to the SPADE queue on sps-2ndbuild.
-    Create tarballs and semafore files for each hub's data
+    Create tarballs and semaphore files for each hub's data
     and move it to SPADE directory
     '''
 
@@ -50,7 +50,7 @@ class HsSpader(HsBase):
         Move folder in subdir
         tar & bzip folder
         create semaphore file for folder
-        move .sem & .dat.tar file in Spade directory
+        move semaphore & tar file to Spade directory
         '''
         logging.info("Preparation for SPADE Pickup of HS data started"
                      " manually via HsSpader...")
@@ -70,8 +70,6 @@ class HsSpader(HsBase):
         hubnamelist = ["ichub%02d" % i for i in xrange(1, 87)] + \
                       ["ithub%02d" % i for i in xrange(1, 12)]
         for hub in hubnamelist:
-            tarname = "HS_SNALERT_" + alertname + "_" + hub + ".dat.tar.bz2"
-            semname = "HS_SNALERT_" + alertname + "_" + hub + ".sem"
             data = [s for s in datalistlocal if hub in s]
             if len(data) != 1:
                 logging.info("no or ambiguous HS data found"
@@ -79,15 +77,20 @@ class HsSpader(HsBase):
                 continue
 
             dataname = data[0]
-            logging.info("data: %s will be tarred to: %s", dataname, tarname)
+            basename = "HS_SNALERT_" + alertname + "_" + hub
 
-            if not self.queue_for_spade(basedir, dataname, spadedir, tarname,
-                                        semname):
+            logging.info("data: %s will be tarred to: %s", dataname,
+                         basename + self.TAR_SUFFIX)
+
+            result = self.queue_for_spade(basedir, dataname, spadedir,
+                                          basename)
+            if result is None:
                 logging.info("Please put the data manually in"
                              " the SPADE directory")
                 continue
 
-            logging.info("Preparation for SPADE Pickup of %s DONE", tarname)
+            logging.info("Preparation for SPADE Pickup of %s DONE", basename)
+
 
 if __name__ == "__main__":
     import argparse

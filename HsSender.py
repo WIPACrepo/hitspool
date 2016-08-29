@@ -333,8 +333,11 @@ class RequestMonitor(threading.Thread):
                 logging.info("Not scheduling for SPADE pickup")
             else:
                 _, data_dir = os.path.split(copydir)
-                result = self.__sender.spade_pickup_data(hs_basedir, data_dir,
-                                                         prefix=msg.prefix)
+                snd = self.__sender
+                result = snd.spade_pickup_data(hs_basedir, data_dir,
+                                               prefix=msg.prefix,
+                                               start_time=msg.start_time,
+                                               stop_time=msg.stop_time)
                 if result is None:
                     return False
         return True
@@ -752,11 +755,12 @@ class HsSender(HsBase):
     def reporter(self):
         return self.__reporter
 
-    def spade_pickup_data(self, hs_basedir, data_dir, prefix=None):
+    def spade_pickup_data(self, hs_basedir, data_dir, prefix=None,
+                          start_time=None, stop_time=None):
         '''
         tar & bzip folder
-        create semaphore file for folder
-        move .sem & .dat.tar.bz2 file in SPADE directory
+        move tar file to SPADE directory
+        create semaphore/metadata file
         '''
 
         logging.info("Preparation for SPADE Pickup of HS data started...")
@@ -777,39 +781,16 @@ class HsSender(HsBase):
             hs_basename = data_dir
             spade_dir = hs_basedir
 
-        hs_bzipname = hs_basename + ".dat.tar.bz2"
-        hs_spade_semfile = hs_basename + ".sem"
-
-        if not self.queue_for_spade(hs_basedir, data_dir, spade_dir,
-                                    hs_bzipname, hs_spade_semfile):
+        result = self.queue_for_spade(hs_basedir, data_dir, spade_dir,
+                                      hs_basename, start_time=start_time,
+                                      stop_time=stop_time)
+        if result is None:
             logging.error("Please put the data manually in the SPADE"
                           " directory. Use HsSpader.py, for example.")
-            return None
+        else:
+            logging.info("SPADE file is %s", os.path.join(spade_dir, result[0]))
 
-        logging.info("SPADE file is %s", os.path.join(spade_dir, hs_bzipname))
-
-        return (hs_bzipname, hs_spade_semfile)
-
-    def unused_spade_pickup_log(self, info):
-        if info["msgtype"] != "log_done":
-            return
-
-        logging.info("logfile %s from %s was transmitted to %s",
-                     info["logfile_hsworker"], info["hubname"],
-                     info["logfile_hsworker"])
-
-        org_logfilename = info["logfile_hsworker"]
-        hs_log_basedir = info["logfiledir"]
-        hs_log_basename = "HS_%s_%s" % \
-                          (info["alertid"], info["logfile_hsworker"])
-        hs_log_spadename = hs_log_basename + ".dat.tar.bz2"
-        hs_log_spade_sem = hs_log_basename + ".sem"
-
-        if not self.queue_for_spade(hs_log_basedir, org_logfilename,
-                                    self.HS_SPADE_DIR, hs_log_spadename,
-                                    hs_log_spade_sem):
-            logging.error("Please put \"%s\" manually in the SPADE directory.",
-                          os.path.join(hs_log_basedir, org_logfilename))
+        return result
 
     def wait_for_idle(self):
         for _ in range(10):

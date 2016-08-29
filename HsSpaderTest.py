@@ -46,9 +46,15 @@ class MySpader(HsSpader.HsSpader):
     def set_file_list(self, files):
         self.__filelist = files
 
-    def touch_file(self, name, times=None):
+    def write_meta_xml(self, spadedir, basename, start_time, stop_time):
         if self.__fail_touch_file:
             raise HsException("Fake Touch Error")
+        return "fake.meta.xml"
+
+    def write_sem(self, spadedir, basename):
+        if self.__fail_touch_file:
+            raise HsException("Fake Touch Error")
+        return "fake.sem"
 
     def write_tarfile(self, sourcedir, sourcefiles, tarname):
         if self.__fail_tar_file > 0:
@@ -155,7 +161,8 @@ class HsSpaderTest(LoggingTestCase):
         # don't check DEBUG log messages
         self.setLogLevel(logging.INFO)
 
-        tarname = "HS_SNALERT_%s_%s.dat.tar.bz2" % (timetag, host)
+        basename = "HS_SNALERT_%s_%s" % (timetag, host)
+        tarname = basename + HsSpader.HsSpader.TAR_SUFFIX
         outdir = tempfile.mkdtemp()
 
         # add all expected log messages
@@ -165,7 +172,7 @@ class HsSpaderTest(LoggingTestCase):
         self.expectLogMessage("data: %s_%s_%s will be tarred to: %s" %
                               (category, timetag, host, tarname))
         self.expectLogMessage("Preparation for SPADE Pickup of %s DONE" %
-                              tarname)
+                              basename)
         for hub in xrange(2, 87):
             self.expectLogMessage("no or ambiguous HS data found for ichub%02d"
                                   " in this directory." % hub)
@@ -232,7 +239,8 @@ class HsSpaderTest(LoggingTestCase):
         outdir = "/path/to/output"
 
         basename = "%s_%s_%s" % (category, timetag, host)
-        tarname = "HS_SNALERT_%s_%s.dat.tar.bz2" % (timetag, host)
+        tarname = "HS_SNALERT_%s_%s%s" % \
+                  (timetag, host, HsSpader.HsSpader.TAR_SUFFIX)
 
         filelist = [os.path.join(indir, basename), ]
         hsp.set_file_list(filelist)
@@ -271,7 +279,8 @@ class HsSpaderTest(LoggingTestCase):
         outdir = "/path/to/output"
 
         basename = "%s_%s_%s" % (category, timetag, host)
-        tarname = "HS_SNALERT_%s_%s.dat.tar.bz2" % (timetag, host)
+        tarname = "HS_SNALERT_%s_%s%s" % \
+                  (timetag, host, HsSpader.HsSpader.TAR_SUFFIX)
 
         filelist = [os.path.join(indir, basename), ]
         hsp.set_file_list(filelist)
@@ -310,7 +319,7 @@ class HsSpaderTest(LoggingTestCase):
         outdir = "/path/to/output"
 
         basename = "HS_SNALERT_%s_%s" % (timetag, host)
-        tarname = basename + ".dat.tar.bz2"
+        tarname = basename + HsSpader.HsSpader.TAR_SUFFIX
 
         filelist = [os.path.join(indir, "%s_%s_%s" %
                                  (category, timetag, host)), ]
@@ -351,7 +360,7 @@ class HsSpaderTest(LoggingTestCase):
         outdir = "/path/to/output"
 
         basename = "HS_SNALERT_%s_%s" % (timetag, host)
-        tarname = basename + ".dat.tar.bz2"
+        tarname = basename + HsSpader.HsSpader.TAR_SUFFIX
 
         filelist = [os.path.join(indir, "%s_%s_%s" %
                                  (category, timetag, host)), ]
@@ -370,7 +379,7 @@ class HsSpaderTest(LoggingTestCase):
         self.expectLogMessage("data: %s_%s_%s will be tarred to: %s" %
                               (category, timetag, host, tarname))
         self.expectLogMessage("Preparation for SPADE Pickup of %s DONE" %
-                              tarname)
+                              basename)
 
         for hub in xrange(1, 12):
             self.expectLogMessage("no or ambiguous HS data found for ithub%02d"

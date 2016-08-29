@@ -76,9 +76,15 @@ class FailableSender(MySender):
     def remove_tree(self, path):
         pass
 
-    def touch_file(self, name, times=None):
+    def write_meta_xml(self, spadedir, basename, start_time, stop_time):
         if self.__fail_touch_file:
             raise HsException("Fake Touch Error")
+        return basename + HsSender.HsSender.META_SUFFIX
+
+    def write_sem(self, spadedir, basename):
+        if self.__fail_touch_file:
+            raise HsException("Fake Touch Error")
+        return basename + HsSender.HsSender.SEM_SUFFIX
 
     def write_tarfile(self, sourcedir, sourcefiles, tarname):
         if self.__fail_tar_file > 0:
@@ -479,8 +485,11 @@ class HsSenderTest(LoggingTestCase):
         self.setLogLevel(logging.WARN)
 
         mybase = "%s_%s_%s" % (category, timetag, host)
-        mytar = "%s.dat.tar.bz2" % mybase
-        mysem = "%s.sem" % mybase
+        mytar = "%s%s" % (mybase, HsSender.HsSender.TAR_SUFFIX)
+        if HsSender.HsSender.WRITE_META_XML:
+            mysem = "%s%s" % (mybase, HsSender.HsSender.META_SUFFIX)
+        else:
+            mysem = "%s%s" % (mybase, HsSender.HsSender.SEM_SUFFIX)
 
         # create real directories
         hsdir = MockHitspool.create_copy_files(category, timetag, host,
@@ -636,8 +645,11 @@ class HsSenderTest(LoggingTestCase):
         sender.HS_SPADE_DIR = tempfile.mkdtemp(prefix="SPADE_")
 
         mybase = "%s_%s_%s" % (category, timetag, host)
-        mytar = "HS_%s.dat.tar.bz2" % mybase
-        mysem = "HS_%s.sem" % mybase
+        mytar = "HS_%s%s" % (mybase, HsSender.HsSender.TAR_SUFFIX)
+        if HsSender.HsSender.WRITE_META_XML:
+            mysem = "HS_%s%s" % (mybase, HsSender.HsSender.META_SUFFIX)
+        else:
+            mysem = "HS_%s%s" % (mybase, HsSender.HsSender.SEM_SUFFIX)
 
         # create intermediate directory
         movetop = tempfile.mkdtemp(prefix="Intermediate_")
