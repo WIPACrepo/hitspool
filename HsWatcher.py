@@ -17,8 +17,6 @@ import sys
 import time
 import zmq
 
-from datetime import datetime
-
 import HsConstants
 import HsUtil
 
@@ -190,7 +188,7 @@ class Watchee(Daemon):
                     errstr = str(err)
                     if errstr.find("No such process") == 0:
                         logging.error("Cannot kill %s at PID %d: %s",
-                                      (self.basename, pid, errstr))
+                                      self.basename, pid, errstr)
                         return None
 
             # give processes a chance to die

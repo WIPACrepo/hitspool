@@ -313,7 +313,6 @@ class HsGrabber(HsBase):
 if __name__ == "__main__":
     import argparse
     import datetime
-    import sys
     import traceback
 
     def main():

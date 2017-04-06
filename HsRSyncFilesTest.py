@@ -80,9 +80,9 @@ class MyHsRSyncFiles(HsRSyncFiles.HsRSyncFiles):
 
         return 0
 
-    def send_files(self, source_list, rsync_user, rsync_host, rsync_dir,
-                   timetag_dir, use_daemon, bwlimit=None, log_format=None,
-                   relative=True):
+    def send_files(self, req, source_list, rsync_user, rsync_host, rsync_dir,
+                   timetag_dir, use_daemon, update_status=None, bwlimit=None,
+                   log_format=None, relative=True):
         if self.__fail_rsync:
             raise HsException("FakeFail")
         return True

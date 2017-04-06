@@ -414,6 +414,7 @@ class MockHitspool(object):
                            create_files=create_files)
 
         return hspath
+
     @classmethod
     def create_copy_dir(cls, hsr=None, suffix="_HsDataCopy"):
         with cls.LOCK:

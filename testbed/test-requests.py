@@ -10,6 +10,14 @@ import time
 import traceback
 import zmq
 
+# make sure HsConstant is available
+current = os.path.dirname(os.path.realpath(__file__))
+if not os.path.exists(os.path.join(current, "HsConstants.py")):
+    parent = os.path.dirname(current)
+    if not os.path.exists(os.path.join(parent, "HsConstants.py")):
+        raise System.exit("Cannot find HsConstants.py")
+    sys.path.insert(0, parent)
+
 import HsConstants
 import HsUtil
 
@@ -114,11 +122,14 @@ class HsEnvironment(object):
 
 class Request(object):
     SCHEMA_PATH = "testbed/schema/IceCubeDIFPlus.xsd"
+    NEXT_NUM = 1
 
     def __init__(self, env, succeed, start_time, stop_time, expected_hubs,
                  expected_files, request_id=None, username=None, prefix=None,
                  copydir=None, extract=False, send_json=False,
                  send_old_dates=False):
+        self.__number = self.__get_next_number()
+
         # get both SnDAQ timestamp (in ns) and UTC datetime
         (self.__start_sn, self.__start_utc) \
             = HsUtil.parse_sntime(start_time)
@@ -149,7 +160,7 @@ class Request(object):
         if self.__req_id is None:
             rstr = ""
         else:
-            rstr = "Request %s " % str(self.__req_id)
+            rstr = " (ID=%s)" % str(self.__req_id)
 
         if self.__send_old_dates:
             dstr = " (as dates)"
@@ -176,9 +187,9 @@ class Request(object):
         else:
             estr = ""
 
-        return "%s%.2f secs%s%s%s to %s%s%s\n\t[%s :: %s]" % \
-            (rstr, secs, dstr, ustr, pstr, self.__copydir, jstr, estr,
-             self.__start_utc, self.__stop_utc)
+        return "Request #%d%s: %.2f secs%s%s%s to %s%s%s\n\t[%s :: %s]" % \
+            (self.__number, rstr, secs, dstr, ustr, pstr, self.__copydir, jstr,
+             estr, self.__start_utc, self.__stop_utc)
 
     def __check_destination(self, destination):
         if not os.path.isdir(destination):
@@ -355,9 +366,10 @@ class Request(object):
             tar.close()
 
         if len(unknown) > 0:
-            raise HsException("Found %d unknown entr%ss in tar file %s: %s" %
+            raise HsException("Found %d unknown entr%s in tar file %s: %s"
+                              "\n\t(expected %s)" %
                               (count, "y" if count == 1 else "ies", tarname,
-                               unknown))
+                               unknown, self.__expected_files))
         num_exp = len(self.__expected_files)
         if num_exp != count:
             raise HsException("Expected %d file%s in %s, found %d" %
@@ -367,9 +379,19 @@ class Request(object):
         print "SPADE tarfile %s looks good (found %d file%s)" % \
             (tarname, count, "" if count == 1 else "s")
 
+    @classmethod
+    def __get_next_number(cls):
+        val = cls.NEXT_NUM
+        cls.NEXT_NUM += 1
+        return val
+
     @property
     def copydir(self):
         return self.__copydir
+
+    @property
+    def number(self):
+        return self.__number
 
     def run(self, requester):
         if self.__send_old_dates:
@@ -678,45 +700,41 @@ class Processor(object):
 
 
 if __name__ == "__main__":
+    import argparse
     import subprocess
 
     from contextlib import contextmanager
 
 
-    def find_open_requests():
-        num_open = 0
+    def build_requests(env, hubs, first_ticks=None):
+        if len(hubs) != 1:
+            raise HsException("Expected 1 hub, not %d" % len(hubs))
 
-        conn = sqlite3.connect(HsSender.get_db_path())
-        try:
-            cursor = conn.cursor()
-            for row in cursor.execute("select id, count(id) from requests"
-                                      " group by id"):
-                num_open += 1
-        finally:
-            conn.close()
+        if first_ticks is None:
+            first_ticks = 123450067960246236L
+            # this should be extracted from the file, not hard-coded!
+            first_extracted_hit = 123450077960250000L
 
-        return num_open
-
-    def main():
-        first_ticks = 157890067960246236
         last_ticks = first_ticks + 75 * TICKS_PER_SECOND
         hits_per_file = 40
 
-        env = HsEnvironment(ROOTDIR)
         env.create(first_ticks, last_ticks, hits_per_file)
 
         single_start_ns = (first_ticks + TICKS_PER_SECOND) / 10
         single_stop_ns = (first_ticks + 6 * TICKS_PER_SECOND) / 10
         multi_stop_ns = (first_ticks + 65 * TICKS_PER_SECOND) / 10
 
-        hubs = ("ichub01", )
-
         _, single_start_utc = HsUtil.fix_date_or_timestamp(single_start_ns,
                                                            None, is_sn_ns=True)
         _, single_stop_utc = HsUtil.fix_date_or_timestamp(single_stop_ns,
                                                           None, is_sn_ns=True)
+
+        extracted_hits_filename = "hits_%d_%d.dat" % \
+                                  (first_extracted_hit,
+                                   first_extracted_hit + 50000000000L)
+
         # list of requests
-        requests = (
+        return (
             Request(env, True, single_start_ns, single_stop_ns, hubs,
                     ("HitSpool-1.dat", )),
             Request(env, True, single_start_ns, multi_stop_ns, hubs,
@@ -729,19 +747,19 @@ if __name__ == "__main__":
                     (first_ticks - 1 * TICKS_PER_SECOND) / 10, hubs, None,
                     prefix=HsPrefix.SNALERT),
             Request(env, True, single_start_ns, single_stop_ns, hubs,
-                    ("hits_157890077960249984_157890127960249984.dat", ),
+                    (extracted_hits_filename, ),
                     copydir=os.path.join(ROOTDIR, "hese_hs"), extract=True),
             Request(env, True, single_start_ns, single_stop_ns, hubs,
-                    ("hits_157890077960249984_157890127960249984.dat", ),
+                    (extracted_hits_filename, ),
                     prefix=HsPrefix.HESE, copydir=os.path.join(ROOTDIR, "xxx"),
                     extract=True),
             Request(env, True, single_start_ns, single_stop_ns, hubs,
-                    ("hits_157890077960249984_157890127960249984.dat", ),
+                    (extracted_hits_filename, ),
                     request_id="ABC123", prefix=HsPrefix.ANON,
                     copydir=os.path.join(ROOTDIR, "anonymous"),
                     extract=True),
             Request(env, True, single_start_ns, single_stop_ns, hubs,
-                    ("hits_157890077960249984_157890127960249984.dat", ),
+                    (extracted_hits_filename, ),
                     request_id="AliveOrDead", prefix=HsPrefix.LIVE,
                     username="mfrere",
                     copydir=os.path.join(ROOTDIR, "live_and_let_die"),
@@ -763,8 +781,51 @@ if __name__ == "__main__":
                     send_old_dates=True),
         )
 
-        if len(hubs) != 1:
-            raise HsException("Expected 1 hub, not %d" % len(hubs))
+    def find_open_requests():
+        num_open = 0
+
+        conn = sqlite3.connect(HsSender.get_db_path())
+        try:
+            cursor = conn.cursor()
+            for row in cursor.execute("select id, count(id) from requests"
+                                      " group by id"):
+                num_open += 1
+        finally:
+            conn.close()
+
+        return num_open
+
+    def main():
+        argp = argparse.ArgumentParser()
+        argp.add_argument("-r", "--request", dest="request_list",
+                          type=int, nargs="*",
+                          help="List of specific requests to run")
+
+        args = argp.parse_args()
+
+        env = HsEnvironment(ROOTDIR)
+        hubs = ("ichub01", )
+        requests = build_requests(env, ("ichub01", ))
+
+        if args.request_list is not None and len(args.request_list) > 0:
+            # extract only the selected requests
+            newlist = []
+            prev = None
+            for num in sorted(args.request_list):
+                if num == prev:
+                    continue
+                found = None
+                for req in requests:
+                    if req.number == num:
+                        found = req
+                        break
+                if found is None:
+                    raise SystemExit("Unknown request #%d" % num)
+                newlist.append(found)
+                prev = num
+
+            # replace main list with extracted subset
+            requests = newlist
 
         with run_and_terminate(("python", "HsPublisher.py",
                                 "-l", "/tmp/publish.log",
@@ -790,30 +851,31 @@ if __name__ == "__main__":
 
         failed = []
 
-        num = 0
+        first = True
         for request in requests:
-            if num > 0:
+            if first:
+                first = False
+            else:
                 # print a separator so it's easy to see different requests
                 print >>sys.stderr, "="*75
 
             # keep track of request numbers to make debugging easier
-            num += 1
-            print "::: Request #%d" % num
+            print "::: Request #%d" % request.number
 
             try:
                 if not processor.run(request):
-                    failed.append(num)
+                    failed.append(request.number)
             except:
                 logging.exception("Request failed")
-                failed.append(num)
+                failed.append(request.number)
 
         open_reqs = find_open_requests()
 
         if len(failed) == 0 and open_reqs == 0:
             print "No problems found"
         else:
-            print >>sys.stderr, "Found problems with %d requests: %s" % \
-                (len(failed), failed)
+            print >>sys.stderr, "Found problems with %d request%s: %s" % \
+                (len(failed), "" if len(failed) == 1 else "s", failed)
             if open_reqs > 0 and open_reqs != len(failed):
                 print >>sys.stderr, "Found %d open request%s in state DB" % \
                     (open_reqs, "" if open_reqs == 1 else "s")

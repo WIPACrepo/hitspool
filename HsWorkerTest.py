@@ -121,9 +121,9 @@ class MyWorker(HsWorker.Worker):
 
         return 0
 
-    def send_files(self, source_list, rsync_user, rsync_host, rsync_dir,
-                   timetag_dir, use_daemon, bwlimit=None, log_format=None,
-                   relative=True):
+    def send_files(self, req, source_list, rsync_user, rsync_host, rsync_dir,
+                   timetag_dir, use_daemon, update_status=None, bwlimit=None,
+                   log_format=None, relative=True):
         if self.__fail_rsync:
             raise HsException("FakeFail")
         return True
@@ -134,6 +134,7 @@ class MyWorker(HsWorker.Worker):
         if self.__sub_sock is not None:
             self.__sub_sock.validate()
         self.check_for_unused_links()
+
 
 class HsWorkerTest(LoggingTestCase):
     # pylint: disable=too-many-public-methods
@@ -462,9 +463,9 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks - self.ONE_MINUTE
-        last_stop = stop_ticks + (self.ONE_MINUTE * 5)
+        #last_stop = stop_ticks + (self.ONE_MINUTE * 5)
         cur_stop = start_ticks + (self.ONE_MINUTE * 60)
-        cur_start = start_ticks + (self.ONE_MINUTE * 70)
+        #cur_start = start_ticks + (self.ONE_MINUTE * 70)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
                                           interval=self.INTERVAL)
@@ -499,11 +500,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # reformat time string for file names
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
-
-        # build copy/log directories passed to HsSender
-        copydir = os.path.join(hsr.TEST_COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
@@ -569,11 +565,6 @@ class HsWorkerTest(LoggingTestCase):
         # reformat time string for file names
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
-        # build copy/log directories passed to HsSender
-        copydir = os.path.join(hsr.TEST_COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
-
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
                          delay_rsync=False)
@@ -598,8 +589,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
-        last_stop = start_ticks - (self.ONE_MINUTE * 60)
-        cur_start = start_ticks + (self.TICKS_PER_SECOND * 5)
+        #last_stop = start_ticks - (self.ONE_MINUTE * 60)
+        #cur_start = start_ticks + (self.TICKS_PER_SECOND * 5)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -695,11 +686,6 @@ class HsWorkerTest(LoggingTestCase):
         # reformat time string for file names
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
-        # build copy/log directories passed to HsSender
-        copydir = os.path.join(hsr.TEST_COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
-
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
                          delay_rsync=False)
@@ -786,9 +772,9 @@ class HsWorkerTest(LoggingTestCase):
         cur_stop = start_ticks + (self.ONE_MINUTE * 15)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, last_stop,
-                                       interval=self.INTERVAL)
+                                          interval=self.INTERVAL)
         HsTestUtil.MockHitspool.add_files(hspath, cur_start, cur_stop,
-                                       interval=self.INTERVAL)
+                                          interval=self.INTERVAL)
 
         # create copy directory
         HsTestUtil.MockHitspool.create_copy_dir(hsr)
@@ -821,11 +807,6 @@ class HsWorkerTest(LoggingTestCase):
         # reformat time string for file names
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
-        # build copy/log directories passed to HsSender
-        copydir = os.path.join(hsr.TEST_COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
-
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
                          delay_rsync=False)
@@ -850,8 +831,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks - (self.ONE_MINUTE * 5)
-        last_stop = start_ticks + (self.TICKS_PER_SECOND * 5)
-        cur_start = start_ticks + self.ONE_MINUTE + self.TICKS_PER_SECOND
+        #last_stop = start_ticks + (self.TICKS_PER_SECOND * 5)
+        #cur_start = start_ticks + self.ONE_MINUTE + self.TICKS_PER_SECOND
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -888,11 +869,6 @@ class HsWorkerTest(LoggingTestCase):
         # reformat time string for file names
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
-        # build copy/log directories passed to HsSender
-        copydir = os.path.join(hsr.TEST_COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
-
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
                          delay_rsync=False)
@@ -917,8 +893,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks - (self.ONE_MINUTE * 5)
-        last_stop = start_ticks + (self.TICKS_PER_SECOND * 5)
-        cur_start = start_ticks + (self.TICKS_PER_SECOND * 50)
+        #last_stop = start_ticks + (self.TICKS_PER_SECOND * 5)
+        #cur_start = start_ticks + (self.TICKS_PER_SECOND * 50)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -955,11 +931,6 @@ class HsWorkerTest(LoggingTestCase):
         # reformat time string for file names
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
-        # build copy/log directories passed to HsSender
-        copydir = os.path.join(hsr.TEST_COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
-
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
                          delay_rsync=False)
@@ -985,8 +956,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks - (self.ONE_MINUTE * 5)
-        last_stop = start_ticks + (self.TICKS_PER_SECOND * 5)
-        cur_start = start_ticks + (self.TICKS_PER_SECOND * 50)
+        #last_stop = start_ticks + (self.TICKS_PER_SECOND * 5)
+        #cur_start = start_ticks + (self.TICKS_PER_SECOND * 50)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -1031,11 +1002,6 @@ class HsWorkerTest(LoggingTestCase):
         # reformat time string for file names
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
-        # build copy/log directories passed to HsSender
-        copydir = os.path.join(hsr.TEST_COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
-
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
                          delay_rsync=False)
@@ -1058,8 +1024,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks + (self.ONE_MINUTE * 2)
-        last_stop = start_ticks + (self.ONE_MINUTE * 5)
-        cur_start = start_ticks + (self.ONE_MINUTE * 6)
+        #last_stop = start_ticks + (self.ONE_MINUTE * 5)
+        #cur_start = start_ticks + (self.ONE_MINUTE * 6)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 10)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -1113,8 +1079,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks + (self.ONE_MINUTE * 2)
-        last_stop = start_ticks + (self.ONE_MINUTE * 5)
-        cur_start = start_ticks + (self.ONE_MINUTE * 6)
+        #last_stop = start_ticks + (self.ONE_MINUTE * 5)
+        #cur_start = start_ticks + (self.ONE_MINUTE * 6)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 10)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -1184,8 +1150,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
-        last_stop = start_ticks - (self.ONE_MINUTE * 60)
-        cur_start = start_ticks - self.ONE_MINUTE
+        #last_stop = start_ticks - (self.ONE_MINUTE * 60)
+        #cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -1222,11 +1188,6 @@ class HsWorkerTest(LoggingTestCase):
         # reformat time string for file names
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
-        # build copy/log directories passed to HsSender
-        copydir = os.path.join(hsr.TEST_COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
-
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
                          delay_rsync=False)
@@ -1252,8 +1213,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
-        last_stop = start_ticks - (self.ONE_MINUTE * 60)
-        cur_start = start_ticks - self.ONE_MINUTE
+        #last_stop = start_ticks - (self.ONE_MINUTE * 60)
+        #cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -1296,11 +1257,6 @@ class HsWorkerTest(LoggingTestCase):
         # reformat time string for file names
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
-        # build copy/log directories passed to HsSender
-        copydir = os.path.join(hsr.TEST_COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
-
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
                          delay_rsync=False)
@@ -1323,8 +1279,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks - (self.ONE_MINUTE * 10)
-        last_stop = start_ticks - (self.ONE_MINUTE * 6)
-        cur_start = start_ticks - (self.ONE_MINUTE * 5)
+        #last_stop = start_ticks - (self.ONE_MINUTE * 6)
+        #cur_start = start_ticks - (self.ONE_MINUTE * 5)
         cur_stop = stop_ticks - (self.ONE_MINUTE * 2)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -1378,8 +1334,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks + (self.TICKS_PER_SECOND * 1)
-        last_stop = start_ticks + (self.TICKS_PER_SECOND * 2)
-        cur_start = start_ticks + (self.TICKS_PER_SECOND * 4)
+        #last_stop = start_ticks + (self.TICKS_PER_SECOND * 2)
+        #cur_start = start_ticks + (self.TICKS_PER_SECOND * 4)
         cur_stop = start_ticks + (self.TICKS_PER_SECOND * 4)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -1416,11 +1372,6 @@ class HsWorkerTest(LoggingTestCase):
         # reformat time string for file names
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
-        # build copy/log directories passed to HsSender
-        copydir = os.path.join(hsr.TEST_COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
-
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
                          delay_rsync=False)
@@ -1446,8 +1397,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks - (self.ONE_MINUTE * 10)
-        last_stop = start_ticks - (self.ONE_MINUTE * 6)
-        cur_start = start_ticks - self.ONE_MINUTE
+        #last_stop = start_ticks - (self.ONE_MINUTE * 6)
+        #cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + self.ONE_MINUTE
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -1488,10 +1439,6 @@ class HsWorkerTest(LoggingTestCase):
         # reformat time string for file names
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
-        # build copy/log directories passed to HsSender
-        copydir = os.path.join(hsr.TEST_COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost))
-
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
                          delay_rsync=False)
@@ -1516,8 +1463,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks - (self.ONE_MINUTE * 10)
-        last_stop = start_ticks - (self.ONE_MINUTE * 6)
-        cur_start = start_ticks - self.ONE_MINUTE
+        #last_stop = start_ticks - (self.ONE_MINUTE * 6)
+        #cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + self.ONE_MINUTE
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -1553,11 +1500,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # reformat time string for file names
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
-
-        # build copy/log directories passed to HsSender
-        copydir = os.path.join(hsr.TEST_COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
@@ -1587,8 +1529,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks - (self.ONE_MINUTE * 10)
-        last_stop = start_ticks - (self.ONE_MINUTE * 6)
-        cur_start = start_ticks - self.ONE_MINUTE
+        #last_stop = start_ticks - (self.ONE_MINUTE * 6)
+        #cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + self.ONE_MINUTE
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -1620,11 +1562,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # reformat time string for file names
         timetag = utcstart.strftime("%Y%m%d_%H%M%S")
-
-        # build copy/log directories passed to HsSender
-        copydir = os.path.join(hsr.TEST_COPY_DIR,
-                               "ANON_%s_%s" % (timetag, hsr.fullhost))
-        logfiledir = os.path.join(hsr.TEST_COPY_DIR, "logs")
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,

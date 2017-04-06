@@ -46,6 +46,13 @@ class RequestMonitor(threading.Thread):
     # declared incomplete
     EXPIRE_SECONDS = 3600.0
 
+    # database request states
+    DBSTATE_INITIAL = 0
+    DBSTATE_START = 10
+    DBSTATE_WORKING = 20
+    DBSTATE_ERROR = 50
+    DBSTATE_DONE = 90
+
     def __init__(self, sender):
         self.__sender = sender
 
@@ -103,15 +110,18 @@ class RequestMonitor(threading.Thread):
             for req_id in self.__requests:
                 # find last update for this request
                 latest = None
-                for host, val in self.__requests[req_id].iteritems():
-                    if host == self.DETAIL_KEY:
+                host = None
+                for hst, val in self.__requests[req_id].iteritems():
+                    if hst == self.DETAIL_KEY:
                         continue
 
                     update_time = val[1]
                     if latest is None:
                         latest = update_time
+                        host = hst
                     elif latest < update_time:
                         latest = update_time
+                        host = hst
 
                 if latest is None:
                     ldiff = expire_time
@@ -124,7 +134,6 @@ class RequestMonitor(threading.Thread):
                                           now, type(now), latest, type(latest),
                                           host)
                         continue
-
 
                 # if the last update was a long time ago
                 if ldiff > expire_time:
@@ -170,18 +179,19 @@ class RequestMonitor(threading.Thread):
 
                 state = val[0]
                 if host == self.INITIAL_REQUEST and \
-                   state == HsMessage.DBSTATE_INITIAL:
+                   state == self.DBSTATE_INITIAL:
                     # ignore initial message
                     continue
 
-                if state == HsMessage.DBSTATE_START:
+                if state == self.DBSTATE_START or \
+                   state == self.DBSTATE_WORKING:
                     # found in-progress request
                     return (None, None, None)
 
-                if state == HsMessage.DBSTATE_DONE:
+                if state == self.DBSTATE_DONE:
                     success.append(host)
                     new_status = HsUtil.STATUS_SUCCESS
-                elif state == HsMessage.DBSTATE_ERROR:
+                elif state == self.DBSTATE_ERROR:
                     failed.append(host)
                     new_status = HsUtil.STATUS_FAIL
                 else:
@@ -202,6 +212,8 @@ class RequestMonitor(threading.Thread):
             return self.__handle_req_initial(msg)
         elif msg.msgtype == HsMessage.MESSAGE_STARTED:
             return self.__handle_req_started(msg)
+        elif msg.msgtype == HsMessage.MESSAGE_WORKING:
+            return self.__handle_req_working(msg)
         elif (msg.msgtype == HsMessage.MESSAGE_DONE or
               msg.msgtype == HsMessage.MESSAGE_FAILED):
             return self.__handle_req_update(msg, force_spade=force_spade)
@@ -220,7 +232,7 @@ class RequestMonitor(threading.Thread):
 
             # add new request to DB
             self.__update_db(msg.request_id, self.INITIAL_REQUEST,
-                             HsMessage.DBSTATE_INITIAL)
+                             self.DBSTATE_INITIAL)
             self.__insert_detail(msg.request_id, msg.username, msg.prefix,
                                  msg.start_time, msg.stop_time,
                                  msg.destination_dir)
@@ -252,16 +264,37 @@ class RequestMonitor(threading.Thread):
                 state, _ = self.__requests[msg.request_id][msg.host]
                 logging.error("Saw START message for request %s host %s"
                               " but current state is %s", msg.request_id,
-                              msg.host, HsMessage.state_name(state))
+                              msg.host, self.__state_name(state))
             else:
                 self.__requests[msg.request_id][msg.host] \
-                    = (HsMessage.DBSTATE_START, datetime.datetime.now())
+                    = (self.DBSTATE_START, datetime.datetime.now())
                 if self.DETAIL_KEY not in self.__requests[msg.request_id]:
                     self.__insert_detail(msg.request_id, msg.username,
                                          msg.prefix, msg.start_time,
                                          msg.stop_time, msg.destination_dir)
                 self.__update_db(msg.request_id, msg.host,
-                                 HsMessage.DBSTATE_START)
+                                 self.DBSTATE_START)
+
+    def __handle_req_working(self, msg):
+        with self.__reqlock:
+            if msg.request_id not in self.__requests:
+                logging.error("Request %s was not initialized (received"
+                              " START from %s)", msg.request_id, msg.host)
+                self.__requests[msg.request_id] = {}
+
+            if msg.host not in self.__requests[msg.request_id]:
+                logging.error("Saw WORKING message for request %s host %s"
+                              " but host was unknown", msg.request_id,
+                              msg.host)
+            else:
+                self.__requests[msg.request_id][msg.host] \
+                    = (self.DBSTATE_WORKING, datetime.datetime.now())
+                if self.DETAIL_KEY not in self.__requests[msg.request_id]:
+                    self.__insert_detail(msg.request_id, msg.username,
+                                         msg.prefix, msg.start_time,
+                                         msg.stop_time, msg.destination_dir)
+                self.__update_db(msg.request_id, msg.host,
+                                 self.DBSTATE_WORKING)
 
     def __handle_req_update(self, msg, force_spade=False):
         """
@@ -291,11 +324,11 @@ class RequestMonitor(threading.Thread):
                                      msg.destination_dir)
 
             if (msg.msgtype == HsMessage.MESSAGE_FAILED or
-                 (moved is not None and not moved)):
+                (moved is not None and not moved)):
                 # if files were not queued for SPADE, record an error
-                dbstate = HsMessage.DBSTATE_ERROR
+                dbstate = self.DBSTATE_ERROR
             else:
-                dbstate = HsMessage.DBSTATE_DONE
+                dbstate = self.DBSTATE_DONE
 
             self.__requests[msg.request_id][msg.host] \
                 = (dbstate, datetime.datetime.now())
@@ -526,6 +559,20 @@ class RequestMonitor(threading.Thread):
         self.__close_database()
         self.__stopping = False
 
+    @classmethod
+    def __state_name(cls, state):
+        if state == cls.DBSTATE_INITIAL:
+            return "INITIAL"
+        if state == cls.DBSTATE_START:
+            return "START"
+        if state == cls.DBSTATE_WORKING:
+            return "WORKING"
+        if state == cls.DBSTATE_DONE:
+            return "DONE"
+        if state == cls.DBSTATE_ERROR:
+            return "ERROR"
+        return "??#%d??" % state
+
     def __update_db(self, request_id, host, state):
         if self.__sqlconn is None:
             self.__sqlconn = self.__open_database()
@@ -565,9 +612,9 @@ class HsSender(HsBase):
     -----------        | PUB     | ------> | SUB    n|        | PULL     |
                        ----------          |PUSH     | ---->  |          |
                                             ---------          -----------
-    This is the NEW HsSender for the HS Interface.
+    This is the HsSender for the HS Interface.
     It's started via fabric on access.
-    It receives messages from the HsWorkers and is responsible of putting
+    It receives messages from the HsWorkers and is responsible for putting
     the HitSpool Data in the SPADE queue.
     """
 

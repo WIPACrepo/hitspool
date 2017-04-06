@@ -13,14 +13,9 @@ MSG_FLDS = ("msgtype", "request_id", "username", "start_time", "stop_time",
 # internal message types
 MESSAGE_INITIAL = "REQUEST"
 MESSAGE_STARTED = "STARTED"
+MESSAGE_WORKING = "WORKING"
 MESSAGE_DONE = "DONE"
 MESSAGE_FAILED = "FAILED"
-
-# database request states
-DBSTATE_INITIAL = 0
-DBSTATE_START = 10
-DBSTATE_ERROR = 50
-DBSTATE_DONE = 90
 
 
 def receive(sock):
@@ -39,6 +34,11 @@ def receive(sock):
         _, mdict["stop_time"] = parse_sntime(mdict["stop_time"],
                                              is_sn_ns=True)
     return dict_to_object(mdict, MSG_FLDS, "Message")
+
+
+def send_for_request(sock, req, host, copydir, destdir, msgtype):
+    return send(sock, msgtype, req.request_id, req.username, req.start_time,
+                req.stop_time, copydir, destdir, req.prefix, req.extract, host)
 
 
 def send(sock, msgtype, req_id, user, start_utc, stop_utc, copydir, destdir,
@@ -74,15 +74,3 @@ def send(sock, msgtype, req_id, user, start_utc, stop_utc, copydir, destdir,
     }
 
     return sock.send_json(msg)
-
-
-def state_name(state):
-    if state == DBSTATE_INITIAL:
-        return "INITIAL"
-    if state == DBSTATE_START:
-        return "START"
-    if state == DBSTATE_DONE:
-        return "DONE"
-    if state == DBSTATE_ERROR:
-        return "ERROR"
-    return "??#%d??" % state

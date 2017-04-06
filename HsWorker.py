@@ -7,12 +7,10 @@
 #check out the icecube wiki page for instructions:
 https://wiki.icecube.wisc.edu/index.php/HitSpool_Interface_Operation_Manual
 """
+import functools
 import logging
 import os
-import random
-import re
 import signal
-import time
 import traceback
 import zmq
 
@@ -24,7 +22,6 @@ import HsUtil
 
 from HsBase import HsBase
 from HsException import HsException
-from HsPrefix import HsPrefix
 from HsRSyncFiles import HsRSyncFiles
 
 
@@ -68,16 +65,13 @@ class Worker(HsRSyncFiles):
     4. writes a short report about was has been done.
     """
 
-    # should worker logfiles be rsynced to 2ndbuild after every request?
-    RSYNC_LOGFILE = False
-
     def __init__(self, progname, host=None, is_test=False):
         super(Worker, self).__init__(host=host, is_test=is_test)
 
         self.__service = "HSiface"
         self.__varname = "%s@%s" % (progname, self.shorthost)
 
-    def alert_parser(self, req, logfile, delay_rsync=True):
+    def alert_parser(self, req, logfile, update_status=None, delay_rsync=True):
         """
         Parse the Alert message for starttime, stoptime, sn-alert-time-stamp
         and directory where-to the data has to be copied.
@@ -149,33 +143,15 @@ class Worker(HsRSyncFiles):
             logging.error(errmsg)
             return None
 
-        rsyncdir = self.request_parser(req.prefix, alertstart, alertstop,
+        rsyncdir = self.request_parser(req, alertstart, alertstop,
                                        hs_copydir, extract_hits=extract_hits,
                                        sender=self.sender,
+                                       update_status=update_status,
                                        delay_rsync=delay_rsync,
                                        make_remote_dir=False)
         if rsyncdir is None:
             logging.error("Request failed")
             return None
-
-        if self.RSYNC_LOGFILE:
-            # -- also transmit the log file to the HitSpool copy directory:
-            if self.is_cluster_sps or self.is_cluster_spts:
-                logfiledir = os.path.join(HsBase.DEFAULT_LOG_PATH,
-                                          "workerlogs")
-                logtargetdir = "%s@%s:%s" % (self.rsync_user, self.rsync_host,
-                                             logfiledir)
-            else:
-                logfiledir = os.path.join(self.TEST_COPY_DIR, "logs")
-                logtargetdir = logfiledir
-
-            try:
-                outlines = self.rsync((logfile, ), logtargetdir,
-                                      relative=False)
-                logging.info("logfile transmitted to copydir: %s", outlines)
-            except HsException:
-                logging.exception("Logfile RSync failed")
-                # rsync of logfile should not cause request to fail
 
         return rsyncdir
 
@@ -228,13 +204,15 @@ class Worker(HsRSyncFiles):
                               req.destination_dir, type(req.destination_dir))
             return False
 
-        HsMessage.send(self.sender, HsMessage.MESSAGE_STARTED, req.request_id,
-                       req.username, req.start_time, req.stop_time,
-                       req.copy_dir, req.destination_dir, req.prefix,
-                       req.extract, self.shorthost)
+        update_status = functools.partial(HsMessage.send_for_request,
+                                          self.sender, req, self.shorthost)
+
+        update_status(req.copy_dir, req.destination_dir,
+                      HsMessage.MESSAGE_STARTED)
 
         try:
-            rsyncdir = self.alert_parser(req, logfile)
+            rsyncdir = self.alert_parser(req, logfile,
+                                         update_status=update_status)
         except:
             logging.exception("Cannot process request \"%s\"", req)
             rsyncdir = None
@@ -244,9 +222,7 @@ class Worker(HsRSyncFiles):
         else:
             msgtype = HsMessage.MESSAGE_FAILED
 
-        HsMessage.send(self.sender, msgtype, req.request_id, req.username,
-                       req.start_time, req.stop_time, rsyncdir, destdir,
-                       req.prefix, req.extract, self.shorthost)
+        update_status(rsyncdir, destdir, msgtype)
 
     def receive_request(self, sock):
         req_dict = sock.recv_json()

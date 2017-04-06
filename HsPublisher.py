@@ -127,7 +127,7 @@ class Receiver(HsBase):
             logging.exception("Failed to parse destination directory")
             destdir = None
             bad_request = True
-        if destdir == None:
+        if destdir is None:
             destdir = self.BAD_DESTINATION
             bad_request = True
 
@@ -220,8 +220,8 @@ class Receiver(HsBase):
             hs_ssh_access, hs_ssh_dir \
                 = HsUtil.split_rsync_host_and_path(destdir)
         except:
-            logging.error("Unusable destination directory \"%s\"<%s>" %
-                          (destdir, type(destdir)))
+            logging.error("Unusable destination directory \"%s\"<%s>", destdir,
+                          type(destdir))
             return destdir, True
 
         # if no user/hst was specified, return the path
@@ -260,7 +260,7 @@ class Receiver(HsBase):
             tstr = alertdict[fldname]
             try:
                 nsec, utc = HsUtil.parse_sntime(tstr)
-            except HsException, hsex:
+            except HsException:
                 logging.exception("Bad %s time \"%s\"", fldname, tstr)
 
         return nsec, utc

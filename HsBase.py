@@ -7,6 +7,7 @@ import logging.handlers
 import os
 import shutil
 import socket
+import sys
 import tarfile
 
 try:
@@ -258,7 +259,7 @@ class HsBase(object):
 
         root = etree.Element("DIF_Plus")
         root.set("{http://www.w3.org/2001/XMLSchema-instance}"
-                  "noNamespaceSchemaLocation", "IceCubeDIFPlus.xsd")
+                 "noNamespaceSchemaLocation", "IceCubeDIFPlus.xsd")
 
         # Metadata specification is at:
         # https://docushare.icecube.wisc.edu/dsweb/Get/Document-20546/metadata_specification.pdf

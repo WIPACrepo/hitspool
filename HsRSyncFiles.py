@@ -7,7 +7,6 @@ import random
 import re
 import shutil
 import sqlite3
-import subprocess
 import tempfile
 import time
 import zmq
@@ -105,8 +104,15 @@ class HsRSyncFiles(HsBase.HsBase):
 
         return str(total / self.BYTES_PER_MB)
 
-    def __copy_and_send(self, prefix, alert_start, alert_stop, hs_copydir,
-                        extract_hits, delay_rsync=True, make_remote_dir=False):
+    def __copy_and_send(self, req, alert_start, alert_stop, hs_copydir,
+                        extract_hits, update_status=None, delay_rsync=True,
+                        make_remote_dir=False):
+        # if no prefix was supplied, guess it from the destination directory
+        if req is not None and req.prefix is not None:
+            prefix = req.prefix
+        else:
+            prefix = HsPrefix.guess_from_dir(hs_copydir)
+
         # convert start/stop times to DAQ ticks
         start_ticks = HsUtil.get_daq_ticks(self.jan1(), alert_start)
         stop_ticks = HsUtil.get_daq_ticks(self.jan1(), alert_stop)
@@ -168,9 +174,10 @@ class HsRSyncFiles(HsBase.HsBase):
 
         failed = False
         try:
-            failed = not self.send_files(copy_files_list, self.rsync_user,
+            failed = not self.send_files(req, copy_files_list, self.rsync_user,
                                          self.rsync_host, rsyncdir,
                                          timetag_dir, use_daemon,
+                                         update_status=update_status,
                                          bwlimit=self.BWLIMIT,
                                          log_format="%i%n%L")
         except HsException, hsex:
@@ -471,8 +478,8 @@ class HsRSyncFiles(HsBase.HsBase):
     def mkdir(self, _, path):
         os.makedirs(path)
 
-    def request_parser(self, prefix, alert_start, alert_stop,
-                       hs_copydir, extract_hits=False, sender=None,
+    def request_parser(self, req, alert_start, alert_stop, hs_copydir,
+                       extract_hits=False, sender=None, update_status=None,
                        delay_rsync=True, make_remote_dir=False):
 
         # catch bogus requests
@@ -488,17 +495,14 @@ class HsRSyncFiles(HsBase.HsBase):
 
         logging.info("HsInterface running on: %s", self.cluster)
 
-        # if no prefix was supplied, guess it from the destination directory
-        if prefix is None:
-            prefix = HsPrefix.guess_from_dir(hs_copydir)
-
         # rsync files to HsSender machine
         rsyncdir = None
         tmp_dir = None
         try:
             rsyncdir, tmp_dir \
-                = self.__copy_and_send(prefix, alert_start, alert_stop,
+                = self.__copy_and_send(req, alert_start, alert_stop,
                                        hs_copydir, extract_hits,
+                                       update_status=update_status,
                                        delay_rsync=delay_rsync,
                                        make_remote_dir=make_remote_dir)
         finally:
@@ -520,24 +524,43 @@ class HsRSyncFiles(HsBase.HsBase):
     def send_alert(self, value, prio=None):
         pass
 
-    def send_files(self, source_list, rsync_user, rsync_host, rsync_dir,
-                   timetag_dir, use_daemon, bwlimit=None, log_format=None,
-                   relative=True):
-        copier = None
-        try:
-            copier = CopyUsingSCP(source_list, rsync_user, rsync_host,
-                                  rsync_dir, timetag_dir, bwlimit=bwlimit,
-                                  log_format=log_format, relative=relative)
-        except HsException, hsex:
-            try:
-                copier = CopyUsingRSync(source_list, rsync_user, rsync_host,
-                                        rsync_dir, timetag_dir, use_daemon,
+    def send_files(self, req, source_list, rsync_user, rsync_host, rsync_dir,
+                   timetag_dir, use_daemon, update_status=None, bwlimit=None,
+                   log_format=None, relative=True):
+        exception = None
+
+        files = source_list[:]
+        for i in range(2):
+            if i == 0:
+                copier = CopyUsingSCP(rsync_user, rsync_host, rsync_dir,
+                                      timetag_dir, bwlimit=bwlimit,
+                                      log_format=log_format, relative=relative)
+            else:
+                copier = CopyUsingRSync(rsync_user, rsync_host, rsync_dir,
+                                        timetag_dir, use_daemon=use_daemon,
                                         bwlimit=bwlimit, log_format=log_format,
                                         relative=relative)
 
-            except HsException, hsex2:
-                self.send_alert(str(hsex) + "\n" + str(hsex2))
-                return False
+            try:
+                failed = copier.copy(files, request=req,
+                                     update_status=update_status)
+                if len(failed) == 0:
+                    files = None
+                    exception = None
+                    break
+
+                # if at first we don't succeed...
+                files = failed
+            except HsException, hsex:
+                exception = hsex
+
+        if exception is not None:
+            self.send_alert(str(exception))
+            return False
+        elif files is not None:
+            self.send_alert("Failed to copy %d files to \"%s\" (%s)" %
+                            (len(failed), copier.target, ", ".join(failed)))
+            return False
 
         logging.info("successful copy of HS data from %s to %s at %s",
                      self.fullhost, timetag_dir, rsync_host)

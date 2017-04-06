@@ -380,9 +380,6 @@ class HsSenderTest(LoggingTestCase):
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
-        # add all expected log messages
-        datadir = os.path.basename(hsdir)
-
         # run it!
         sender.move_to_destination_dir(hsdir, usrdir)
 
@@ -478,8 +475,8 @@ class HsSenderTest(LoggingTestCase):
         firstnum = 11
         numfiles = 3
 
-        req = MockRequestBuilder(None, category, None, None, timetag, host,
-                                 firstnum, numfiles)
+        #req = MockRequestBuilder(None, category, None, None, timetag, host,
+        #                         firstnum, numfiles)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
