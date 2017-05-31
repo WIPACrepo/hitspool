@@ -10,6 +10,7 @@ from collections import namedtuple
 import HsWorker
 import HsTestUtil
 
+from HsBase import DAQTime
 from HsException import HsException
 from HsRSyncFiles import HsRSyncFiles
 from LoggingTestCase import LoggingTestCase
@@ -50,7 +51,6 @@ class MyWorker(HsWorker.Worker):
 
         self.__link_paths = []
         self.__fail_hardlink = False
-        self.__fail_rsync = False
 
         # don't sleep during unit tests
         self.MIN_DELAY = 0.0
@@ -95,9 +95,6 @@ class MyWorker(HsWorker.Worker):
     def fail_hardlink(self):
         self.__fail_hardlink = True
 
-    def fail_rsync(self):
-        self.__fail_rsync = True
-
     def hardlink(self, filename, targetdir):
         if self.__fail_hardlink:
             raise HsException("Fake Hardlink Error")
@@ -124,8 +121,6 @@ class MyWorker(HsWorker.Worker):
     def send_files(self, req, source_list, rsync_user, rsync_host, rsync_dir,
                    timetag_dir, use_daemon, update_status=None, bwlimit=None,
                    log_format=None, relative=True):
-        if self.__fail_rsync:
-            raise HsException("FakeFail")
         return True
 
     def validate(self):
@@ -164,11 +159,16 @@ class HsWorkerTest(LoggingTestCase):
 
     @classmethod
     def make_alert_object(cls, xdict):
-        if "prefix" in xdict:
-            mydict = xdict
-        else:
-            mydict = xdict.copy()
+        mydict = xdict.copy()
+        if "prefix" not in xdict:
             mydict["prefix"] = None
+        if "start_time" in mydict and \
+           not isinstance(mydict["start_time"], DAQTime):
+            mydict["start_time"] = DAQTime(mydict["start_time"], is_ns=True)
+        if "stop_time" in mydict and \
+           not isinstance(mydict["stop_time"], DAQTime):
+            mydict["stop_time"] = DAQTime(mydict["stop_time"], is_ns=True)
+
         newobj = namedtuple("TestAlert", mydict.keys())(**mydict)
         return newobj
 
@@ -463,9 +463,7 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks - self.ONE_MINUTE
-        #last_stop = stop_ticks + (self.ONE_MINUTE * 5)
         cur_stop = start_ticks + (self.ONE_MINUTE * 60)
-        #cur_start = start_ticks + (self.ONE_MINUTE * 70)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
                                           interval=self.INTERVAL)
@@ -589,8 +587,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
-        #last_stop = start_ticks - (self.ONE_MINUTE * 60)
-        #cur_start = start_ticks + (self.TICKS_PER_SECOND * 5)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -667,9 +663,6 @@ class HsWorkerTest(LoggingTestCase):
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
                               hsr.TEST_COPY_DIR)
-        #self.expectLogMessage("Sn_start doesn't exist in currentRun buffer"
-        #                      " anymore! Start with oldest possible data: "
-        #                      "HitSpool-0")
 
         # add all expected I3Live messages
         hsr.i3socket.addExpectedValue({
@@ -831,8 +824,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks - (self.ONE_MINUTE * 5)
-        #last_stop = start_ticks + (self.TICKS_PER_SECOND * 5)
-        #cur_start = start_ticks + self.ONE_MINUTE + self.TICKS_PER_SECOND
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -893,8 +884,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks - (self.ONE_MINUTE * 5)
-        #last_stop = start_ticks + (self.TICKS_PER_SECOND * 5)
-        #cur_start = start_ticks + (self.TICKS_PER_SECOND * 50)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -956,8 +945,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks - (self.ONE_MINUTE * 5)
-        #last_stop = start_ticks + (self.TICKS_PER_SECOND * 5)
-        #cur_start = start_ticks + (self.TICKS_PER_SECOND * 50)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -1024,8 +1011,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks + (self.ONE_MINUTE * 2)
-        #last_stop = start_ticks + (self.ONE_MINUTE * 5)
-        #cur_start = start_ticks + (self.ONE_MINUTE * 6)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 10)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -1079,8 +1064,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks + (self.ONE_MINUTE * 2)
-        #last_stop = start_ticks + (self.ONE_MINUTE * 5)
-        #cur_start = start_ticks + (self.ONE_MINUTE * 6)
         cur_stop = stop_ticks + (self.ONE_MINUTE * 10)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -1100,25 +1083,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage(re.compile(r"No data found between \d+ and \d+"))
         self.expectLogMessage("Request failed")
 
-        # add all expected I3Live messages
-        notify_hdr = re.compile(r"Query for \[\d+-\d+\] failed on %s$" %
-                                hsr.shorthost)
-        notify_txt = re.compile(r"DB contains \d+ entries from .* to .*$")
-        notifies = []
-        for email in HsRSyncFiles.DEBUG_EMAIL:
-            notifies.append({
-                'notifies_txt': notify_txt,
-                'notifies_header': notify_hdr,
-                'receiver': email,
-            })
-
-        hsr.i3socket.addExpectedAlert({
-            'condition': notify_hdr,
-            'desc': "HsInterface Data Request",
-            'short_subject': "true",
-            'quiet': "true",
-            'notifies': notifies
-        }, prio=2)
+        hsr.i3socket.addDebugEMail(hsr.shorthost)
         hsr.i3socket.addExpectedValue({
             'START': int(start_ticks / 10),
             'UTCSTART': str(utcstart),
@@ -1150,8 +1115,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
-        #last_stop = start_ticks - (self.ONE_MINUTE * 60)
-        #cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -1213,8 +1176,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks - (self.ONE_MINUTE * 70)
-        #last_stop = start_ticks - (self.ONE_MINUTE * 60)
-        #cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + (self.ONE_MINUTE * 5)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -1279,8 +1240,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks - (self.ONE_MINUTE * 10)
-        #last_stop = start_ticks - (self.ONE_MINUTE * 6)
-        #cur_start = start_ticks - (self.ONE_MINUTE * 5)
         cur_stop = stop_ticks - (self.ONE_MINUTE * 2)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -1334,8 +1293,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks + (self.TICKS_PER_SECOND * 1)
-        #last_stop = start_ticks + (self.TICKS_PER_SECOND * 2)
-        #cur_start = start_ticks + (self.TICKS_PER_SECOND * 4)
         cur_stop = start_ticks + (self.TICKS_PER_SECOND * 4)
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -1378,73 +1335,6 @@ class HsWorkerTest(LoggingTestCase):
 
         hsr.validate()
 
-    def test_fail_rsync(self):
-        # create the worker object
-        hsr = self.wrapped_object
-        hsr.fail_rsync()
-
-        # define alert times
-        start_ticks = 157886364643994920
-        stop_ticks = start_ticks + self.ONE_MINUTE
-
-        # create the alert
-        alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': str(stop_ticks / 10),
-            'destination_dir': "/foo/bar",
-            'extract': False,
-        }
-
-        # create hitspool directory
-        last_start = start_ticks - (self.ONE_MINUTE * 10)
-        #last_stop = start_ticks - (self.ONE_MINUTE * 6)
-        #cur_start = start_ticks - self.ONE_MINUTE
-        cur_stop = stop_ticks + self.ONE_MINUTE
-        hspath = HsTestUtil.MockHitspool.create(hsr)
-        HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
-                                          interval=self.INTERVAL)
-
-        # create copy directory
-        HsTestUtil.MockHitspool.create_copy_dir(hsr)
-
-        # set log file name
-        logfile = "unknown.log"
-
-        # initialize formatted start/stop times
-        utcstart = HsTestUtil.get_time(start_ticks)
-        utcstop = HsTestUtil.get_time(stop_ticks)
-
-        # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
-        self.expectLogMessage("Request failed")
-
-        # add all expected I3Live messages
-        hsr.i3socket.addExpectedValue({
-            'START': int(start_ticks / 10),
-            'UTCSTART': str(utcstart),
-            'STOP': int(stop_ticks / 10),
-            'UTCSTOP': str(utcstop),
-        })
-
-        # TODO should compute the expected number of files
-        hsr.add_expected_links(utcstart, 575, 5, i3socket=hsr.i3socket,
-                               finaldir=None)
-
-        hsr.i3socket.addExpectedValue("ERROR in rsync. Keep tmp dir.")
-        hsr.i3socket.addExpectedValue("FakeFail")
-
-        # reformat time string for file names
-        timetag = utcstart.strftime("%Y%m%d_%H%M%S")
-
-        # test parser
-        hsr.alert_parser(self.make_alert_object(alert), logfile,
-                         delay_rsync=False)
-
-        hsr.validate()
-
     def test_works(self):
         # create the worker object
         hsr = self.wrapped_object
@@ -1463,8 +1353,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks - (self.ONE_MINUTE * 10)
-        #last_stop = start_ticks - (self.ONE_MINUTE * 6)
-        #cur_start = start_ticks - self.ONE_MINUTE
         cur_stop = stop_ticks + self.ONE_MINUTE
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
@@ -1529,8 +1417,66 @@ class HsWorkerTest(LoggingTestCase):
 
         # create hitspool directory
         last_start = start_ticks - (self.ONE_MINUTE * 10)
-        #last_stop = start_ticks - (self.ONE_MINUTE * 6)
-        #cur_start = start_ticks - self.ONE_MINUTE
+        cur_stop = stop_ticks + self.ONE_MINUTE
+        hspath = HsTestUtil.MockHitspool.create(hsr)
+        HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,
+                                          interval=self.INTERVAL)
+
+        # create copy directory
+        HsTestUtil.MockHitspool.create_copy_dir(hsr)
+
+        # set log file name
+        logfile = "unknown.log"
+
+        # add all expected log messages
+        self.expectLogMessage("Requested HS data copy destination differs"
+                              " from default!")
+        self.expectLogMessage("data will be sent to default destination: %s" %
+                              hsr.TEST_COPY_DIR)
+
+        # add all expected I3Live messages
+        hsr.i3socket.addExpectedValue({
+            'START': int(start_ticks / 10),
+            'UTCSTART': str(utcstart),
+            'STOP': int(stop_ticks / 10),
+            'UTCSTOP': str(utcstop),
+        })
+
+        # TODO should compute the expected number of files
+        hsr.add_expected_links(utcstart, 575, 5, i3socket=hsr.i3socket,
+                               finaldir=alert['destination_dir'])
+
+        # reformat time string for file names
+        timetag = utcstart.strftime("%Y%m%d_%H%M%S")
+
+        # test parser
+        hsr.alert_parser(self.make_alert_object(alert), logfile,
+                         delay_rsync=False)
+
+        hsr.validate()
+
+    def test_works_highprecision(self):
+        # create the worker object
+        hsr = self.wrapped_object
+
+        # define alert times
+        start_ticks = 157886364643990000
+        stop_ticks = start_ticks + self.ONE_MINUTE
+
+        # initialize formatted start/stop times
+        utcstart = HsTestUtil.get_time(start_ticks)
+        utcstop = HsTestUtil.get_time(stop_ticks)
+
+        # create the alert
+        alert = {
+            'start_time': str(utcstart) + "0000",
+            'stop_time': str(utcstop) + "0",
+            'destination_dir': "/foo/bar",
+            'extract': False,
+        }
+
+        # create hitspool directory
+        last_start = start_ticks - (self.ONE_MINUTE * 10)
         cur_stop = stop_ticks + self.ONE_MINUTE
         hspath = HsTestUtil.MockHitspool.create(hsr)
         HsTestUtil.MockHitspool.add_files(hspath, last_start, cur_stop,

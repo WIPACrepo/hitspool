@@ -13,9 +13,9 @@ import zmq
 
 from datetime import datetime, timedelta
 
-import HsBase
 import HsUtil
 
+from HsBase import DAQTime, HsBase
 from HsConstants import I3LIVE_PORT, PUBLISHER_PORT, SENDER_PORT
 from HsCopier import CopyUsingRSync, CopyUsingSCP
 from HsException import HsException
@@ -23,7 +23,7 @@ from HsPrefix import HsPrefix
 from payload import PayloadReader
 
 
-class HsRSyncFiles(HsBase.HsBase):
+class HsRSyncFiles(HsBase):
     # location of hub directory used for testing HsInterface
     TEST_HUB_DIR = "/home/david/TESTCLUSTER/testhub"
     # default name of hitspool subdirectory
@@ -67,7 +67,7 @@ class HsRSyncFiles(HsBase.HsBase):
         self.__context = zmq.Context()
         self.__sender = self.create_sender_socket(sec_bldr)
         self.__i3socket = self.create_i3socket(expcont)
-        self.__subscriber = self.create_subscriber_socket(expcont)
+        self.__subscriber = self.create_subscriber_socket(sec_bldr)
 
     @staticmethod
     def __build_file_list(src_dir, spoolname, firstnum, lastnum, maxfiles):
@@ -114,8 +114,8 @@ class HsRSyncFiles(HsBase.HsBase):
             prefix = HsPrefix.guess_from_dir(hs_copydir)
 
         # convert start/stop times to DAQ ticks
-        start_ticks = HsUtil.get_daq_ticks(self.jan1(), alert_start)
-        stop_ticks = HsUtil.get_daq_ticks(self.jan1(), alert_stop)
+        start_ticks = alert_start.ticks
+        stop_ticks = alert_stop.ticks
 
         # get the list of files containing hits within the interval
         src_tuples_list = self.__query_requested_files(start_ticks, stop_ticks)
@@ -123,7 +123,7 @@ class HsRSyncFiles(HsBase.HsBase):
             return None, None
 
         # get ASCII representation of starting time
-        timetag = self.get_timetag_tuple(prefix, alert_start)
+        timetag = self.get_timetag_tuple(prefix, alert_start.utc)
 
         # create temporary directory for relevant hs data copy
         tmp_dir = self.__make_staging_dir(timetag)
@@ -172,18 +172,10 @@ class HsRSyncFiles(HsBase.HsBase):
         rsyncdir = self.__get_rsync_directory(hs_copydir, timetag_dir)
         use_daemon = self.is_cluster_sps or self.is_cluster_spts
 
-        failed = False
-        try:
-            failed = not self.send_files(req, copy_files_list, self.rsync_user,
-                                         self.rsync_host, rsyncdir,
-                                         timetag_dir, use_daemon,
-                                         update_status=update_status,
-                                         bwlimit=self.BWLIMIT,
-                                         log_format="%i%n%L")
-        except HsException, hsex:
-            # XXX not needed when we move to HsCopier classes
-            self.send_alert(str(hsex))
-            failed = True
+        failed = not self.send_files(req, copy_files_list, self.rsync_user,
+                                     self.rsync_host, rsyncdir, timetag_dir,
+                                     use_daemon, update_status=update_status,
+                                     bwlimit=self.BWLIMIT, log_format="%i%n%L")
 
         if stop_delay > 0.0:
             logging.info("Delay rsync finish by %d seconds", int(stop_delay))
@@ -210,7 +202,6 @@ class HsRSyncFiles(HsBase.HsBase):
             last_time = row[0]
 
         # build email contents
-        description = "HsInterface Data Request"
         header = "Query for [%s-%s] failed on %s" % (start_ticks, stop_ticks,
                                                      self.shorthost)
         message = "DB contains %s entries from %s to %s" % \
@@ -218,7 +209,7 @@ class HsRSyncFiles(HsBase.HsBase):
 
         # send email
         debugjson = HsUtil.assemble_email_dict(self.DEBUG_EMAIL, header,
-                                               description, message)
+                                               message)
         self.__i3socket.send_json(debugjson)
 
     def __extract_hits(self, src_tuples_list, start_tick, stop_tick, tmp_dir):
@@ -267,7 +258,7 @@ class HsRSyncFiles(HsBase.HsBase):
             logging.warning("data will be sent to default destination: %s",
                             copydir_dflt)
             logging.info("HsSender will redirect it later on to: %s on %s",
-                         hs_copydir, HsBase.HsBase.DEFAULT_RSYNC_HOST)
+                         hs_copydir, HsBase.DEFAULT_RSYNC_HOST)
 
         return os.path.join(copydir_dflt, timetag_dir)
 
@@ -479,7 +470,7 @@ class HsRSyncFiles(HsBase.HsBase):
         os.makedirs(path)
 
     def request_parser(self, req, alert_start, alert_stop, hs_copydir,
-                       extract_hits=False, sender=None, update_status=None,
+                       extract_hits=False, update_status=None,
                        delay_rsync=True, make_remote_dir=False):
 
         # catch bogus requests
@@ -487,6 +478,12 @@ class HsRSyncFiles(HsBase.HsBase):
             logging.error("Missing start/stop time(s). Abort request.")
             self.send_alert("Missing start/stop time(s). Abort request.")
             return None
+        if not isinstance(alert_start, DAQTime):
+            logging.error("Starting time %s<%s> is not DAQTime", alert_start,
+                          type(alert_start))
+        if not isinstance(alert_stop, DAQTime):
+            logging.error("Stopping time %s<%s> is not DAQTime", alert_stop,
+                          type(alert_stop))
         if alert_stop < alert_start:
             logging.error("sn_start & sn_stop time-stamps inverted."
                           " Abort request.")

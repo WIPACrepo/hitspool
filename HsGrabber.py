@@ -11,12 +11,13 @@ import logging
 import os
 import re
 import sys
+import traceback
 import zmq
 
-import HsUtil
+import HsMessage
 
-from HsBase import HsBase
-from HsConstants import ALERT_PORT
+from HsBase import DAQTime, HsBase
+from HsConstants import ALERT_PORT, OLDALERT_PORT
 from HsException import HsException
 from HsPrefix import HsPrefix
 
@@ -45,9 +46,6 @@ def add_arguments(parser):
                         " or SnDAQ timestamp (ns from start of year)")
     parser.add_argument("-i", "--request-id", dest="request_id",
                         help="Unique ID used to track this request")
-    parser.add_argument("-J", "--send-json", dest="send_json",
-                        action="store_true", default=False,
-                        help="Send request as a string")
     parser.add_argument("-l", "--logfile", dest="logfile",
                         help="Log file (e.g. %s)" % example_log_path)
     parser.add_argument("-p", "--prefix", dest="prefix",
@@ -99,6 +97,11 @@ class LogToConsole(object):  # pragma: no cover
     def error(msg, *args):
         print >>sys.stderr, msg % args
 
+    @staticmethod
+    def exception(msg, *args):
+        print >>sys.stderr, msg % args
+        traceback.print_exc()
+
 
 class HsGrabber(HsBase):
     '''
@@ -115,46 +118,63 @@ class HsGrabber(HsBase):
 
         if self.is_cluster_sps or self.is_cluster_spts:
             expcont = "expcont"
+            sec_bldr = "2ndbuild"
         else:
             expcont = "localhost"
+            sec_bldr = "localhost"
 
         self.__context = zmq.Context()
-        self.__grabber = self.create_grabber(expcont)
-        self.__poller = self.create_poller(self.__grabber)
+        self.__sender = self.create_sender(sec_bldr)
+        self.__publisher = self.create_publisher(expcont)
+        self.__poller = self.create_poller((self.__publisher, self.__sender))
 
     def close_all(self):
         if self.__poller is not None:
             self.__poller.close()
-        if self.__grabber is not None:
-            self.__grabber.close()
+        if self.__publisher is not None:
+            self.__publisher.close()
+        if self.__sender is not None:
+            self.__sender.close()
         self.__context.term()
 
-    def create_grabber(self, host):  # pragma: no cover
-        # Socket to send alert message to HsPublisher
+    def create_sender(self, host):  # pragma: no cover
+        # Socket to send alert message to HsSender
         sock = self.__context.socket(zmq.REQ)
+        sock.identity = "Sender".encode("ascii")
         sock.connect("tcp://%s:%d" % (host, ALERT_PORT))
         return sock
 
-    def create_poller(self, grabber):  # pragma: no cover
-        # needed for handling timeout if Publisher doesnt answer
-        sock = zmq.Poller()
-        sock.register(grabber, zmq.POLLIN)
+    def create_publisher(self, host):  # pragma: no cover
+        # Socket to send alert message to HsSender
+        sock = self.__context.socket(zmq.REQ)
+        sock.identity = "Publisher".encode("ascii")
+        sock.connect("tcp://%s:%d" % (host, OLDALERT_PORT))
         return sock
 
-    @property
-    def grabber(self):
-        return self.__grabber
+    def create_poller(self, sockets):  # pragma: no cover
+        # needed for handling timeout if Publisher doesnt answer
+        poller = zmq.Poller()
+        for sock in sockets:
+            poller.register(sock, zmq.POLLIN)
+        return poller
 
     @property
     def poller(self):
         return self.__poller
 
-    def send_alert(self, alert_start_sn, alert_begin_utc, alert_stop_sn,
-                   alert_end_utc, copydir, request_id=None, username=None,
-                   prefix=None, extract_hits=False, send_json=True,
-                   send_old_dates=False, print_to_console=False):
+    @property
+    def publisher(self):
+        return self.__publisher
+
+    @property
+    def sender(self):
+        return self.__sender
+
+    def send_alert(self, start_time, stop_time, destdir, request_id=None,
+                   username=None, prefix=None, extract_hits=False,
+                   print_to_console=False):
         '''
-        Send request to Publisher and wait for response
+        Send request to Sender and wait for response
         '''
 
         if print_to_console:
@@ -163,7 +183,7 @@ class HsGrabber(HsBase):
             print_log = logging
 
         # get number of seconds of data requested
-        secrange = (alert_stop_sn - alert_start_sn) / 1E9
+        secrange = (stop_time.ticks - start_time.ticks) / 1E10
 
         # catch negative ranges
         if secrange <= 0:
@@ -184,38 +204,87 @@ class HsGrabber(HsBase):
                             " data\nNormal requests are %d seconds or less",
                             secrange, WARN_SECONDS)
 
-        if copydir is None:
-            print_log.error("Destination directory has not been specified")
-            return False
-
         if print_to_console:
             answer = raw_input("Do you want to proceed? [y/n] : ")
             if not answer.lower().startswith("y"):
                 return False
 
         logging.info("Requesting %.2f seconds of HS data [%d-%d]",
-                     secrange, alert_start_sn, alert_stop_sn)
+                     secrange, start_time.ticks, stop_time.ticks)
+
+        try:
+            if not HsMessage.send_initial(self.__sender, None, start_time,
+                                          stop_time, destdir, prefix=prefix,
+                                          extract_hits=extract_hits,
+                                          host=self.shorthost, username=None):
+                print_log.error("Initial message was not sent!")
+            else:
+                print_log.info("HsGrabber sent request")
+
+        except:
+            print_log.exception("Failed to send request")
+
+        return True
+
+    def send_old_alert(self, start_time, stop_time, destdir, request_id=None,
+                       username=None, prefix=None, extract_hits=False):
+        '''
+        Send request to Publisher and wait for response
+        '''
+
+        print_log = logging
+
+        # get number of seconds of data requested
+        secrange = (stop_time.ticks - start_time.ticks) / 1E10
+
+        # catch negative ranges
+        if secrange <= 0:
+            print_log.error("Requesting negative time range (%.2f).\n"
+                            "Try another time window.", secrange)
+            return False
+
+        # catch large ranges
+        if secrange > self.MAX_REQUEST_SECONDS:
+            print_log.error("Request for %.2f seconds is too huge.\nHsWorker "
+                            "processes request only up to %d seconds.\n"
+                            "Try a smaller time window.", secrange,
+                            self.MAX_REQUEST_SECONDS)
+            return False
+
+        if secrange > WARN_SECONDS:
+            print_log.error("Warning: You are requesting %.2f seconds of"
+                            " data\nNormal requests are %d seconds or less",
+                            secrange, WARN_SECONDS)
+
+        if destdir is None:
+            print_log.error("Destination directory has not been specified")
+            return False
+
+        logging.info("Requesting %.2f seconds of HS data [%d-%d]",
+                     secrange, start_time.ticks, stop_time.ticks)
 
         if prefix is None and username is None:
-            if send_old_dates:
-                start = str(alert_begin_utc)
-                stop = str(alert_end_utc)
-            else:
-                start = alert_start_sn
-                stop = alert_stop_sn
+            # if user didn't specify prefix or username,
+            #  this is an ancient request format
+            if request_id is not None:
+                print_log.error("Version 0 request cannot include"
+                                " request ID \"%s\"", request_id)
+                return False
+
+            if extract_hits:
+                print_log.error("Version 0 request cannot include"
+                                " \"extract\" value")
+                return False
 
             alert = {
-                "start": start,
-                "stop": stop,
-                "copy": copydir,
+                "start": start_time.ticks / 10,
+                "stop": stop_time.ticks / 10,
+                "copy": destdir,
             }
         else:
-            if send_old_dates:
-                logging.error("Requested old-dates but sending a new-style"
-                              " request")
-
+            # if missing, fill in either prefix or username (but not both)
             if prefix is None:
-                prefix = HsPrefix.guess_from_dir(copydir)
+                prefix = HsPrefix.guess_from_dir(destdir)
 
             if username is None:
                 username = getpass.getuser()
@@ -223,21 +292,18 @@ class HsGrabber(HsBase):
             alert = {
                 "username": username,
                 "prefix": prefix,
-                "start_time": str(alert_begin_utc),
-                "stop_time": str(alert_end_utc),
-                "destination_dir": copydir,
+                "start_time": str(start_time.utc),
+                "stop_time": str(stop_time.utc),
+                "destination_dir": destdir,
             }
 
-        if request_id is not None:
-            alert["request_id"] = str(request_id)
+            if request_id is not None:
+                alert["request_id"] = str(request_id)
 
-        if extract_hits:
-            alert["extract"] = True
+            if extract_hits:
+                alert["extract"] = True
 
-        if send_json:
-            self.__grabber.send_json(alert)
-        else:
-            self.__grabber.send(json.dumps(alert))
+        self.__publisher.send(json.dumps(alert))
         logging.info("HsGrabber sent Request %s", str(alert))
 
         return True
@@ -272,34 +338,52 @@ class HsGrabber(HsBase):
         "Wait for an answer from Publisher"
         count = 0
         while True:
-            result = self.__poller.poll(timeout * 100)
             count += 1
             if count > timeout:
                 break
 
-            socks = dict(result)  # poller takes msec argument
-            if self.__grabber in socks and socks[self.__grabber] == zmq.POLLIN:
-                message = self.__grabber.recv()
-                if message.startswith("DONE"):
+            for sock, event in self.__poller.poll(timeout * 100):
+                if event != zmq.POLLIN:
+                    logging.error("Unknown event \"%s\"<%s> for %s<%s>", event,
+                                  type(event).__name__, sock,
+                                  type(sock).__name__)
+                    continue
+
+                if sock != self.__sender and sock != self.__publisher:
+                    if sock is not None:
+                        logging.error("Ignoring unknown incoming socket"
+                                      " %s<%s>", sock.identity,
+                                      type(sock).__name__)
+                    continue
+
+                try:
+                    msg = sock.recv()
+                    if msg is None:
+                        continue
+                except:
+                    logging.exception("Cannot receive message from %s",
+                                      sock.identity)
+                    continue
+
+                if msg.startswith("DONE"):
                     logging.info("Request sent.")
                     return True
-                elif message.startswith("ERROR"):
+                elif msg.startswith("ERROR"):
                     logging.error("Request ERROR")
                     return False
 
-                logging.info("Received response: %s", message)
+                logging.info("Unknown response: %s", msg)
 
             if print_to_console:
                 print ".",
                 sys.stdout.flush()
 
-        logging.error("no connection to expcont's HsPublisher"
+        logging.error("No response from expcont's HsPublisher"
                       " within %s seconds.\nAbort request.", timeout)
+
         logging.info("""
         Debugging hints:
         1. check HsPublisher's logfile on EXPCONT:
-        /mnt/data/pdaqlocal/HsInterface/current/hspublisher_stdout_stderr.log
-        and
         /mnt/data/pdaqlocal/HsInterface/logs/hspublisher_expcont.log
 
         2. restart HsPublisher.py via fabric on ACCESS:
@@ -312,15 +396,11 @@ class HsGrabber(HsBase):
 
 if __name__ == "__main__":
     import argparse
-    import datetime
-    import traceback
 
     def main():
         ''''Process arguments'''
-        alert_start_sn = 0
-        alert_begin_utc = None
-        alert_stop_sn = 0
-        alert_end_utc = None
+        start_time = None
+        stop_time = None
 
         p = argparse.ArgumentParser(epilog="HsGrabber reads UTC timestamps or"
                                     " SNDAQ timestamps and sends SNDAQ"
@@ -333,9 +413,8 @@ if __name__ == "__main__":
         usage = False
         if not usage:
             try:
-                # get both SnDAQ timestamp (in ns) and UTC datetime
-                (alert_start_sn, alert_begin_utc) \
-                    = HsUtil.parse_sntime(args.begin_time)
+                # convert string to starting time
+                start_time = DAQTime(args.begin_time, is_ns=True)
             except HsException:
                 traceback.print_exc()
                 usage = True
@@ -348,18 +427,16 @@ if __name__ == "__main__":
                     usage = True
                 else:
                     try:
-                        # get both SnDAQ timestamp (in ns) and UTC datetime
-                        (alert_stop_sn, alert_end_utc) \
-                            = HsUtil.parse_sntime(args.end_time)
+                        # convert string to stopping time
+                        stop_time = DAQTime(args.end_time, is_ns=True)
                     except HsException:
                         traceback.print_exc()
                         usage = True
             elif args.duration is not None:
                 try:
                     dur = getDurationFromString(args.duration)
-                    alert_stop_sn = alert_start_sn + (dur * 1E9)
-                    alert_end_utc = alert_begin_utc + \
-                                    datetime.timedelta(0, dur)
+                    stop_time = DAQTime(start_time.ticks + (dur * 1E10),
+                                        is_ns=False)
                 except ValueError:
                     print >>sys.stderr, "Invalid duration \"%s\"" % \
                         args.duration
@@ -379,19 +456,20 @@ if __name__ == "__main__":
 
         logging.info("This HsGrabber runs on: %s", hsg.fullhost)
 
-        print "Request start: %s (%d ns)" % (alert_begin_utc, alert_start_sn)
-        print "Request end: %s (%d ns)" % (alert_end_utc, alert_stop_sn)
+        print "Request start: %s (%d ns)" % \
+            (start_time.utc, start_time.ticks / 10)
+        print "Request end: %s (%d ns)" % \
+            (stop_time.utc, stop_time.ticks / 10)
 
         # make sure rsync destination is fully specified
         (user, host, path) = hsg.split_rsync_path(args.copydir)
-        copydir = "%s@%s:%s" % (user, host, path)
+        destdir = "%s@%s:%s" % (user, host, path)
 
-        if not hsg.send_alert(alert_start_sn, alert_begin_utc, alert_stop_sn,
-                              alert_end_utc, copydir,
+        if not hsg.send_alert(start_time, stop_time, destdir,
                               request_id=args.request_id,
                               username=args.username, prefix=args.prefix,
                               extract_hits=args.extract,
-                              send_json=args.send_json, print_to_console=True):
+                              print_to_console=True):
             raise SystemExit(1)
 
         hsg.wait_for_response()

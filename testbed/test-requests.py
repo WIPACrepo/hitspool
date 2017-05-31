@@ -23,11 +23,13 @@ import HsUtil
 
 from lxml import etree, objectify
 
+from HsBase import DAQTime
 from HsException import HsException
 from HsGrabber import HsGrabber
 from HsPrefix import HsPrefix
 from HsSender import HsSender
 from HsTestUtil import TICKS_PER_SECOND, create_hits, create_hitspool_db
+from RequestMonitor import RequestMonitor
 
 
 # Root testbed directory
@@ -43,7 +45,12 @@ class HsEnvironment(object):
         self.__hubspool = os.path.join(self.__hubroot, "hitspool")
         self.__spadequeue = os.path.join(rootdir, "SpadeQueue")
 
-    def __create_files(self, cursor, first_time, last_time, hits_per_file):
+        self.__hsdbpath = None
+
+    def __clear_db(self, conn):
+        conn.execute("delete from hitspool")
+
+    def __create_files(self, conn, first_time, last_time, hits_per_file):
         file_interval = 15 * TICKS_PER_SECOND
         file_num = 1
 
@@ -66,7 +73,8 @@ class HsEnvironment(object):
             create_hits(path, cur_time, cur_time + timespan - 1,
                         timespan / num_hits)
 
-            cursor.execute("insert or replace"
+            # update hitspool DB
+            conn.execute("insert or replace"
                            " into hitspool(filename, start_tick, stop_tick)"
                            " values (?,?,?)", (filename, cur_time,
                                                cur_time + timespan - 1))
@@ -91,21 +99,37 @@ class HsEnvironment(object):
             if not os.path.exists(path):
                 os.makedirs(path)
 
-        dbpath = create_hitspool_db(self.__hubspool)
-
-        conn = sqlite3.connect(dbpath)
-        cursor = conn.cursor()
-
+        self.__hsdbpath = create_hitspool_db(self.__hubspool)
+        conn = sqlite3.connect(self.__hsdbpath)
         try:
-            self.__create_files(cursor, first_time, last_time, hits_per_file)
+            self.__clear_db(conn)
+            self.__create_files(conn, first_time, last_time, hits_per_file)
             conn.commit()
         finally:
             conn.close()
 
         # delete cached request database
-        statedb = HsSender.get_db_path()
+        statedb = RequestMonitor.get_db_path()
         if os.path.exists(statedb):
             os.unlink(statedb)
+
+    def files_in_range(self, start_time, stop_time):
+        if self.__hsdbpath is None:
+            raise HsException("Hitspool DB has not been initialized!")
+
+        conn = sqlite3.connect(self.__hsdbpath)
+
+        files = []
+        try:
+            cursor = conn.cursor()
+            cursor.execute("select filename from hitspool"
+                           " where start_tick<=? and stop_tick>=?",
+                           (stop_time, start_time))
+            files = [row[0].encode("ascii") for row in cursor.fetchall()]
+            files.sort()
+            return files
+        finally:
+            conn.close()
 
     @property
     def hubroot(self):
@@ -125,16 +149,33 @@ class Request(object):
     NEXT_NUM = 1
 
     def __init__(self, env, succeed, start_time, stop_time, expected_hubs,
-                 expected_files, request_id=None, username=None, prefix=None,
-                 copydir=None, extract=False, send_json=False,
-                 send_old_dates=False):
-        self.__number = self.__get_next_number()
+                 expected_files=None, request_id=None, username=None,
+                 prefix=None, copydir=None, extract=False, send_old=False,
+                 number=None):
+        # if no request number was specified, get the next available
+        if number is not None:
+            self.__number = number
+        else:
+            self.__number = self.get_next_number()
 
-        # get both SnDAQ timestamp (in ns) and UTC datetime
-        (self.__start_sn, self.__start_utc) \
-            = HsUtil.parse_sntime(start_time)
-        (self.__stop_sn, self.__stop_utc) \
-            = HsUtil.parse_sntime(stop_time)
+        if not isinstance(start_time, DAQTime):
+            raise TypeError("Start time %s is <%s>, not <DAQTime>" %
+                            (start_time, type(start_time)))
+        if not isinstance(stop_time, DAQTime):
+            raise TypeError("Stop time %s is <%s>, not <DAQTime>" %
+                            (stop_time, type(stop_time)))
+
+        self.__start_time = start_time
+        self.__stop_time = stop_time
+
+        if extract:
+            if expected_files is None:
+                raise HsException("No expected files specified!")
+        else:
+            if expected_files is not None:
+                raise HsException("Expected files should not be specified!")
+            expected_files = env.files_in_range(start_time.ticks,
+                                                stop_time.ticks)
 
         if copydir is None:
             copydir = os.path.join(ROOTDIR, "HsDataCopy")
@@ -150,22 +191,16 @@ class Request(object):
         self.__prefix = prefix
         self.__copydir = copydir
         self.__extract = extract
-        self.__send_json = send_json
-        self.__send_old_dates = send_old_dates
+        self.__send_old = send_old
         self.__spadequeue = env.spadequeue
 
     def __str__(self):
-        secs = (self.__stop_sn - self.__start_sn) / 1E9
+        secs = (self.__stop_time.ticks - self.__start_time.ticks) / 1E10
 
         if self.__req_id is None:
             rstr = ""
         else:
             rstr = " (ID=%s)" % str(self.__req_id)
-
-        if self.__send_old_dates:
-            dstr = " (as dates)"
-        else:
-            dstr = " (as ticks)"
 
         if self.__username is None:
             ustr = ""
@@ -177,8 +212,8 @@ class Request(object):
         else:
             pstr = " for %s" % str(self.__prefix)
 
-        if self.__send_json:
-            jstr = " as JSON"
+        if self.__send_old:
+            jstr = " (old-style)"
         else:
             jstr = ""
 
@@ -187,11 +222,11 @@ class Request(object):
         else:
             estr = ""
 
-        return "Request #%d%s: %.2f secs%s%s%s to %s%s%s\n\t[%s :: %s]" % \
-            (self.__number, rstr, secs, dstr, ustr, pstr, self.__copydir, jstr,
-             estr, self.__start_utc, self.__stop_utc)
+        return "Request #%s%s: %.2f secs%s%s to %s%s%s\n\t[%s :: %s]" % \
+            (self.__number, rstr, secs, ustr, pstr, self.__copydir, jstr,
+             estr, self.__start_time.utc, self.__stop_time.utc)
 
-    def __check_destination(self, destination):
+    def __check_destination(self, destination, quiet=False):
         if not os.path.isdir(destination):
             raise HsException("Destination directory %s does not exist" %
                               destination)
@@ -202,7 +237,8 @@ class Request(object):
         for entry in os.listdir(destination):
             path = os.path.join(destination, entry)
             if os.path.isdir(path) and not found_subdir:
-                self.__check_destination_subdir(destination, entry)
+                self.__check_destination_subdir(destination, entry,
+                                                quiet=quiet)
                 found_subdir = True
                 continue
 
@@ -216,13 +252,13 @@ class Request(object):
                               " unexpected files: %s" %
                               (destination, extralist))
 
-    def __check_destination_subdir(self, destination, subdir):
+    def __check_destination_subdir(self, destination, subdir, quiet=False):
         # gather all expected subdirectory pieces
         if self.__prefix is not None:
             exp_prefix = self.__prefix
         else:
             exp_prefix = HsPrefix.guess_from_dir(destination)
-        exp_yymmdd = self.__start_utc.strftime("%Y%m%d")
+        exp_yymmdd = self.__start_time.utc.strftime("%Y%m%d")
 
         # make sure the subdirectory has all the expected pieces
         subpieces = subdir.split("_")
@@ -259,8 +295,9 @@ class Request(object):
                                   (subdir, badfiles))
 
         exp_num = len(self.__expected_files)
-        print "Destination directory %s looks good (found %d file%s)" % \
-            (subdir, exp_num, "" if exp_num == 1 else "s")
+        if not quiet:
+            print "Destination directory %s looks good (found %d file%s)" % \
+                (subdir, exp_num, "" if exp_num == 1 else "s")
 
     def __check_empty(self, destination):
         if not os.path.isdir(destination):
@@ -273,9 +310,7 @@ class Request(object):
             raise HsException("Found files under %s: %s" %
                               (destination, found))
 
-    def __check_spademeta(self, directory, metaname):
-        metapath = os.path.join(directory, metaname)
-
+    def __check_spademeta(self, metapath, quiet=False):
         # find the schema first
         schemapath = self.SCHEMA_PATH
         while not os.path.exists(schemapath):
@@ -296,11 +331,13 @@ class Request(object):
             objectify.fromstring(xmlstr, parser)
         except:
             raise HsException("Bad metadata file %s: %s" %
-                              (metaname, traceback.format_exc()))
+                              (os.path.basename(metapath),
+                               traceback.format_exc()))
 
-        print "SPADE metadata %s looks good" % metaname
+        if not quiet:
+            print "SPADE metadata %s looks good" % os.path.basename(metapath)
 
-    def __check_spadequeue(self, directory=None):
+    def __check_spadequeue(self, directory=None, quiet=False):
         if directory is None:
             directory = self.__spadequeue
 
@@ -312,8 +349,7 @@ class Request(object):
                 if entry.endswith(HsSender.META_SUFFIX) and semname is None:
                     semname = entry
                     continue
-            else:
-                if entry.endswith(HsSender.SEM_SUFFIX) and semname is None:
+            elif entry.endswith(HsSender.SEM_SUFFIX) and semname is None:
                     semname = entry
                     continue
             if entry.endswith(HsSender.TAR_SUFFIX) > 0 and tarname is None:
@@ -334,16 +370,25 @@ class Request(object):
             raise HsException("Found semaphore %s without tar file" %
                               semname)
 
-        self.__check_spadetar(directory, tarname)
-        if HsSender.WRITE_META_XML:
-            self.__check_spademeta(directory, semname)
+        tarpath = os.path.join(directory, tarname)
+        sempath = os.path.join(directory, semname)
 
-    def __check_spadetar(self, directory, tarname):
         try:
-            tar = tarfile.open(os.path.join(directory, tarname), "r")
+            self.__check_spadetar(tarpath, quiet=quiet)
+            if HsSender.WRITE_META_XML:
+                self.__check_spademeta(sempath, quiet=quiet)
+        finally:
+            if os.path.exists(tarpath):
+                os.unlink(tarpath)
+            if os.path.exists(sempath):
+                os.unlink(sempath)
+
+    def __check_spadetar(self, tarpath, quiet=False):
+        try:
+            tar = tarfile.open(tarpath, "r")
         except StandardError, err:
-            raise HsException("Cannot read %s in %s: %s" %
-                              (tarname, directory, err))
+            raise HsException("Cannot read %s: %s" %
+                              (tarpath, err))
 
         unknown = []
         try:
@@ -368,19 +413,22 @@ class Request(object):
         if len(unknown) > 0:
             raise HsException("Found %d unknown entr%s in tar file %s: %s"
                               "\n\t(expected %s)" %
-                              (count, "y" if count == 1 else "ies", tarname,
-                               unknown, self.__expected_files))
+                              (len(unknown),
+                               "y" if len(unknown) == 1 else "ies",
+                               os.path.basename(tarpath), unknown,
+                               self.__expected_files))
         num_exp = len(self.__expected_files)
         if num_exp != count:
             raise HsException("Expected %d file%s in %s, found %d" %
-                              (num_exp, "" if num_exp == 1 else "s", tarname,
-                               count))
+                              (num_exp, "" if num_exp == 1 else "s",
+                               os.path.basename(tarpath), count))
 
-        print "SPADE tarfile %s looks good (found %d file%s)" % \
-            (tarname, count, "" if count == 1 else "s")
+        if not quiet:
+            print "SPADE tarfile %s looks good (found %d file%s)" % \
+                (os.path.basename(tarpath), count, "" if count == 1 else "s")
 
     @classmethod
-    def __get_next_number(cls):
+    def get_next_number(cls):
         val = cls.NEXT_NUM
         cls.NEXT_NUM += 1
         return val
@@ -393,22 +441,18 @@ class Request(object):
     def number(self):
         return self.__number
 
-    def run(self, requester):
-        if self.__send_old_dates:
-            start = self.__start_utc
-            stop = self.__stop_utc
+    def run(self, requester, quiet=False):
+        if self.__send_old:
+            send_method = requester.send_old_alert
         else:
-            start = self.__start_sn
-            stop = self.__stop_sn
+            send_method = requester.send_alert
 
-        return requester.send_alert(self.__start_sn, self.__start_utc,
-                                    self.__stop_sn, self.__stop_utc,
-                                    self.__copydir, request_id=self.__req_id,
-                                    username=self.__username,
-                                    prefix=self.__prefix,
-                                    extract_hits=self.__extract,
-                                    send_json=self.__send_json,
-                                    send_old_dates=self.__send_old_dates)
+        return send_method(self.__start_time, self.__stop_time, self.__copydir,
+                           request_id=self.__req_id, username=self.__username,
+                           prefix=self.__prefix, extract_hits=self.__extract)
+
+    def set_number(self, number):
+        self.__number = number
 
     @property
     def should_succeed(self):
@@ -421,7 +465,7 @@ class Request(object):
     def update_copydir(self, user, host, path):
         self.__copydir = "%s@%s:%s" % (user, host, path)
 
-    def validate(self, destination):
+    def validate(self, destination, quiet=False):
         if self.__prefix is not None:
             exp_prefix = self.__prefix
         else:
@@ -431,14 +475,71 @@ class Request(object):
             if exp_prefix == HsPrefix.SNALERT or \
                exp_prefix == HsPrefix.HESE:
                 self.__check_empty(destination)
-                self.__check_spadequeue()
+                self.__check_spadequeue(quiet=quiet)
             else:
-                self.__check_spadequeue(directory=destination)
+                self.__check_spadequeue(directory=destination, quiet=quiet)
         else:
             self.__check_empty(destination)
             self.__check_empty(self.__spadequeue)
 
         return True
+
+
+class MultiRequest(object):
+    def __init__(self, *args):
+        self.__number = Request.get_next_number()
+        self.__requests = args
+
+        alpha = "abcdefghijklmnopqrstuvwxyz"
+
+        self.__copydir = None
+        self.__spadequeue = None
+
+        for idx, req in enumerate(self.__requests):
+            self.__requests[idx].set_number("%s%s" %
+                                            (self.__number, alpha[idx]))
+
+            self.__copydir = self.__check_and_assign(self.__copydir,
+                                                     req.copydir)
+            self.__spadequeue = self.__check_and_assign(self.__spadequeue,
+                                                        req.spadequeue)
+
+    def __str__(self):
+        mstr = None
+        for req in self.__requests:
+            if mstr is None:
+                mstr = str(req)
+            else:
+                mstr += "\n" + str(req)
+        return mstr
+
+    @classmethod
+    def __check_and_assign(cls, oldval, newval):
+        if oldval is not None and oldval != newval:
+            raise HsException("%s mismatch (%s != %s)" % (oldval, newval))
+        return newval
+
+    @property
+    def number(self):
+        return self.__number
+
+    @property
+    def requests(self):
+        return self.__requests[:]
+
+
+class Twirly(object):
+    CHARS = "-/|\\"
+
+    def __init__(self, quiet=False):
+        self.__quiet = quiet
+        self.__idx = 0
+
+    def print_next(self):
+        sys.stdout.write(self.CHARS[self.__idx] + "\b")
+        sys.stdout.flush()
+        self.__idx = (self.__idx + 1) % len(self.CHARS)
+
 
 class Processor(object):
     # list of top-level fields in Live messages
@@ -466,7 +567,7 @@ class Processor(object):
     RUN_ERR_ERROR = "ERROR"
     RUN_ERR_EXPECTED = "EXPECTED"
 
-    def __init__(self):
+    def __init__(self, quiet=False):
         # set up pseudo-Live socket
         #
         self.__context = zmq.Context()
@@ -478,6 +579,9 @@ class Processor(object):
 
         # create dictionary to track requests
         self.__requests = {}
+
+        # animated progress character for 'quiet' mode
+        self.__twirly = Twirly(quiet=quiet)
 
         # initialize logging
         logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
@@ -542,9 +646,12 @@ class Processor(object):
 
         logging.info("LiveAlert:\n\tCondition %s", value_dict["condition"])
 
-    def __process_responses(self, request, destination):
+    def __process_responses(self, request, destination, quiet=False):
         saw_error = False
         while True:
+            if quiet:
+                self.__twirly.print_next()
+
             rawmsg = self.__socket.recv_json()
             if not isinstance(rawmsg, dict):
                 logging.error("Expected 'dict', not '%s' for %s" %
@@ -561,16 +668,20 @@ class Processor(object):
             if badtop:
                 continue
 
+            if quiet:
+                self.__twirly.print_next()
+
             if rawmsg["service"] == "hitspool" and \
                rawmsg["varname"].startswith("hsrequest_info"):
                 runstatus = self.__process_status(rawmsg["value"],
-                                                  request.should_succeed)
+                                                  request.should_succeed,
+                                                  quiet=quiet)
                 if (runstatus == self.RUN_ERR_EXPECTED or \
                     runstatus == self.RUN_ERR_ERROR):
                     # got success/failure status
                     rtnval = runstatus == self.RUN_ERR_EXPECTED
                     try:
-                        request.validate(destination)
+                        request.validate(destination, quiet=quiet)
                     except HsException, hsex:
                         logging.error("Could not validate %s" % request,
                                       exc_info=True)
@@ -593,11 +704,13 @@ class Processor(object):
                           (rawmsg["service"], rawmsg["varname"], rawmsg))
             continue
 
-    def __process_status(self, value_dict, should_succeed):
+    def __process_status(self, value_dict, should_succeed, quiet=False):
         message = HsUtil.dict_to_object(value_dict, self.STATUS_FIELDS,
                                         "LiveMessage")
 
-        print "::: Req %s LiveStatus %s" % (message.request_id, message.status)
+        if not quiet:
+            print "::: Req %s LiveStatus %s" % \
+                (message.request_id, message.status)
 
         if message.status == HsUtil.STATUS_QUEUED:
             if message.request_id in self.__requests:
@@ -639,8 +752,6 @@ class Processor(object):
 
     def __report_result(self, oldmsg, message, expected, actual):
         changed = self.__check_for_changes(oldmsg, message)
-        if changed is not None:
-            return changed
 
         del self.__requests[message.request_id]
 
@@ -653,47 +764,66 @@ class Processor(object):
 
         logging.info("Request %s %s", message.request_id, rstr)
 
+        if changed is not None:
+            return self.RUN_ERR_ERROR
+
         return self.RUN_ERR_EXPECTED if expected == actual else \
             self.RUN_ERR_ERROR
 
-    def __submit(self, request):
-        print "::: Submit %s" % str(request)
+    def __submit(self, request, quiet=False):
+        if not quiet:
+            print "::: Submit %s" % str(request)
 
         try:
-            result = request.run(self.__requester)
+            result = request.run(self.__requester, quiet=quiet)
         except:
-            logging.exception("problem with request %s", request)
+            if not quiet:
+                logging.exception("problem with request %s", request)
             return False
 
         if not result:
-            logging.error("Request %s failed", request)
+            if not quiet:
+                logging.error("%s failed", request)
             return False
 
         try:
             result = self.__requester.wait_for_response()
         except:
-            logging.exception("Problem with request %s response", request)
+            if not quiet:
+                logging.exception("Problem with %s response", request)
             return False
 
         if not result:
-            logging.error("Request %s response failed", request)
+            if not quiet:
+                logging.error("%s response failed", request)
             return False
 
         return True
 
-    def run(self, request):
-        (user, host, path) = self.__requester.split_rsync_path(request.copydir)
-        request.update_copydir(user, host, path)
+    def run(self, target, quiet=False):
+        if isinstance(target, MultiRequest):
+            requests = target.requests
+        else:
+            requests = (target, )
 
-        self.__clear_destination(path)
-        self.__clear_destination(request.spadequeue)
-        if not os.path.exists(request.spadequeue):
-            os.makedirs(request.spadequeue)
+        for request in requests:
+            (user, host, path) \
+                = self.__requester.split_rsync_path(request.copydir)
+            request.update_copydir(user, host, path)
+
+            self.__clear_destination(path)
+            self.__clear_destination(request.spadequeue)
+            if not os.path.exists(request.spadequeue):
+                os.makedirs(request.spadequeue)
 
         try:
-            if not self.__submit(request):
-                return False
-            return self.__process_responses(request, path)
+            for request in requests:
+                if not self.__submit(request, quiet=quiet):
+                    return False
+            for request in requests:
+                if not self.__process_responses(request, path, quiet=quiet):
+                    return False
+            return True
         finally:
             self.__clear_destination(path)
             self.__clear_destination(request.spadequeue)
@@ -713,21 +843,20 @@ if __name__ == "__main__":
         if first_ticks is None:
             first_ticks = 123450067960246236L
             # this should be extracted from the file, not hard-coded!
-            first_extracted_hit = 123450077960250000L
+            first_extracted_hit = 123450077960246236L
 
-        last_ticks = first_ticks + 75 * TICKS_PER_SECOND
+        last_ticks = first_ticks + 65 * TICKS_PER_SECOND
         hits_per_file = 40
 
         env.create(first_ticks, last_ticks, hits_per_file)
 
-        single_start_ns = (first_ticks + TICKS_PER_SECOND) / 10
-        single_stop_ns = (first_ticks + 6 * TICKS_PER_SECOND) / 10
-        multi_stop_ns = (first_ticks + 65 * TICKS_PER_SECOND) / 10
-
-        _, single_start_utc = HsUtil.fix_date_or_timestamp(single_start_ns,
-                                                           None, is_sn_ns=True)
-        _, single_stop_utc = HsUtil.fix_date_or_timestamp(single_stop_ns,
-                                                          None, is_sn_ns=True)
+        start_time = DAQTime(first_ticks + TICKS_PER_SECOND)
+        stop_time = DAQTime(first_ticks + 6 * TICKS_PER_SECOND)
+        second_start_time = DAQTime(first_ticks + 7 * TICKS_PER_SECOND)
+        second_stop_time = DAQTime(first_ticks + 12 * TICKS_PER_SECOND)
+        third_start_time = DAQTime(first_ticks + 13 * TICKS_PER_SECOND)
+        third_stop_time = DAQTime(first_ticks + 18 * TICKS_PER_SECOND)
+        final_stop_time = DAQTime(last_ticks - 1 * TICKS_PER_SECOND)
 
         extracted_hits_filename = "hits_%d_%d.dat" % \
                                   (first_extracted_hit,
@@ -735,56 +864,54 @@ if __name__ == "__main__":
 
         # list of requests
         return (
-            Request(env, True, single_start_ns, single_stop_ns, hubs,
-                    ("HitSpool-1.dat", )),
-            Request(env, True, single_start_ns, multi_stop_ns, hubs,
-                    ("HitSpool-1.dat", "HitSpool-2.dat", "HitSpool-3.dat",
-                     "HitSpool-4.dat", "HitSpool-5.dat", )),
-            Request(env, True, single_start_ns, single_stop_ns, hubs,
-                    ("HitSpool-1.dat", ), prefix=HsPrefix.SNALERT,
-                    copydir=env.copydst),
-            Request(env, False, (first_ticks - 6 * TICKS_PER_SECOND) / 10,
-                    (first_ticks - 1 * TICKS_PER_SECOND) / 10, hubs, None,
-                    prefix=HsPrefix.SNALERT),
-            Request(env, True, single_start_ns, single_stop_ns, hubs,
-                    (extracted_hits_filename, ),
-                    copydir=os.path.join(ROOTDIR, "hese_hs"), extract=True),
-            Request(env, True, single_start_ns, single_stop_ns, hubs,
-                    (extracted_hits_filename, ),
+            Request(env, True, start_time, stop_time, hubs),
+            Request(env, True, start_time, final_stop_time, hubs),
+            Request(env, True, start_time, stop_time, hubs,
+                    prefix=HsPrefix.SNALERT, copydir=env.copydst),
+            Request(env, False,
+                    DAQTime((first_ticks - 6 * TICKS_PER_SECOND) / 10),
+                    DAQTime((first_ticks - 1 * TICKS_PER_SECOND) / 10),
+                    hubs, prefix=HsPrefix.SNALERT),
+            Request(env, True, start_time, stop_time, hubs,
+                    expected_files=(extracted_hits_filename, ),
+                     copydir=os.path.join(ROOTDIR, "hese_hs"), extract=True),
+            Request(env, True, start_time, stop_time, hubs,
+                    expected_files=(extracted_hits_filename, ),
                     prefix=HsPrefix.HESE, copydir=os.path.join(ROOTDIR, "xxx"),
                     extract=True),
-            Request(env, True, single_start_ns, single_stop_ns, hubs,
-                    (extracted_hits_filename, ),
+            Request(env, True, start_time, stop_time, hubs,
+                    expected_files=(extracted_hits_filename, ),
                     request_id="ABC123", prefix=HsPrefix.ANON,
                     copydir=os.path.join(ROOTDIR, "anonymous"),
                     extract=True),
-            Request(env, True, single_start_ns, single_stop_ns, hubs,
-                    (extracted_hits_filename, ),
+            Request(env, True, start_time, stop_time, hubs,
+                    expected_files=(extracted_hits_filename, ),
                     request_id="AliveOrDead", prefix=HsPrefix.LIVE,
                     username="mfrere",
                     copydir=os.path.join(ROOTDIR, "live_and_let_die"),
                     extract=True),
-            Request(env, True, single_start_ns, single_stop_ns, hubs,
-                    ("HitSpool-1.dat", ), prefix=HsPrefix.HESE,
-                    copydir=env.copydst),
-            Request(env, True, single_start_ns, single_stop_ns, hubs,
-                    ("HitSpool-1.dat", ), prefix=HsPrefix.ANON,
-                    copydir=env.copydst),
-            Request(env, True, single_start_ns, single_stop_ns, hubs,
-                    ("HitSpool-1.dat", ), prefix="UNOFFICIAL",
-                    copydir=env.copydst),
-            Request(env, True, single_start_utc, single_stop_utc, hubs,
-                    ("HitSpool-1.dat", ), prefix=HsPrefix.SNALERT,
-                    copydir=env.copydst, send_json=True),
-            Request(env, True, single_start_utc, single_stop_utc, hubs,
-                    ("HitSpool-1.dat", ), copydir=env.copydst,
-                    send_old_dates=True),
+            Request(env, True, start_time, stop_time, hubs,
+                    prefix=HsPrefix.HESE, copydir=env.copydst),
+            Request(env, True, start_time, stop_time, hubs,
+                    prefix=HsPrefix.ANON, copydir=env.copydst),
+            Request(env, True, start_time, stop_time, hubs,
+                    prefix="UNOFFICIAL", copydir=env.copydst),
+            Request(env, True, start_time, stop_time, hubs,
+                    prefix=HsPrefix.SNALERT, copydir=env.copydst,
+                    send_old=True),
+            MultiRequest(
+                Request(env, True, start_time, stop_time, hubs, number="???"),
+                Request(env, True, second_start_time, second_stop_time, hubs,
+                        number="???"),
+                Request(env, True, third_start_time, third_stop_time, hubs,
+                        number="???"),
+            ),
         )
 
     def find_open_requests():
         num_open = 0
 
-        conn = sqlite3.connect(HsSender.get_db_path())
+        conn = sqlite3.connect(RequestMonitor.get_db_path())
         try:
             cursor = conn.cursor()
             for row in cursor.execute("select id, count(id) from requests"
@@ -797,11 +924,18 @@ if __name__ == "__main__":
 
     def main():
         argp = argparse.ArgumentParser()
+        argp.add_argument("-q", "--quiet", dest="quiet",
+                          action="store_true", default=False,
+                          help="Print the absolute minimum")
         argp.add_argument("-r", "--request", dest="request_list",
                           type=int, nargs="*",
                           help="List of specific requests to run")
 
         args = argp.parse_args()
+
+        # if we're being quiet, disable log message output
+        if args.quiet:
+            logging.disable(logging.CRITICAL)
 
         env = HsEnvironment(ROOTDIR)
         hubs = ("ichub01", )
@@ -827,6 +961,7 @@ if __name__ == "__main__":
             # replace main list with extracted subset
             requests = newlist
 
+        success = True
         with run_and_terminate(("python", "HsPublisher.py",
                                 "-l", "/tmp/publish.log",
                                 "-T")):
@@ -843,11 +978,14 @@ if __name__ == "__main__":
                                         "-T")):
                     # give everything a chance to start up
                     time.sleep(5)
-                    process_requests(requests)
+                    if not process_requests(requests, quiet=args.quiet):
+                        success = False
+
+        return success
 
 
-    def process_requests(requests):
-        processor = Processor()
+    def process_requests(requests, quiet=False):
+        processor = Processor(quiet=quiet)
 
         failed = []
 
@@ -855,30 +993,49 @@ if __name__ == "__main__":
         for request in requests:
             if first:
                 first = False
-            else:
+            elif not quiet:
                 # print a separator so it's easy to see different requests
                 print >>sys.stderr, "="*75
 
             # keep track of request numbers to make debugging easier
-            print "::: Request #%d" % request.number
+            if not quiet:
+                print "::: Request #%d" % request.number
 
+            result = None
             try:
-                if not processor.run(request):
+                result = processor.run(request, quiet=quiet)
+                if not result:
                     failed.append(request.number)
             except:
-                logging.exception("Request failed")
+                if not quiet:
+                    logging.exception("Request failed")
                 failed.append(request.number)
+                result = False
+
+            if quiet:
+                sys.stdout.write("." if result else "!")
+                sys.stdout.flush()
+
+        if quiet:
+            sys.stdout.write("\n")
+            sys.stdout.flush()
 
         open_reqs = find_open_requests()
 
+        rtnval = True
         if len(failed) == 0 and open_reqs == 0:
             print "No problems found"
         else:
-            print >>sys.stderr, "Found problems with %d request%s: %s" % \
-                (len(failed), "" if len(failed) == 1 else "s", failed)
+            if len(failed) > 0:
+                print >>sys.stderr, "Found problems with %d request%s: %s" % \
+                    (len(failed), "" if len(failed) == 1 else "s", failed)
+                rtnval = False
             if open_reqs > 0 and open_reqs != len(failed):
                 print >>sys.stderr, "Found %d open request%s in state DB" % \
                     (open_reqs, "" if open_reqs == 1 else "s")
+                rtnval = False
+
+        return rtnval
 
 
     @contextmanager
@@ -892,4 +1049,5 @@ if __name__ == "__main__":
                 p.terminate() # send sigterm, or ...
                 p.kill()      # send sigkill
 
-    main()
+    if not main():
+        raise SystemExit(1)

@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+#
+# copy files to a remote machine
 
 
 import logging
@@ -49,7 +51,7 @@ class Copier(object):
 
             if update_status is not None and request is not None:
                 update_status(request.copy_dir, request.destination_dir,
-                              HsMessage.MESSAGE_WORKING)
+                              HsMessage.MESSAGE_WORKING, use_ticks=True)
 
         result = self.summarize()
         if result is not None:
@@ -106,7 +108,6 @@ class Copier(object):
         else:
             rstr = "%s@%s" % (rmt_user, rmt_host)
         cmd = ["ssh", rstr, "mkdir", "-p", "\"%s\"" % rmt_dir]
-        #print "CMD: " + str(cmd)
         rtncode = subprocess.call(cmd)
         if rtncode != 0:
             raise HsException("Cannot create %s:%s" % (rstr, rmt_dir))
@@ -191,7 +192,6 @@ class CopyUsingRSync(Copier):
             return
 
         if line.startswith("delta-transmission disabled for local"):
-            filename = "XXXsubdirXXX"
             return
 
         splitidx = None
@@ -275,7 +275,7 @@ class CopyUsingRSync(Copier):
                 return
 
             try:
-                ssize = int(m.group(1).replace(",", ""))
+                # sentsize = int(m.group(1).replace(",", ""))
                 self.__rcvd = int(m.group(2).replace(",", ""))
                 self.__bps = float(m.group(3).replace(",", ""))
             except:
@@ -358,7 +358,6 @@ class CopyUsingSCP(Copier):
         if line.endswith("\\n"):
             line = line[:-2]
 
-        #print "::%s:: %s" % (sink_size, line.rstrip())
         if line.find("Sending command: scp ") >= 0:
             flds = line.split()
             self.__filename = flds[-1]
@@ -382,8 +381,6 @@ class CopyUsingSCP(Copier):
                 logging.error("Bad size \"%s\" in SCP line: %s", flds[2],
                               line.rstrip())
                 return
-
-            #sink_name = flds[3]
 
             if self.__sink_size is None:
                 self.__sink_size = tmp_size

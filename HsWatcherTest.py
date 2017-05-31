@@ -73,7 +73,7 @@ class MyWatcher(HsWatcher.HsWatcher):
 
         return self.__watchee
 
-    def tail(self, logpath, lines=None, search_string=None):
+    def tail(self, _, lines=None, search_string=None):
         return self.__loglines
 
     def logline(self, idx):
@@ -101,22 +101,9 @@ class HsWatcherTest(LoggingTestCase):
         notify_hdr = '%s HsInterface Alert: %s@%s' % \
             (alert_type, program, watcher.shorthost)
 
-        notifies = []
-        for addr in HsConstants.ALERT_EMAIL_DEV:
-            notifies.append(
-                {
-                    'notifies_txt': alertmsg,
-                    'notifies_header': notify_hdr,
-                    'receiver': addr,
-                })
-
-        watcher.i3socket.addExpectedAlert({
-            "condition": notify_hdr,
-            "desc": desc,
-            "notifies": notifies,
-            "short_subject": "true",
-            "quiet": "true",
-        }, prio=2)
+        watcher.i3socket.addGenericEMail(HsConstants.ALERT_EMAIL_DEV,
+                                         notify_hdr, alertmsg,
+                                         description=desc)
 
     def setUp(self):
         super(HsWatcherTest, self).setUp()

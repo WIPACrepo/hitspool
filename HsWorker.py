@@ -11,16 +11,14 @@ import functools
 import logging
 import os
 import signal
-import traceback
 import zmq
 
-from datetime import datetime, timedelta
 from zmq import ZMQError
 
 import HsMessage
 import HsUtil
 
-from HsBase import HsBase
+from HsBase import DAQTime, HsBase
 from HsException import HsException
 from HsRSyncFiles import HsRSyncFiles
 
@@ -77,25 +75,17 @@ class Worker(HsRSyncFiles):
         and directory where-to the data has to be copied.
         """
 
-        try:
-            # timestamp in ns as a string
-            sn_start, start_utc = HsUtil.parse_sntime(req.start_time)
-        except:
-            raise HsException("Bad start time \"%s\": %s" %
-                              (req.start_time, traceback.format_exc()))
+        if isinstance(req.start_time, DAQTime):
+            start_time = req.start_time
+        else:
+            raise TypeError("Start time %s<%s> is not a DAQTime" %
+                            (req.start_time, type(req.start_time)))
 
-        (sn_start, start_utc) \
-            = HsUtil.fix_date_or_timestamp(sn_start, start_utc, is_sn_ns=True)
-
-        try:
-            # timestamp in ns as a string
-            sn_stop, stop_utc = HsUtil.parse_sntime(req.stop_time)
-        except:
-            raise HsException("Bad stop time in %s: %s" %
-                              (req.stop_time, traceback.format_exc()))
-
-        (sn_stop, stop_utc) \
-            = HsUtil.fix_date_or_timestamp(sn_stop, stop_utc, is_sn_ns=True)
+        if isinstance(req.stop_time, DAQTime):
+            stop_time = req.stop_time
+        else:
+            raise TypeError("Stop time %s<%s> is not a DAQTime" %
+                            (req.stop_time, type(req.stop_time)))
 
         # should we extract only the matching hits to a new file?
         extract_hits = req.extract
@@ -114,38 +104,24 @@ class Worker(HsRSyncFiles):
         if hs_ssh_access != "":
             logging.info("Ignoring rsync user/host \"%s\"", hs_ssh_access)
 
-        # initialize a couple of time values
-        utc_now = datetime.utcnow()
-        jan1 = datetime(utc_now.year, 1, 1)
+        logging.info("SN START [ns] = %d", start_time.ticks)
+        logging.info("ALERTSTART: %s", start_time.utc)
 
-        logging.info("SN START [ns] = %d", sn_start)
-        # sndaq time units are nanoseconds
-        alertstart = jan1 + timedelta(seconds=sn_start*1.0E-9)
-        logging.info("ALERTSTART: %s", alertstart)
+        logging.info("SN STOP [ns] = %s", stop_time.ticks)
+        logging.info("ALERTSTOP = %s", stop_time.utc)
 
-        logging.info("SN STOP [ns] = %s", sn_stop)
-        # sndaq time units are nanosecond
-        alertstop = jan1 + timedelta(seconds=sn_stop*1.0E-9)
-        logging.info("ALERTSTOP = %s", alertstop)
-
-        # -----after correcting parsing, check for data range ------------#
-        datarange = alertstop - alertstart
-        datamax = timedelta(0, self.MAX_REQUEST_SECONDS)
-        if datarange > datamax:
-            range_secs = datarange.days * (24 * 60 * 60) + \
-                datarange.seconds + (datarange.microseconds / 1E6)
-            max_secs = datamax.days * (24 * 60 * 60) + datamax.seconds + \
-                (datamax.microseconds / 1E6)
+        # check for data range
+        tick_secs = (stop_time.ticks - start_time.ticks) / 1E10
+        if tick_secs > self.MAX_REQUEST_SECONDS:
             errmsg = "Request for %.2fs exceeds limit of allowed data time" \
                      " range of %.2fs. Abort request..." % \
-                     (range_secs, max_secs)
+                     (tick_secs, self.MAX_REQUEST_SECONDS)
             self.send_alert("ERROR: " + errmsg)
             logging.error(errmsg)
             return None
 
-        rsyncdir = self.request_parser(req, alertstart, alertstop,
+        rsyncdir = self.request_parser(req, start_time, stop_time,
                                        hs_copydir, extract_hits=extract_hits,
-                                       sender=self.sender,
                                        update_status=update_status,
                                        delay_rsync=delay_rsync,
                                        make_remote_dir=False)
@@ -208,7 +184,7 @@ class Worker(HsRSyncFiles):
                                           self.sender, req, self.shorthost)
 
         update_status(req.copy_dir, req.destination_dir,
-                      HsMessage.MESSAGE_STARTED)
+                      HsMessage.MESSAGE_STARTED, use_ticks=True)
 
         try:
             rsyncdir = self.alert_parser(req, logfile,
@@ -222,13 +198,23 @@ class Worker(HsRSyncFiles):
         else:
             msgtype = HsMessage.MESSAGE_FAILED
 
-        update_status(rsyncdir, destdir, msgtype)
+        update_status(rsyncdir, destdir, msgtype, use_ticks=True)
 
     def receive_request(self, sock):
         req_dict = sock.recv_json()
         if not isinstance(req_dict, dict):
             raise HsException("JSON message should be a dict: \"%s\"<%s>" %
                               (req_dict, type(req_dict)))
+
+        # ensure 'start_time' and 'stop_time' are present and are DAQTimes
+        for tkey in ("start_time", "stop_time"):
+            if tkey in req_dict and not isinstance(req_dict[tkey], DAQTime):
+                try:
+                    req_dict[tkey] = DAQTime(req_dict[tkey], is_ns=False)
+                except:
+                    raise TypeError("Cannot make %s DAQTime from %s<%s>" %
+                                    (tkey, req_dict[tkey],
+                                     type(req_dict[tkey])))
 
         # ensure 'extract' field is present and is a boolean value
         req_dict["extract"] = "extract" in req_dict and \

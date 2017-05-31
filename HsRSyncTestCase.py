@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import shutil
+import socket
 
 import HsTestUtil
 
@@ -214,7 +215,7 @@ class HsRSyncTestCase(LoggingTestCase):
         self.expectLogMessage(re.compile(r"No data found between \d+ and \d+"))
 
         if HsRSyncFiles.DEBUG_EMPTY:
-            tstrun.add_debug_email()
+            hsr.i3socket.addDebugEMail(hsr.shorthost)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -430,7 +431,7 @@ class HsRSyncTestCase(LoggingTestCase):
         self.expectLogMessage(re.compile(r"No data found between \d+ and \d+"))
 
         if HsRSyncFiles.DEBUG_EMPTY:
-            tstrun.add_debug_email()
+            hsr.i3socket.addDebugEMail(hsr.shorthost)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -563,7 +564,7 @@ class HsRSyncTestCase(LoggingTestCase):
         self.expectLogMessage(re.compile(r"No data found between \d+ and \d+"))
 
         if HsRSyncFiles.DEBUG_EMPTY:
-            tstrun.add_debug_email()
+            hsr.i3socket.addDebugEMail(hsr.shorthost)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -582,49 +583,6 @@ class HsRSyncTestCase(LoggingTestCase):
         # create currentRun directory
         cur_start = start_ticks + (self.TICKS_PER_SECOND * 4)
         cur_stop = start_ticks + (self.TICKS_PER_SECOND * 6)
-
-        tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
-                                         cur_stop, interval=self.INTERVAL)
-
-        # populate directory with hit files and database
-        tstrun.populate(self)
-
-        # fill info database
-        (lastfile, numlast) \
-            = tstrun.update_hitspool_db(start_ticks, stop_ticks, last_start,
-                                        last_stop, self.INTERVAL)
-        (curfile, numcur) = tstrun.update_hitspool_db(start_ticks, stop_ticks,
-                                                      cur_start, cur_stop,
-                                                      self.INTERVAL)
-
-        # add all expected files being transferred
-        tstrun.add_expected_files(start_ticks, lastfile, numlast)
-        tstrun.add_expected_files(start_ticks, curfile, numcur)
-
-        # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
-
-        tstrun.run(start_ticks, stop_ticks)
-
-    def test_fail_rsync(self):
-        # create the worker object
-        hsr = self.wrapped_object
-        hsr.fail_rsync()
-
-        # define alert times
-        start_ticks = 157886364643994920
-        stop_ticks = start_ticks + self.ONE_MINUTE
-
-        # create lastRun directory
-        last_start = start_ticks - (self.ONE_MINUTE * 10)
-        last_stop = start_ticks - (self.ONE_MINUTE * 6)
-
-        # create currentRun directory
-        cur_start = start_ticks - self.ONE_MINUTE
-        cur_stop = stop_ticks + self.ONE_MINUTE
 
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)

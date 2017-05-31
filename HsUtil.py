@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 
-
 import datetime
 import numbers
 import re
 
 from collections import namedtuple
 
+import HsUtil
+
+from HsBase import DAQTime
 from HsException import HsException
 
 
@@ -24,8 +26,9 @@ STATUS_FAIL = "FAIL"
 STATUS_PARTIAL = "PARTIAL"
 
 
-def assemble_email_dict(address_list, header, description, message, prio=2,
-                        short_subject=True, quiet=True):
+def assemble_email_dict(address_list, header, message,
+                        description="HsInterface Data Request",
+                        prio=2, short_subject=True, quiet=True):
     if address_list is None or len(address_list) == 0:
         raise HsException("No addresses specified")
 
@@ -74,13 +77,13 @@ def dict_to_object(xdict, expected_fields, objtype):
     return namedtuple(objtype, xdict.keys())(**xdict)
 
 
-def get_daq_ticks(start_time, end_time, is_sn_ns=False):
+def get_daq_ticks(start_time, end_time, is_ns=False):
     """
     Get the difference between two datetimes.
-    If `is_sn_ns` is True, returned value is in nanoseconds.
+    If `is_ns` is True, returned value is in nanoseconds.
     Otherwise the value is in DAQ ticks (0.1ns)
     """
-    if is_sn_ns:
+    if is_ns:
         multiplier = 1E3
     else:
         multiplier = 1E4
@@ -92,93 +95,36 @@ def get_daq_ticks(start_time, end_time, is_sn_ns=False):
                 delta.microseconds) * multiplier)
 
 
-def fix_date_or_timestamp(ticks, time, is_sn_ns=False):
-    """
-    convert to UTC or DAQ whatever direction is needed
-    """
-    if time is not None:
-        jan1 = jan1_by_year(time.year)
-    else:
-        jan1 = jan1_by_year(None)
-
-    if (ticks is None or ticks == 0) and time is not None:
-        ticks = get_daq_ticks(jan1, time, is_sn_ns=is_sn_ns)
-
-    if is_sn_ns:
-        multiplier = 1E9
-    else:
-        multiplier = 1E10
-
-    if time is None and (ticks is not None and ticks > 0):
-        time = jan1 + datetime.timedelta(seconds=ticks / multiplier)
-
-    return (ticks, time)
-
-
-def jan1_by_year(year_index=None):
-    """
-    Return the datetime value for January 1 of the specified year.
-    If year is None, return January 1 for the current year.
-    """
-    if year_index not in JAN1:
-        if year_index is not None:
-            year = year_index
-        else:
-            year = datetime.datetime.utcnow().year
-
-        JAN1[year_index] = datetime.datetime(year, 1, 1)
-
-    return JAN1[year_index]
-
-
-def parse_sntime(arg, is_sn_ns=True):
-    """
-    Parse string as either a timestamp (in nanoseconds) or a date string.
-    Return a tuple containing the nanosecond timestamp and a date string,
-    deriving one value from the other.
-    """
-    if arg is None:
-        raise HsException("No date/time specified")
-
-    if isinstance(arg, numbers.Number):
-        nsec = arg
-        utc = None
-    elif (isinstance(arg, str) or isinstance(arg, unicode)) and arg.isdigit():
-        nsec = int(arg)
-        utc = None
-    else:
-        nsec = 0
-        dstr = str(arg)
-        try:
-            utc = datetime.datetime.strptime(dstr, "%Y-%m-%d %H:%M:%S.%f")
-        except ValueError, err:
-            try:
-                short = re.sub(r"\.[0-9]{9}", '', dstr)
-                utc = datetime.datetime.strptime(short, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                raise HsException("Problem with the time-stamp format"
-                                  " \"%s\": %s" % (arg, err))
-
-    return fix_date_or_timestamp(nsec, utc, is_sn_ns=is_sn_ns)
-
-
-def send_live_status(i3socket, req_id, username, prefix, start_utc, stop_utc,
+def send_live_status(i3socket, req_id, username, prefix, start_time, stop_time,
                      copydir, status, success=None, failed=None):
     if status is None:
         raise HsException("Status is not set")
     if req_id is None:
         raise HsException("Request ID is not set")
-    if start_utc is None:
-        raise HsException("Start time is not set")
-    if stop_utc is None:
-        raise HsException("Stop time is not set")
     if copydir is None:
         raise HsException("Destination directory is not set")
 
-    if not isinstance(start_utc, datetime.datetime):
+    if start_time is None:
+        if status != HsUtil.STATUS_REQUEST_ERROR:
+            raise HsException("Start time is not set")
+        start_utc = ""
+    elif isinstance(start_time, DAQTime):
+        start_utc = start_time.utc
+    elif isinstance(start_utc, datetime.datetime):
+        raise TypeError("Start time should not be datetime")
+    else:
         raise HsException("Bad start time %s<%s>" %
                           (start_utc, type(start_utc)))
-    if not isinstance(stop_utc, datetime.datetime):
+
+    if stop_time is None:
+        if status != HsUtil.STATUS_REQUEST_ERROR:
+            raise HsException("Stop time is not set")
+        stop_utc = ""
+    elif isinstance(stop_time, DAQTime):
+        stop_utc = stop_time.utc
+    elif isinstance(stop_utc, datetime.datetime):
+        raise TypeError("Stop time should not be datetime")
+    else:
         raise HsException("Bad stop time %s<%s>" % (stop_utc, type(stop_utc)))
 
     nowstr = str(datetime.datetime.utcnow())

@@ -1,11 +1,16 @@
 #!/usr/bin/env python
 
+import getpass
 import logging
+import re
 import unittest
 
 import HsBase
 import HsGrabber
+import HsMessage
 import HsTestUtil
+
+from HsPrefix import HsPrefix
 
 from LoggingTestCase import LoggingTestCase
 
@@ -14,20 +19,26 @@ class MyGrabber(HsGrabber.HsGrabber):
     def __init__(self):
         super(MyGrabber, self).__init__()
 
-    def create_grabber(self, host):
-        return HsTestUtil.Mock0MQSocket("Grabber")
+    def create_poller(self, sockets):
+        return HsTestUtil.Mock0MQPoller("Poller")
 
-    def create_poller(self, grabber):
-        return HsTestUtil.Mock0MQSocket("Poller")
+    def create_publisher(self, host):
+        return HsTestUtil.Mock0MQSocket("Publisher")
+
+    def create_sender(self, host):
+        return HsTestUtil.Mock0MQSocket("Sender")
 
     def validate(self):
         self.close_all()
-        val = self.grabber.validate()
+        val = self.publisher.validate()
+        val = self.sender.validate()
         val |= self.poller.validate()
         return val
 
 
 class HsGrabberTest(LoggingTestCase):
+    MATCH_ANY = re.compile(r"^.*$")
+
     def setUp(self):
         super(HsGrabberTest, self).setUp()
         # by default, check all log messages
@@ -40,10 +51,8 @@ class HsGrabberTest(LoggingTestCase):
             pass
 
     def test_negative_time(self):
-        alert_start_ns = 1578900679602462
-        alert_start_utc = HsTestUtil.get_time(alert_start_ns, is_sn_ns=True)
-        alert_stop_ns = alert_start_ns - 1000000000
-        alert_stop_utc = HsTestUtil.get_time(alert_stop_ns, is_sn_ns=True)
+        start_time = HsBase.DAQTime(15789006796024620)
+        stop_time = HsBase.DAQTime(start_time.ticks - 1000000000)
         copydir = None
 
         # create the grabber object
@@ -55,35 +64,40 @@ class HsGrabberTest(LoggingTestCase):
         # add all expected log messages
         msg = "Requesting negative time range (%.2f).\n" \
               "Try another time window." % \
-              ((alert_stop_ns - alert_start_ns) / 1E9)
+              ((stop_time.ticks - start_time.ticks) / 1E10)
         self.expectLogMessage(msg)
 
         # run it!
-        hsg.send_alert(alert_start_ns, alert_start_utc, alert_stop_ns,
-                       alert_stop_utc, copydir, print_to_console=False)
+        hsg.send_alert(start_time, stop_time, copydir, print_to_console=False)
 
         hsg.validate()
 
     def test_nonstandard_time(self):
-        alert_start_ns = 1578900679602462
-        alert_start_utc = HsTestUtil.get_time(alert_start_ns, is_sn_ns=True)
-        alert_stop_ns = alert_start_ns + \
-            1E9 * (HsGrabber.WARN_SECONDS + 1)
-        alert_stop_utc = HsTestUtil.get_time(alert_stop_ns, is_sn_ns=True)
+        start_time = HsBase.DAQTime(15789006796024620)
+        stop_ticks = start_time.ticks + 1E10 * (HsGrabber.WARN_SECONDS + 1)
+        stop_time = HsBase.DAQTime(stop_ticks)
         copydir = "/not/valid/path"
 
-        secrange = (alert_stop_ns - alert_start_ns) / 1E9
-
-        # create the alert
-        alert = {"start": alert_start_ns,
-                 "stop": alert_stop_ns,
-                 "copy": copydir}
+        secrange = (stop_time.ticks - start_time.ticks) / 1E10
 
         # create the grabber object
         hsg = MyGrabber()
 
         # add all JSON and response messages
-        hsg.grabber.addExpected(alert)
+        expected = {
+            "start_time": start_time.ticks,
+            "stop_time": stop_time.ticks,
+            "destination_dir": copydir,
+            "prefix": HsPrefix.ANON,
+            "request_id": self.MATCH_ANY,
+            "msgtype": HsMessage.MESSAGE_INITIAL,
+            "version": HsMessage.DEFAULT_VERSION,
+            "username": getpass.getuser(),
+            "host": self.MATCH_ANY,
+            "extract": False,
+            "copy_dir": None,
+        }
+        hsg.sender.addExpected(expected)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -95,29 +109,27 @@ class HsGrabberTest(LoggingTestCase):
         self.expectLogMessage(msg)
 
         # run it!
-        hsg.send_alert(alert_start_ns, alert_start_utc, alert_stop_ns,
-                       alert_stop_utc, copydir, print_to_console=False)
+        hsg.send_alert(start_time, stop_time, copydir, print_to_console=False)
 
         hsg.validate()
 
         # add grabber to poller socket
-        hsg.poller.addPollResult(hsg.grabber)
+        hsg.poller.addPollResult(hsg.sender)
 
         # add final grabber response
-        hsg.grabber.addIncoming("DONE\0")
+        hsg.sender.addIncoming("DONE\0")
 
         timeout = 1
         hsg.wait_for_response(timeout=timeout, print_to_console=False)
 
     def test_huge_time(self):
-        alert_start_ns = 1578900679602462
-        alert_start_utc = HsTestUtil.get_time(alert_start_ns, is_sn_ns=True)
-        alert_stop_ns = alert_start_ns + \
-            1E9 * (HsBase.HsBase.MAX_REQUEST_SECONDS + 1)
-        alert_stop_utc = HsTestUtil.get_time(alert_stop_ns, is_sn_ns=True)
+        start_time = HsBase.DAQTime(15789006796024620)
+        stop_ticks = start_time.ticks + \
+            1E10 * (HsBase.HsBase.MAX_REQUEST_SECONDS + 1)
+        stop_time = HsBase.DAQTime(stop_ticks)
         copydir = None
 
-        secrange = (alert_stop_ns - alert_start_ns) / 1E9
+        secrange = (stop_time.ticks - start_time.ticks) / 1E10
 
         # create the grabber object
         hsg = MyGrabber()
@@ -133,8 +145,7 @@ class HsGrabberTest(LoggingTestCase):
         self.expectLogMessage(msg)
 
         # run it!
-        hsg.send_alert(alert_start_ns, alert_start_utc, alert_stop_ns,
-                       alert_stop_utc, copydir, print_to_console=False)
+        hsg.send_alert(start_time, stop_time, copydir, print_to_console=False)
 
         hsg.validate()
 
@@ -144,7 +155,6 @@ class HsGrabberTest(LoggingTestCase):
 
         # add grabber to poller socket
         hsg.poller.addPollResult(None)
-        hsg.poller.addPollResult(None)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -153,7 +163,7 @@ class HsGrabberTest(LoggingTestCase):
         timeout = 1
 
         # add all expected log messages
-        self.expectLogMessage("no connection to expcont's HsPublisher"
+        self.expectLogMessage("No response from expcont's HsPublisher"
                               " within %s seconds.\nAbort request." % timeout)
 
         # run it!
@@ -162,33 +172,38 @@ class HsGrabberTest(LoggingTestCase):
         hsg.validate()
 
     def test_working(self):
-        alert_start_ns = 1578900679602462
-        alert_start_utc = HsTestUtil.get_time(alert_start_ns, is_sn_ns=True)
-        alert_stop_ns = 1578906679602462
-        alert_stop_utc = HsTestUtil.get_time(alert_stop_ns, is_sn_ns=True)
+        start_time = HsBase.DAQTime(15789006796024620)
+        stop_time = HsBase.DAQTime(15789066796024620)
         copydir = "/somewhere/else"
-
-        # create the alert
-        alert = {"start": alert_start_ns,
-                 "stop": alert_stop_ns,
-                 "copy": copydir}
 
         # create the grabber object
         hsg = MyGrabber()
 
         # add all JSON and response messages
-        hsg.grabber.addExpected(alert)
-        hsg.grabber.addIncoming("DONE\0")
+        expected = {
+            "start_time": start_time.ticks,
+            "stop_time": stop_time.ticks,
+            "destination_dir": copydir,
+            "prefix": HsPrefix.ANON,
+            "request_id": self.MATCH_ANY,
+            "msgtype": HsMessage.MESSAGE_INITIAL,
+            "version": HsMessage.DEFAULT_VERSION,
+            "username": getpass.getuser(),
+            "host": self.MATCH_ANY,
+            "extract": False,
+            "copy_dir": None,
+        }
+        hsg.sender.addExpected(expected)
+        hsg.sender.addIncoming("DONE\0")
 
         # add grabber to poller socket
-        hsg.poller.addPollResult(hsg.grabber)
+        hsg.poller.addPollResult(hsg.sender)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
         # run it!
-        hsg.send_alert(alert_start_ns, alert_start_utc, alert_stop_ns,
-                       alert_stop_utc, copydir, print_to_console=False)
+        hsg.send_alert(start_time, stop_time, copydir, print_to_console=False)
 
         timeout = 1
         hsg.wait_for_response(timeout=timeout, print_to_console=False)

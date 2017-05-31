@@ -2,6 +2,7 @@
 
 
 import datetime
+import json
 import os
 import re
 import shutil
@@ -11,6 +12,7 @@ import tempfile
 import threading
 import zmq
 
+from HsBase import DAQTime
 from HsRSyncFiles import HsRSyncFiles
 
 
@@ -83,7 +85,7 @@ def dump_dir(path, title=None, indent=""):
                 dump_dir(full, indent=indent + "  ")
 
 
-def get_time(tick, is_sn_ns=False):
+def get_time(tick, is_ns=False):
     """
     Convert a DAQ tick to a Python `datetime`
     NOTE: this conversion does not include leapseconds!!!
@@ -91,7 +93,7 @@ def get_time(tick, is_sn_ns=False):
     global TICKS_PER_SECOND
 
     ticks_per_sec = TICKS_PER_SECOND
-    if is_sn_ns:
+    if is_ns:
         ticks_per_sec /= 10
     ticks_per_ms = ticks_per_sec / 1000000
 
@@ -176,15 +178,15 @@ class CompareObjects(object):
     def __init__(self, name, obj, exp):
         self.__compare_objects(name, obj, exp)
 
-    def __compare_dicts(self, name, json, jexp):
-        if not isinstance(json, dict):
+    def __compare_dicts(self, name, jmsg, jexp):
+        if not isinstance(jmsg, dict):
             raise CompareException("%sExpected dict %s<%s>, not %s<%s>" %
                                    (self.__namestr(name), jexp, type(jexp),
-                                    json, type(json)))
+                                    jmsg, type(jmsg)))
 
         extra = {}
         badval = {}
-        for key, val in json.iteritems():
+        for key, val in jmsg.iteritems():
             val = self.__unicode_to_ascii(val)
 
             if key not in jexp:
@@ -205,11 +207,15 @@ class CompareObjects(object):
             if len(pair[0]) > 0:
                 if errstr is None:
                     errstr = self.__namestr(name)
-                else:
-                    errstr += ", "
+                errstr += "\n\t"
                 errstr += "%s %s" % (pair[1], pair[0])
+
+        debug = False
         if errstr is not None:
-            raise CompareException(errstr)
+            if debug: print "*** Error: %s" % errstr
+            raise CompareException("Message %s: %s" % (jmsg, errstr))
+        else:
+            if debug: print "+++ Valid message"
 
     def __compare_lists(self, name, obj, exp):
         if not isinstance(obj, list):
@@ -231,10 +237,10 @@ class CompareObjects(object):
                                        (self.__namestr(name), i, ce))
 
     def __compare_objects(self, name, obj, exp):
-        if isinstance(exp, list):
-            self.__compare_lists(name, obj, exp)
-        elif isinstance(exp, dict):
-            self.__compare_dicts(name, obj, exp)
+        if isinstance(obj, list) and isinstance(exp, list):
+            self.__compare_lists(name, obj[:], exp[:])
+        elif isinstance(obj, dict) and isinstance(exp, dict):
+            self.__compare_dicts(name, obj.copy(), exp.copy())
         elif hasattr(exp, 'flags') and hasattr(exp, 'pattern'):
             # try to match regular expression
             if exp.match(str(obj)) is None:
@@ -271,22 +277,90 @@ class CompareObjects(object):
         return xstr
 
 
-class Mock0MQSocket(object):
-    def __init__(self, name):
+class MockPollableSocket(object):
+    @property
+    def has_input(self):
+        raise NotImplementedError()
+
+
+class Mock0MQPoller(object):
+    def __init__(self, name, verbose=False):
+        self.__name = name
+        self.__socks = {}
+        self.__pollresult = []
+
+    def addPollResult(self, source, polltype=zmq.POLLIN):
+        self.__pollresult.append([(source, polltype)])
+
+    def close(self):
+        pass
+
+    @property
+    def is_done(self):
+        return len(self.__pollresult) > 0
+
+    def poll(self, timeout=None):
+        if len(self.__pollresult) != 0:
+            return self.__pollresult.pop(0)
+
+        if len(self.__socks) == 0:
+            raise Exception("No poll results")
+
+        ready = []
+        for sock, event in self.__socks.items():
+            if isinstance(sock, zmq.Socket):
+                if not sock.poll(0.01, event):
+                    continue
+            elif isinstance(sock, MockPollableSocket):
+                if event != zmq.POLLIN:
+                    raise Exception("Not handling POLLOUT for %s<%s>" %
+                                    (sock, type(sock).__name__))
+                if not sock.has_input:
+                    continue
+            else:
+                raise Exception("Not handling %s<%s>" %
+                                (sock, type(sock).__name__))
+
+            # add socket with pending I/O
+            ready.append((sock, event))
+
+        return ready
+
+    def register(self, sock, event):
+        if sock in self.__socks:
+            raise Exception("Socket %s<%s> is already registered" %
+                            (sock, type(sock).__name__))
+
+        self.__socks[sock] = event
+
+    def validate(self):
+        if len(self.__pollresult) > 0:
+            verb = " was" if len(self.__pollresult) == 1 else "s were"
+            raise Exception("%s %s message%s not received (%s)" %
+                            (len(self.__pollresult), self.__name, verb,
+                             self.__pollresult))
+        return True
+
+
+class Mock0MQSocket(MockPollableSocket):
+    def __init__(self, name, verbose=False):
         self.__name = name
         self.__outqueue = []
         self.__expected = []
         self.__answer = {}
-        self.__pollresult = []
-        self.__verbose = False
+        self.__verbose = verbose
+
+    def __str__(self):
+        vstr = ", verbose" if self.__verbose else ""
+        xstr = "" if len(self.__expected) == 0 else \
+               ", %d expected" % len(self.__expected)
+        return "%s(%s%s%s)" % \
+            (type(self).__name__, self.__name, vstr, xstr)
 
     def addExpected(self, jdict, answer=None):
         self.__expected.append(jdict)
         if answer is not None:
             self.__answer[jdict] = answer
-
-    def addPollResult(self, source, polltype=zmq.POLLIN):
-        self.__pollresult.append([(source, polltype)])
 
     def addIncoming(self, msg):
         self.__outqueue.append(msg)
@@ -298,11 +372,19 @@ class Mock0MQSocket(object):
     def has_input(self):
         return len(self.__outqueue) > 0
 
-    def poll(self, _):
-        if len(self.__pollresult) == 0:
-            raise Exception("No poll results")
+    @property
+    def identity(self):
+        return self.__name
 
-        return self.__pollresult.pop(0)
+    @property
+    def is_done(self):
+        return len(self.__outqueue) > 0 or \
+            len(self.__expected) > 0 or \
+            len(self.__answer) > 0
+
+    @property
+    def num_expected(self):
+        return len(self.__expected)
 
     def recv(self):
         if len(self.__outqueue) == 0:
@@ -311,7 +393,7 @@ class Mock0MQSocket(object):
         msg = self.__outqueue.pop(0)
 
         if self.__verbose:
-            print "I3Socket(%s) -> %s" % (self.__name, str(msg))
+            print "%s(%s) -> %s" % (type(self).__name__, self.__name, str(msg))
 
         return msg
 
@@ -319,44 +401,53 @@ class Mock0MQSocket(object):
         return self.recv()
 
     def send(self, msgstr):
-        if len(self.__expected) == 0:
-            raise CompareException("Unexpected %s message: %s" %
-                                   (self.__name, msgstr))
-
-        expmsg = self.__expected.pop(0)
-
-        if self.__verbose:
-            print "I3Socket(%s) <- %s (exp %s)" % \
-                (self.__name, msgstr, str(expmsg))
-
         try:
-            import json
             msgjson = json.loads(msgstr)
         except:
-            msgjson = None
+            msgjson = msgstr
 
-        if msgjson is not None:
-            CompareObjects(self.__name, msgjson, expmsg)
-        else:
-            CompareObjects(self.__name, msgstr, expmsg)
+        return self.send_json(msgjson)
 
-        expkey = str(expmsg)
+    def send_json(self, msgjson):
+        if len(self.__expected) == 0:
+            raise Exception("Unexpected %s message: %s" %
+                            (self.__name, msgjson))
+
+        found = None
+        for i in range(len(self.__expected)):
+            expjson = self.__expected[i]
+            try:
+                CompareObjects(self.__name, msgjson, expjson)
+                found = i
+                break
+            except:
+                continue
+
+        # if the message was unknown, throw a CompareException
+        if found is None:
+            xstr = "\n\t(exp %s)" % str(self.__expected[0])
+            raise CompareException("Unexpected %s(%s) message (of %d): %s%s" %
+                                   (type(self).__name__, self.__name,
+                                    len(self.__expected), msgjson, xstr))
+
+        # we received an expected message, delete it
+        expjson = self.__expected[found]
+        del self.__expected[found]
+
+        if self.__verbose:
+            print "%s(%s) <- %s (exp %s)" % \
+                (type(self).__name__, self.__name, str(msgjson), str(expjson))
+            print "%s(%s) expect %d more message%s" % \
+                (type(self).__name__, self.__name, len(self.__expected),
+                 "s" if len(self.__expected) != 1 else "")
+
+        expkey = str(expjson)
         if expkey in self.__answer:
             resp = self.__answer[expkey]
             del self.__answer[expkey]
             return resp
 
-    def send_json(self, json):
-        if len(self.__expected) == 0:
-            raise Exception("Unexpected %s JSON message: %s" %
-                            (self.__name, json))
-
-        expjson = self.__expected.pop(0)
-        if self.__verbose:
-            print "I3Socket(%s) <- %s (exp %s)" % \
-                (self.__name, str(json), str(expjson))
-
-        CompareObjects(self.__name, json, expjson)
+        return None
 
     def set_verbose(self, value=True):
         self.__verbose = (value is True)
@@ -364,17 +455,14 @@ class Mock0MQSocket(object):
     def validate(self):
         if len(self.__outqueue) > 0:
             verb = " was" if len(self.__outqueue) == 1 else "s were"
-            raise Exception("%s message%s not received (%s)" %
-                            (len(self.__outqueue), verb, self.__outqueue))
+            raise Exception("%s %s message%s not received (%s)" %
+                            (len(self.__outqueue), self.__name, verb,
+                             self.__outqueue))
         if len(self.__expected) > 0:
             plural = "" if len(self.__expected) == 1 else "s"
             raise Exception("Expected %d %s JSON message%s: %s" %
                             (len(self.__expected), self.__name, plural,
                              self.__expected))
-        if len(self.__pollresult) > 0:
-            verb = " was" if len(self.__pollresult) == 1 else "s were"
-            raise Exception("%s message%s not received (%s)" %
-                            (len(self.__pollresult), verb, self.__pollresult))
         return True
 
 
@@ -402,7 +490,7 @@ class MockHitspool(object):
 
     @classmethod
     def add_files(cls, hspath, t0, t_cur, interval, max_f=None,
-                  make_bad=False, create_files=True, debug=False):
+                  create_files=True, debug=False):
         if max_f is None:
             max_f = cls.MAX_FILES
 
@@ -467,10 +555,36 @@ class MockHitspool(object):
 
 
 class MockI3Socket(Mock0MQSocket):
-    def __init__(self, varname):
-        super(MockI3Socket, self).__init__(varname)
+    def __init__(self, varname, verbose=False):
+        super(MockI3Socket, self).__init__(varname, verbose=verbose)
         self.__service = "HSiface"
         self.__varname = varname
+
+    def addDebugEMail(self, host=r".*"):
+        header = re.compile(r"Query for \[\d+-\d+\] failed on " +
+                                host + "$")
+        message = re.compile(r"DB contains \d+ entries from .* to .*$")
+
+        self.addGenericEMail(HsRSyncFiles.DEBUG_EMAIL, header, message)
+
+    def addGenericEMail(self, address_list, header, message,
+                        description="HsInterface Data Request",
+                        prio=2, short_subject=True, quiet=True):
+        notifies = []
+        for email in address_list:
+            notifies.append({
+                "receiver": email,
+                "notifies_txt": message,
+                "notifies_header": header,
+            })
+
+        self.addExpectedAlert({
+            "condition": header,
+            "desc": description,
+            "notifies": notifies,
+            "short_subject": "true" if short_subject else "false",
+            "quiet": "true" if quiet else "false",
+        }, prio=prio)
 
     def addExpectedAlert(self, value, prio=1):
         self.addExpectedMessage(value, service=self.__service,
@@ -503,18 +617,14 @@ class MockI3Socket(Mock0MQSocket):
 
 
 class RunParam(object):
-    def __init__(self, start, stop, interval, max_files, make_bad=False):
+    def __init__(self, start, stop, interval, max_files):
         self.__start = start
         self.__stop = stop
         self.__interval = interval
         self.__max_files = max_files
-        self.__make_bad = make_bad
 
     def interval(self):
         return self.__interval
-
-    def make_bad(self):
-        return self.__make_bad
 
     def max_files(self):
         return self.__max_files
@@ -528,12 +638,10 @@ class RunParam(object):
     def set_interval(self, val):
         self.__interval = val
 
-    def set_make_bad(self, val):
-        self.__make_bad = val
-
 
 class HsTestRunner(object):
-    TICKS_PER_SECOND = 10000000000
+    global TICKS_PER_SECOND
+
     INTERVAL = 15 * TICKS_PER_SECOND
 
     MAX_FILES = 1000
@@ -550,26 +658,6 @@ class HsTestRunner(object):
         self.__cur_run = RunParam(cur_start, cur_stop, interval,
                                   self.MAX_FILES)
 
-    def add_debug_email(self):
-        notify_hdr = re.compile(r"Query for \[\d+-\d+\] failed on .*$")
-        notify_txt = re.compile(r"DB contains \d+ entries from .* to .*$")
-        notifies = []
-        for email in HsRSyncFiles.DEBUG_EMAIL:
-            notifies.append({
-                'notifies_txt': notify_txt,
-                'notifies_header': notify_hdr,
-                'receiver': email,
-            })
-
-        # add all expected I3Live messages
-        self.__hsr.i3socket.addExpectedAlert({
-            'condition': notify_hdr,
-            'desc': 'HsInterface Data Request',
-            'notifies': notifies,
-            'short_subject': 'true',
-            'quiet': 'true',
-        }, prio=2)
-
     def add_expected_files(self, alert_start, firstfile, numfiles,
                            destdir=None, fail_links=False):
         if firstfile is not None and destdir is None and not fail_links:
@@ -579,45 +667,26 @@ class HsTestRunner(object):
 
         self.__check_links = True
 
-    def make_bad_current(self):
-        self.__cur_run.set_make_bad(True)
-
-    def make_bad_last(self):
-        self.__last_run.set_make_bad(True)
-
     def populate(self, testobj):
         if testobj.HUB_DIR is None:
             # create temporary hub directory and set in HsRSyncFiles
             testobj.HUB_DIR = tempfile.mkdtemp(prefix="HubDir_")
             self.__hsr.TEST_HUB_DIR = testobj.HUB_DIR
 
-        for is_last in (False, True):
-            if is_last:
-                rundata = self.__last_run
-            else:
-                rundata = self.__cur_run
+        # create subdir if necessary
+        path = os.path.join(testobj.HUB_DIR,
+                            HsRSyncFiles.DEFAULT_SPOOL_NAME)
+        if not os.path.exists(path):
+            os.makedirs(path)
 
-            # create subdir if necessary
-            path = os.path.join(testobj.HUB_DIR,
-                                HsRSyncFiles.DEFAULT_SPOOL_NAME)
-            if not os.path.exists(path):
-                os.makedirs(path)
-
-            create_hitspool_db(path)
-            self.SPOOL_PATH = path
+        # create the database if necessary
+        create_hitspool_db(path)
+        self.SPOOL_PATH = path
 
     def run(self, start_ticks, stop_ticks, copydir="me@host:/a/b/c",
             extract_hits=False):
-        if start_ticks is None:
-            start_time = None
-        else:
-            start_time = get_time(start_ticks)
-        if stop_ticks is None:
-            stop_time = None
-        else:
-            stop_time = get_time(stop_ticks)
-
-        self.__hsr.request_parser(None, start_time, stop_time, copydir,
+        self.__hsr.request_parser(None, DAQTime(start_ticks),
+                                  DAQTime(stop_ticks), copydir,
                                   extract_hits=extract_hits, delay_rsync=False)
 
         if self.__check_links:

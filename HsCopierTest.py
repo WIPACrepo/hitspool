@@ -7,6 +7,7 @@ import unittest
 
 from HsCopier import CopyUsingRSync, CopyUsingSCP
 
+
 class HsCopierTest(unittest.TestCase):
     SOURCE_DIR = "/tmp/testsrc"
     TARGET_DIR = "/tmp/testtgt"
@@ -45,11 +46,12 @@ class HsCopierTest(unittest.TestCase):
         source_list = self.__create_files(3, topdir=self.SOURCE_DIR)
         source_size = self.__file_size(source_list)
 
-        copier = CopyUsingRSync(getpass.getuser(), "localhost", self.TARGET_DIR,
-                                "ignored")
+        copier = CopyUsingRSync(getpass.getuser(), "localhost",
+                                self.TARGET_DIR, "ignored")
         copier.copy(source_list)
 
-        self.assertEquals(copier.size, source_size, "Expected size %s, not %s" %
+        self.assertEquals(copier.size, source_size,
+                          "Expected size %s, not %s" %
                           (source_size, copier.size))
 
     def testSCP(self):
@@ -60,7 +62,8 @@ class HsCopierTest(unittest.TestCase):
                               "ignored")
         copier.copy(source_list)
 
-        self.assertEquals(copier.size, source_size, "Expected size %s, not %s" %
+        self.assertEquals(copier.size, source_size,
+                          "Expected size %s, not %s" %
                           (source_size, copier.size))
 
 
