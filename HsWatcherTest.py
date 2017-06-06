@@ -73,9 +73,6 @@ class MyWatcher(HsWatcher.HsWatcher):
 
         return self.__watchee
 
-    def tail(self, _, lines=None, search_string=None):
-        return self.__loglines
-
     def logline(self, idx):
         if self.__loglines is None or len(self.__loglines) <= idx:
             raise HsException("Bad log index %d (%d available)" %
@@ -86,14 +83,15 @@ class MyWatcher(HsWatcher.HsWatcher):
     def set_watchee(self, watchee):
         self.__watchee = watchee
 
+    def tail(self, _, lines=None, search_string=None):
+        return self.__loglines
+
     def validate(self):
         self.close_all()
 
-        val = True
         for sock in (self.__i3_sock, ):
             if sock is not None:
-                val |= sock.validate()
-        return val
+                sock.validate()
 
 
 class HsWatcherTest(LoggingTestCase):

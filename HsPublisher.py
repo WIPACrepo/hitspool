@@ -103,13 +103,19 @@ class Receiver(HsBase):
                               alertdict["extract"])
             extract = True
 
+        if 'hubs' not in alertdict or alertdict["hubs"] is None:
+            hubs = None
+        else:
+            hubs = alertdict["hubs"]
+
         exc_info = None
         if not bad_request:
             try:
                 # forward initial request to HsSender
                 HsMessage.send_initial(self.__sender, req_id, start_time,
                                        stop_time, destdir, prefix, extract,
-                                       host=self.shorthost, username=user)
+                                       hubs=hubs, host=self.shorthost,
+                                       username=user)
 
                 # log alert
                 logging.info("Publisher published: %s", str(alertdict))

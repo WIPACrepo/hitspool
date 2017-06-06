@@ -187,8 +187,12 @@ class HsSender(HsBase):
                                   sock.identity)
 
             if not error:
-                self.__monitor.add_message(msg, force_spade)
-                found = True
+                try:
+                    self.__monitor.add_message(msg, force_spade)
+                    found = True
+                except:
+                    logging.exception("Received bad message %s", str(msg))
+                    error = True
 
             if sock == self.__alert_socket:
                 if error:
@@ -356,7 +360,12 @@ if __name__ == "__main__":
 
         args = p.parse_args()
 
+        HsBase.init_logging(args.logfile, basename="hssender",
+                            basehost="2ndbuild")
+
         sender = HsSender(is_test=args.is_test)
+
+        logging.info("HsSender starts on %s", sender.shorthost)
 
         # override some defaults (generally only used for debugging)
         if args.spadedir is not None:
@@ -364,11 +373,6 @@ if __name__ == "__main__":
 
         # handler is called when SIGTERM is called (via pkill)
         signal.signal(signal.SIGTERM, sender.handler)
-
-        sender.init_logging(args.logfile, basename="hssender",
-                            basehost="2ndbuild")
-
-        logging.info("HsSender starts on %s", sender.shorthost)
 
         while True:
             logging.info("HsSender waits for new reports from HsWorkers...")

@@ -250,25 +250,21 @@ class HsBase(object):
     def fullhost(self):
         return self.__src_mchn
 
-    def init_logging(self, logfile=None, basename=None, basehost=None,
+    @classmethod
+    def init_logging(cls, logfile=None, basename=None, basehost=None,
                      level=logging.INFO, both=False):
+        if logfile is None:
+            if basename is None or basehost is None:
+                if basename is not None or basehost is not None:
+                    print >>sys.stderr, \
+                        "Not logging to file (basehost=%s, basename=%s)" % \
+                        (basehost, basename)
+            else:
+                logfile = os.path.join(HsBase.DEFAULT_LOG_PATH,
+                                       "%s_%s.log" % (basename, basehost))
+
         if logfile is not None:
             logdir = os.path.dirname(logfile)
-        elif basename is None or basehost is None:
-            logdir = None
-            if basename is not None or basehost is not None:
-                print >>sys.stderr, \
-                    "Not logging to file (basehost=%s, basename=%s)" % \
-                    (basehost, basename)
-        else:
-            if self.is_cluster_sps or self.is_cluster_spts:
-                logdir = self.DEFAULT_LOG_PATH
-            else:
-                logdir = "/home/david/TESTCLUSTER/%s/logs" % basehost
-            logfile = os.path.join(logdir,
-                                   "%s_%s.log" % (basename, self.shorthost))
-
-        if logdir is not None:
             if not os.path.exists(logdir):
                 os.makedirs(logdir)
             elif not os.path.isdir(logdir):

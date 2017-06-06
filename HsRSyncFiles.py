@@ -120,6 +120,8 @@ class HsRSyncFiles(HsBase):
         # get the list of files containing hits within the interval
         src_tuples_list = self.__query_requested_files(start_ticks, stop_ticks)
         if src_tuples_list is None:
+            # wait a bit to give other hubs a chance to start
+            time.sleep(0.1)
             return None, None
 
         # get ASCII representation of starting time

@@ -95,6 +95,76 @@ def get_daq_ticks(start_time, end_time, is_ns=False):
                 delta.microseconds) * multiplier)
 
 
+def hub_name_to_id(hostname):
+    "Convert hub name to component ID"
+    name = hostname.split('.', 1)[0]
+
+    if name == "scube":
+        return 99
+
+    if name.startswith("ichub"):
+        offset = 0
+    elif name.startswith("ithub"):
+        offset = 200
+    else:
+        raise ValueError("Unrecognized hub name \"%s\"" % (hostname, ))
+
+    try:
+        return int(name[5:]) + offset
+    except ValueError:
+        raise ValueError("Bad numeric value for hub \"%s\"" % (hostname, ))
+
+
+def hubs_to_string(hublist):
+    """
+    Convert list of hub hostnames to a compact string of ranges
+    like "1-7 9-45 48-86"
+    """
+    if len(hublist) == 0:
+        return None
+
+    # convert hub names to numeric values
+    numbers = []
+    for hub in hublist:
+        try:
+            numbers.append(HsUtil.hub_name_to_id(hub))
+        except ValueError:
+            logging.error("Bad hub name \"%s\"", hub)
+
+    # if we didn't find any valid names, we're done
+    if len(numbers) == 0:
+        return None
+
+    # sort hub numbers
+    numbers.sort()
+
+    # build comma-separated groups of ranges
+    num_str = None
+    prev_num = -1
+    in_range = False
+    for num in numbers:
+        if num_str is None:
+            num_str = str(num)
+        else:
+            if prev_num + 1 == num:
+                if not in_range:
+                    in_range = True
+            else:
+                if in_range:
+                    num_str += "-" + str(prev_num)
+                    in_range = False
+                num_str += "," + str(num)
+        prev_num = num
+    if num_str is None:
+        # this should never happen?
+        num_str = ""
+    elif in_range:
+        # append end of final range
+        num_str += "-" + str(prev_num)
+
+    return num_str
+
+
 def send_live_status(i3socket, req_id, username, prefix, start_time, stop_time,
                      copydir, status, success=None, failed=None):
     if status is None:

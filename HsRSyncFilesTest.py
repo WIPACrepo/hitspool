@@ -81,6 +81,13 @@ class MyHsRSyncFiles(HsRSyncFiles.HsRSyncFiles):
                    log_format=None, relative=True):
         return True
 
+    def validate(self):
+        self.close_all()
+
+        for sock in (self.__i3_sock, ):
+            if sock is not None:
+                sock.validate()
+
 
 class HsRSyncFilesTest(HsRSyncTestCase.HsRSyncTestCase):
     @property

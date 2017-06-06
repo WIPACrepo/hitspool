@@ -28,32 +28,49 @@ class MySender(HsSender.HsSender):
     Use mock 0MQ sockets for testing
     """
     def __init__(self, verbose=False):
+        self.__i3_sock = None
+        self.__poll_sock = None
+        self.__rptr_sock = None
+
         super(MySender, self).__init__(host="tstsnd", is_test=True)
+
         # unit tests were running to completion before the RequestMonitor had
         # started, causing tearDown() to hang on `monitor.join()`
         while not self.monitor_started:
             time.sleep(0.1)
 
         if verbose:
-            self.i3socket.set_verbose()
-            self.reporter.set_verbose()
-
-    def create_poller(self):
-        return Mock0MQPoller("Poller")
-
-    def create_reporter(self):
-        return Mock0MQSocket("Reporter")
+            self.__i3_sock.set_verbose()
+            self.__rptr.set_verbose()
 
     def create_i3socket(self, host):
-        return MockI3Socket("HsSender@%s" % self.shorthost)
+        if self.__i3_sock is not None:
+            raise Exception("Cannot create multiple I3 sockets")
+
+        self.__i3_sock = MockI3Socket('HsPublisher')
+        return self.__i3_sock
+
+    def create_poller(self):
+        if self.__poll_sock is not None:
+            raise Exception("Cannot create multiple I3 sockets")
+
+        self.__poll_sock = Mock0MQPoller("Poller")
+        return self.__poll_sock
+
+    def create_reporter(self):
+        if self.__rptr_sock is not None:
+            raise Exception("Cannot create multiple Reporter sockets")
+
+        self.__rptr_sock = Mock0MQSocket("Reporter")
+        return self.__rptr_sock
 
     def validate(self):
         """
         Check that all expected messages were received by mock sockets
         """
-        val = self.reporter.validate()
-        val |= self.i3socket.validate()
-        return val
+        for sock in (self.__rptr_sock, self.__poll_sock, self.__i3_sock):
+            if sock is not None:
+                sock.validate()
 
 
 class FailableSender(MySender):
@@ -816,7 +833,7 @@ class HsSenderTest(LoggingTestCase):
         # run it!
         try:
             if sender.process_one_message():
-                self.fail("Incomplete message was accepted")
+                self.fail("Bad message was accepted")
         except HsException, hse:
             hsestr = str(hse)
             if hsestr.find("Missing fields ") < 0:
@@ -867,6 +884,45 @@ class HsSenderTest(LoggingTestCase):
         # make sure 0MQ communications checked out
         sender.validate()
 
+    def test_main_loop_bad_hubs(self):
+        sender = MySender(verbose=False)
+        self.SENDER = sender
+
+        # initialize message
+        rcv_msg = {
+            "msgtype": "xxx",
+            "request_id": "BadHubs",
+            "username": "abc",
+            "start_time": 0,
+            "stop_time": int(1E10),
+            "copy_dir": None,
+            "destination_dir": None,
+            "prefix": None,
+            "extract": None,
+            "host": None,
+            "hubs": "not_a_hub",
+            "version": HsMessage.DEFAULT_VERSION,
+        }
+
+        # add all expected JSON messages
+        sender.reporter.addIncoming(rcv_msg)
+
+        # don't check DEBUG/INFO log messages
+        self.setLogLevel(logging.WARN)
+
+        # expect log message about bad hub list
+        self.expectLogMessage(re.compile(r"Received bad message .*"))
+
+        # run it!
+        if sender.process_one_message():
+            self.fail("Message with bad 'hubs' entry was accepted")
+
+        # wait for message to be processed
+        sender.wait_for_idle()
+
+        # make sure 0MQ communications checked out
+        sender.validate()
+
     def test_main_loop_no_init_just_success(self):
         sender = MySender(verbose=False)
         self.SENDER = sender
@@ -881,7 +937,7 @@ class HsSenderTest(LoggingTestCase):
                                  start_utc, stop_utc, "12345678_987654",
                                  "ichub01", 11, 3)
 
-        msgtype = HsMessage.MESSAGE_DONE
+        msgtype = HsMessage.DONE
         req.add_request(sender.reporter, msgtype)
 
         # don't check DEBUG/INFO log messages
@@ -937,14 +993,14 @@ class HsSenderTest(LoggingTestCase):
                                    stop_utc, timetag, "ichub86", 11, 3)
 
         # add initial message
-        req01.add_request(sender.reporter, HsMessage.MESSAGE_INITIAL)
+        req01.add_request(sender.reporter, HsMessage.INITIAL)
 
         # add initial message for Live
         req01.add_i3live_message(sender.i3socket, HsUtil.STATUS_QUEUED)
 
         # add start messages
-        req01.add_request(sender.reporter, HsMessage.MESSAGE_STARTED)
-        req86.add_request(sender.reporter, HsMessage.MESSAGE_STARTED)
+        req01.add_request(sender.reporter, HsMessage.STARTED)
+        req86.add_request(sender.reporter, HsMessage.STARTED)
 
         # initialize some notification data
         notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % sender.cluster
@@ -961,10 +1017,10 @@ class HsSenderTest(LoggingTestCase):
 
         # add hub01 messages
         req01.add_i3live_message(sender.i3socket, HsUtil.STATUS_IN_PROGRESS)
-        req01.add_request(sender.reporter, HsMessage.MESSAGE_DONE)
+        req01.add_request(sender.reporter, HsMessage.DONE)
 
         # add hub86 messages
-        req86.add_request(sender.reporter, HsMessage.MESSAGE_DONE)
+        req86.add_request(sender.reporter, HsMessage.DONE)
         req86.add_i3live_message(sender.i3socket, HsUtil.STATUS_SUCCESS,
                                  success="1,86")
 

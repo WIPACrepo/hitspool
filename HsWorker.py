@@ -69,6 +69,16 @@ class Worker(HsRSyncFiles):
         self.__service = "HSiface"
         self.__varname = "%s@%s" % (progname, self.shorthost)
 
+    def __in_hub_list(self, hublist):
+        if hublist is None:
+            return True
+
+        for hub in hublist.split(","):
+            if hub == self.shorthost:
+                return True
+
+        return False
+
     def alert_parser(self, req, logfile, update_status=None, delay_rsync=True):
         """
         Parse the Alert message for starttime, stoptime, sn-alert-time-stamp
@@ -104,11 +114,8 @@ class Worker(HsRSyncFiles):
         if hs_ssh_access != "":
             logging.info("Ignoring rsync user/host \"%s\"", hs_ssh_access)
 
-        logging.info("SN START [ns] = %d", start_time.ticks)
-        logging.info("ALERTSTART: %s", start_time.utc)
-
-        logging.info("SN STOP [ns] = %s", stop_time.ticks)
-        logging.info("ALERTSTOP = %s", stop_time.utc)
+        logging.info("START = %d (%s)", start_time.ticks, start_time.utc)
+        logging.info("STOP  = %d (%s)", stop_time.ticks, stop_time.utc)
 
         # check for data range
         tick_secs = (stop_time.ticks - start_time.ticks) / 1E10
@@ -153,7 +160,7 @@ class Worker(HsRSyncFiles):
 
         raise SystemExit(0)
 
-    def mainloop(self, logfile):
+    def mainloop(self, logfile, fail_sleep=1.5):
         if self.subscriber is None:
             raise Exception("Subscriber has not been initialized")
 
@@ -167,10 +174,21 @@ class Worker(HsRSyncFiles):
             raise
         except:
             logging.exception("Cannot read request")
-            return False
+            return
 
         logging.info("HsWorker received request:\n"
-                     "%s\nfrom Publisher", req)
+                     "%s\nfrom Publisher", str(req))
+
+        update_status = functools.partial(HsMessage.send_worker_status,
+                                          self.sender, req, self.shorthost)
+
+        update_status(req.copy_dir, req.destination_dir,
+                      HsMessage.STARTED)
+
+        if not self.__in_hub_list(req.hubs):
+            update_status(req.copy_dir, req.destination_dir,
+                          HsMessage.IGNORED)
+            return
 
         # extract actual directory from rsync path
         try:
@@ -178,13 +196,13 @@ class Worker(HsRSyncFiles):
         except:
             logging.exception("Illegal destination directory \"%s\"<%s>",
                               req.destination_dir, type(req.destination_dir))
-            return False
 
-        update_status = functools.partial(HsMessage.send_for_request,
-                                          self.sender, req, self.shorthost)
+            # give other hubs time to start before sending failure message
+            time.sleep(fail_sleep)
 
-        update_status(req.copy_dir, req.destination_dir,
-                      HsMessage.MESSAGE_STARTED, use_ticks=True)
+            update_status(req.copy_dir, req.destination_dir,
+                          HsMessage.FAILED)
+            return
 
         try:
             rsyncdir = self.alert_parser(req, logfile,
@@ -194,11 +212,11 @@ class Worker(HsRSyncFiles):
             rsyncdir = None
 
         if rsyncdir is not None:
-            msgtype = HsMessage.MESSAGE_DONE
+            msgtype = HsMessage.DONE
         else:
-            msgtype = HsMessage.MESSAGE_FAILED
+            msgtype = HsMessage.FAILED
 
-        update_status(rsyncdir, destdir, msgtype, use_ticks=True)
+        update_status(rsyncdir, destdir, msgtype)
 
     def receive_request(self, sock):
         req_dict = sock.recv_json()
@@ -260,7 +278,7 @@ if __name__ == '__main__':
         signal.signal(signal.SIGTERM, worker.handler)
 
         logfile = worker.init_logging(args.logfile, basename="hsworker",
-                                      basehost="testhub")
+                                      basehost=worker.shorthost)
 
         logging.info("this Worker runs on: %s", worker.shorthost)
 
@@ -272,8 +290,9 @@ if __name__ == '__main__':
             except KeyboardInterrupt:
                 logging.warning("Interruption received, shutting down...")
                 raise SystemExit(0)
-            except zmq.ZMQError:
-                logging.exception("ZMQ error received, shutting down...")
+            except zmq.ZMQError, zex:
+                if str(zex).find("Socket operation on non-socket") < 0:
+                    logging.exception("ZMQ error received, shutting down...")
                 raise SystemExit(1)
             except:
                 logging.exception("Caught exception, continuing")

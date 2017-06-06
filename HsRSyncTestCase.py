@@ -107,6 +107,8 @@ class HsRSyncTestCase(LoggingTestCase):
 
         tstrun.run(start_ticks, stop_ticks)
 
+        hsr.validate()
+
     def test_bad_alert_range(self):
         # create the worker object
         hsr = self.wrapped_object
@@ -134,6 +136,8 @@ class HsRSyncTestCase(LoggingTestCase):
                               " Abort request.")
 
         tstrun.run(start_ticks, stop_ticks)
+
+        hsr.validate()
 
     def test_partial_current_front(self):
         # create the worker object
@@ -177,6 +181,8 @@ class HsRSyncTestCase(LoggingTestCase):
 
         tstrun.run(start_ticks, stop_ticks)
 
+        hsr.validate()
+
     def test_between_runs(self):
         # create the worker object
         hsr = self.wrapped_object
@@ -218,6 +224,8 @@ class HsRSyncTestCase(LoggingTestCase):
             hsr.i3socket.addDebugEMail(hsr.shorthost)
 
         tstrun.run(start_ticks, stop_ticks)
+
+        hsr.validate()
 
     def test_partial_last_front(self):
         # create the worker object
@@ -261,6 +269,8 @@ class HsRSyncTestCase(LoggingTestCase):
 
         tstrun.run(start_ticks, stop_ticks)
 
+        hsr.validate()
+
     def test_partial_last_end(self):
         # create the worker object
         hsr = self.wrapped_object
@@ -303,6 +313,8 @@ class HsRSyncTestCase(LoggingTestCase):
 
         tstrun.run(start_ticks, stop_ticks)
 
+        hsr.validate()
+
     def test_span_time_gap(self):
         # create the worker object
         hsr = self.wrapped_object
@@ -344,6 +356,8 @@ class HsRSyncTestCase(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         tstrun.run(start_ticks, stop_ticks)
+
+        hsr.validate()
 
     def test_span_link_fail(self):
         # create the worker object
@@ -393,6 +407,8 @@ class HsRSyncTestCase(LoggingTestCase):
 
         tstrun.run(start_ticks, stop_ticks)
 
+        hsr.validate()
+
     def test_before_last_start(self):
         # create the worker object
         hsr = self.wrapped_object
@@ -435,6 +451,8 @@ class HsRSyncTestCase(LoggingTestCase):
 
         tstrun.run(start_ticks, stop_ticks)
 
+        hsr.validate()
+
     def test_case5(self):
         # create the worker object
         hsr = self.wrapped_object
@@ -476,6 +494,8 @@ class HsRSyncTestCase(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         tstrun.run(start_ticks, stop_ticks)
+
+        hsr.validate()
 
     def test_case5_link_fail(self):
         # create the worker object
@@ -526,6 +546,8 @@ class HsRSyncTestCase(LoggingTestCase):
 
         tstrun.run(start_ticks, stop_ticks)
 
+        hsr.validate()
+
     def test_alert_in_future(self):
         # create the worker object
         hsr = self.wrapped_object
@@ -567,6 +589,8 @@ class HsRSyncTestCase(LoggingTestCase):
             hsr.i3socket.addDebugEMail(hsr.shorthost)
 
         tstrun.run(start_ticks, stop_ticks)
+
+        hsr.validate()
 
     def test_penultimate(self):
         # create the worker object
@@ -610,6 +634,8 @@ class HsRSyncTestCase(LoggingTestCase):
 
         tstrun.run(start_ticks, stop_ticks)
 
+        hsr.validate()
+
     def test_works(self):
         # create the worker object
         hsr = self.wrapped_object
@@ -651,6 +677,8 @@ class HsRSyncTestCase(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         tstrun.run(start_ticks, stop_ticks)
+
+        hsr.validate()
 
     def test_extract(self):
         # create the worker object
@@ -698,6 +726,8 @@ class HsRSyncTestCase(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         tstrun.run(start_ticks, stop_ticks, extract_hits=True)
+
+        hsr.validate()
 
     def test_extract_fail(self):
         # create the worker object
@@ -747,3 +777,5 @@ class HsRSyncTestCase(LoggingTestCase):
                                   destdir=destdir)
 
         tstrun.run(start_ticks, stop_ticks, extract_hits=True)
+
+        hsr.validate()

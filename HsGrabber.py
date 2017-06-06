@@ -44,6 +44,9 @@ def add_arguments(parser):
     parser.add_argument("-e", "--end", dest="end_time",
                         help="Ending UTC time (YYYY-mm-dd HH:MM:SS[.us])"
                         " or SnDAQ timestamp (ns from start of year)")
+    parser.add_argument("-h", "--hub", dest="hub", action="append",
+                        help="Name of one or more hubs which should respond"
+                        " to this request")
     parser.add_argument("-i", "--request-id", dest="request_id",
                         help="Unique ID used to track this request")
     parser.add_argument("-l", "--logfile", dest="logfile",
@@ -171,7 +174,7 @@ class HsGrabber(HsBase):
         return self.__sender
 
     def send_alert(self, start_time, stop_time, destdir, request_id=None,
-                   username=None, prefix=None, extract_hits=False,
+                   username=None, prefix=None, extract_hits=False, hubs=None,
                    print_to_console=False):
         '''
         Send request to Sender and wait for response
@@ -215,7 +218,7 @@ class HsGrabber(HsBase):
         try:
             if not HsMessage.send_initial(self.__sender, None, start_time,
                                           stop_time, destdir, prefix=prefix,
-                                          extract_hits=extract_hits,
+                                          extract_hits=extract_hits, hubs=hubs,
                                           host=self.shorthost, username=None):
                 print_log.error("Initial message was not sent!")
             else:
@@ -227,10 +230,14 @@ class HsGrabber(HsBase):
         return True
 
     def send_old_alert(self, start_time, stop_time, destdir, request_id=None,
-                       username=None, prefix=None, extract_hits=False):
+                       username=None, prefix=None, extract_hits=False,
+                       hubs=None):
         '''
         Send request to Publisher and wait for response
         '''
+
+        if hubs is not None:
+            raise HsException("'hubs' parameter is not used for old alers")
 
         print_log = logging
 
@@ -402,9 +409,10 @@ if __name__ == "__main__":
         start_time = None
         stop_time = None
 
-        p = argparse.ArgumentParser(epilog="HsGrabber reads UTC timestamps or"
-                                    " SNDAQ timestamps and sends SNDAQ"
-                                    " timestamps to HsPublisher.")
+        p = argparse.ArgumentParser(epilog="HsGrabber submits a request to"
+                                    "the HitSpool system", add_help=False)
+        p.add_argument("-?", "--help", action="help",
+                       help="show this help message and exit")
 
         add_arguments(p)
 
@@ -435,7 +443,7 @@ if __name__ == "__main__":
             elif args.duration is not None:
                 try:
                     dur = getDurationFromString(args.duration)
-                    stop_time = DAQTime(start_time.ticks + (dur * 1E10),
+                    stop_time = DAQTime(int(start_time.ticks + (dur * 1E10)),
                                         is_ns=False)
                 except ValueError:
                     print >>sys.stderr, "Invalid duration \"%s\"" % \
@@ -454,12 +462,20 @@ if __name__ == "__main__":
 
         hsg.init_logging(args.logfile, level=logging.INFO)
 
+        # build 'hubs' string from arguments
+        if args.hub is None or len(args.hub) == 0:
+            hubs = None
+        else:
+            hubs = ",".join(args.hub)
+
         logging.info("This HsGrabber runs on: %s", hsg.fullhost)
 
         print "Request start: %s (%d ns)" % \
             (start_time.utc, start_time.ticks / 10)
         print "Request end: %s (%d ns)" % \
             (stop_time.utc, stop_time.ticks / 10)
+        if hubs is not None:
+            print "Hubs: %s" % (hubs, )
 
         # make sure rsync destination is fully specified
         (user, host, path) = hsg.split_rsync_path(args.copydir)
@@ -468,7 +484,7 @@ if __name__ == "__main__":
         if not hsg.send_alert(start_time, stop_time, destdir,
                               request_id=args.request_id,
                               username=args.username, prefix=args.prefix,
-                              extract_hits=args.extract,
+                              extract_hits=args.extract, hubs=hubs,
                               print_to_console=True):
             raise SystemExit(1)
 

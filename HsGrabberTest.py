@@ -17,23 +17,39 @@ from LoggingTestCase import LoggingTestCase
 
 class MyGrabber(HsGrabber.HsGrabber):
     def __init__(self):
+        self.__poller = None
+        self.__publisher = None
+        self.__sender = None
+
         super(MyGrabber, self).__init__()
 
     def create_poller(self, sockets):
-        return HsTestUtil.Mock0MQPoller("Poller")
+        if self.__poller is not None:
+            raise Exception("Cannot create multiple poller sockets")
+
+        self.__poller = HsTestUtil.Mock0MQPoller("Poller")
+        return self.__poller
 
     def create_publisher(self, host):
-        return HsTestUtil.Mock0MQSocket("Publisher")
+        if self.__publisher is not None:
+            raise Exception("Cannot create multiple publisher sockets")
+
+        self.__publisher = HsTestUtil.Mock0MQSocket("Publisher")
+        return self.__publisher
 
     def create_sender(self, host):
-        return HsTestUtil.Mock0MQSocket("Sender")
+        if self.__sender is not None:
+            raise Exception("Cannot create multiple sender sockets")
+
+        self.__sender = HsTestUtil.Mock0MQSocket("Sender")
+        return self.__sender
 
     def validate(self):
         self.close_all()
-        val = self.publisher.validate()
-        val = self.sender.validate()
-        val |= self.poller.validate()
-        return val
+
+        for sock in (self.__publisher, self.__sender, self.__poller):
+            if sock is not None:
+                sock.validate()
 
 
 class HsGrabberTest(LoggingTestCase):
@@ -90,12 +106,13 @@ class HsGrabberTest(LoggingTestCase):
             "destination_dir": copydir,
             "prefix": HsPrefix.ANON,
             "request_id": self.MATCH_ANY,
-            "msgtype": HsMessage.MESSAGE_INITIAL,
+            "msgtype": HsMessage.INITIAL,
             "version": HsMessage.DEFAULT_VERSION,
             "username": getpass.getuser(),
             "host": self.MATCH_ANY,
             "extract": False,
             "copy_dir": None,
+            "hubs": None,
         }
         hsg.sender.addExpected(expected)
 
@@ -186,12 +203,13 @@ class HsGrabberTest(LoggingTestCase):
             "destination_dir": copydir,
             "prefix": HsPrefix.ANON,
             "request_id": self.MATCH_ANY,
-            "msgtype": HsMessage.MESSAGE_INITIAL,
+            "msgtype": HsMessage.INITIAL,
             "version": HsMessage.DEFAULT_VERSION,
             "username": getpass.getuser(),
             "host": self.MATCH_ANY,
             "extract": False,
             "copy_dir": None,
+            "hubs": None,
         }
         hsg.sender.addExpected(expected)
         hsg.sender.addIncoming("DONE\0")

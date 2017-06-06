@@ -151,19 +151,35 @@ class Request(object):
     def __init__(self, env, succeed, start_time, stop_time, expected_hubs,
                  expected_files=None, request_id=None, username=None,
                  prefix=None, copydir=None, extract=False, send_old=False,
-                 number=None):
-        # if no request number was specified, get the next available
-        if number is not None:
-            self.__number = number
-        else:
-            self.__number = self.get_next_number()
-
+                 number=None, ignored=None):
+        # check parameters
         if not isinstance(start_time, DAQTime):
             raise TypeError("Start time %s is <%s>, not <DAQTime>" %
                             (start_time, type(start_time)))
         if not isinstance(stop_time, DAQTime):
             raise TypeError("Stop time %s is <%s>, not <DAQTime>" %
                             (stop_time, type(stop_time)))
+
+        # if present, validate list of ignored hubs
+        if ignored is not None:
+            # ensure 'ignored' is a list/tuple
+            if isinstance(ignored, str):
+                ignored = (ignored, )
+            for hub in ignored:
+                try:
+                    expected_hubs.index(hub)
+                except:
+                    raise TypeError("Cannot ignore unknown host \"%s\""
+                                    " (known hosts are %s)" %
+                                    (hub, expected_hubs))
+            if send_old:
+                raise TypeError("Cannot send old request with ignored hubs")
+
+        # if no request number was specified, get the next available
+        if number is not None:
+            self.__number = number
+        else:
+            self.__number = self.get_next_number()
 
         self.__start_time = start_time
         self.__stop_time = stop_time
@@ -193,6 +209,7 @@ class Request(object):
         self.__extract = extract
         self.__send_old = send_old
         self.__spadequeue = env.spadequeue
+        self.__ignored = ignored
 
     def __str__(self):
         secs = (self.__stop_time.ticks - self.__start_time.ticks) / 1E10
@@ -341,19 +358,19 @@ class Request(object):
         if directory is None:
             directory = self.__spadequeue
 
-        tarname = None
-        semname = None
+        tarfiles = []
+        semfiles = []
         extralist = []
         for entry in os.listdir(directory):
             if HsSender.WRITE_META_XML:
-                if entry.endswith(HsSender.META_SUFFIX) and semname is None:
-                    semname = entry
+                if entry.endswith(HsSender.META_SUFFIX):
+                    semfiles.append(entry)
                     continue
-            elif entry.endswith(HsSender.SEM_SUFFIX) and semname is None:
-                    semname = entry
-                    continue
-            if entry.endswith(HsSender.TAR_SUFFIX) > 0 and tarname is None:
-                tarname = entry
+            elif entry.endswith(HsSender.SEM_SUFFIX):
+                semfiles.append(entry)
+                continue
+            if entry.endswith(HsSender.TAR_SUFFIX):
+                tarfiles.append(entry)
                 continue
 
             extralist.append(entry)
@@ -361,27 +378,44 @@ class Request(object):
         if len(extralist) > 0:
             raise HsException("Found extra files in SPADE queue %s: %s" %
                               (directory, extralist))
-        if semname is None:
-            if tarname is None:
+        if len(semfiles) == 0:
+            if len(tarfiles) == 0:
                 raise HsException("No files found in SPADE queue")
-            raise HsException("Found tar file %s without semaphore file" %
-                              tarname)
-        elif tarname is None:
-            raise HsException("Found semaphore %s without tar file" %
-                              semname)
+            raise HsException("Found tar file(s) %s without semaphore file" %
+                              (tarfiles, ))
+        elif len(tarfiles) == 0:
+            raise HsException("Found semaphore(s) %s without tar file" %
+                              (semfiles, ))
 
-        tarpath = os.path.join(directory, tarname)
-        sempath = os.path.join(directory, semname)
+        for tarname in tarfiles:
+            # not strictly necessary, but never hurts to be paranoid in tests
+            if not tarname.endswith(HsSender.TAR_SUFFIX):
+                raise HsException("Weird, tar name \"%s\" doesn't end with"
+                                  " \"%s\"" % (tarname, HsSender.TAR_SUFFIX))
 
-        try:
-            self.__check_spadetar(tarpath, quiet=quiet)
-            if HsSender.WRITE_META_XML:
-                self.__check_spademeta(sempath, quiet=quiet)
-        finally:
-            if os.path.exists(tarpath):
-                os.unlink(tarpath)
-            if os.path.exists(sempath):
-                os.unlink(sempath)
+            # find corresponding semaphore file
+            basename = tarname[:-len(HsSender.TAR_SUFFIX)]
+            semname = None
+            for sem in semfiles:
+                if sem.startswith(basename):
+                    semname = sem
+                    break
+            if semname is None:
+                raise HsException("No semaphore file found for \"%s\"" %
+                                  (tarname, ))
+
+            tarpath = os.path.join(directory, tarname)
+            sempath = os.path.join(directory, semname)
+
+            try:
+                self.__check_spadetar(tarpath, quiet=quiet)
+                if HsSender.WRITE_META_XML:
+                    self.__check_spademeta(sempath, quiet=quiet)
+            finally:
+                if os.path.exists(tarpath):
+                    os.unlink(tarpath)
+                if os.path.exists(sempath):
+                    os.unlink(sempath)
 
     def __check_spadetar(self, tarpath, quiet=False):
         try:
@@ -447,9 +481,21 @@ class Request(object):
         else:
             send_method = requester.send_alert
 
+        # if one or more hubs are ignored, build a list of desired hubs
+        hubs = None
+        if self.__ignored is not None:
+            for hub in self.__expected_hubs:
+                if hub in self.__ignored:
+                    continue
+                if hubs is None:
+                    hubs = hub
+                else:
+                    hubs += "," + hub
+
         return send_method(self.__start_time, self.__stop_time, self.__copydir,
                            request_id=self.__req_id, username=self.__username,
-                           prefix=self.__prefix, extract_hits=self.__extract)
+                           prefix=self.__prefix, extract_hits=self.__extract,
+                           hubs=hubs)
 
     def set_number(self, number):
         self.__number = number
@@ -648,6 +694,7 @@ class Processor(object):
 
     def __process_responses(self, request, destination, quiet=False):
         saw_error = False
+        #print "### saw_error %s" % (saw_error, )
         while True:
             if quiet:
                 self.__twirly.print_next()
@@ -673,6 +720,7 @@ class Processor(object):
 
             if rawmsg["service"] == "hitspool" and \
                rawmsg["varname"].startswith("hsrequest_info"):
+                #print "~~~ rawmsg %s" % str(rawmsg)
                 runstatus = self.__process_status(rawmsg["value"],
                                                   request.should_succeed,
                                                   quiet=quiet)
@@ -686,11 +734,14 @@ class Processor(object):
                         logging.error("Could not validate %s" % request,
                                       exc_info=True)
                         rtnval = False
+
+                    #print "!!! rtnval %s saw_error %s" % (rtnval, saw_error)
                     return rtnval and not saw_error
 
                 # any status other than None indicates an error
                 if runstatus is not None:
                     saw_error = True
+                    #print "!!! runstatus %s -> saw_error %s" % (runstatus, saw_error)
 
                 # keep looking
                 continue
@@ -837,9 +888,6 @@ if __name__ == "__main__":
 
 
     def build_requests(env, hubs, first_ticks=None):
-        if len(hubs) != 1:
-            raise HsException("Expected 1 hub, not %d" % len(hubs))
-
         if first_ticks is None:
             first_ticks = 123450067960246236L
             # this should be extracted from the file, not hard-coded!
@@ -906,6 +954,9 @@ if __name__ == "__main__":
                 Request(env, True, third_start_time, third_stop_time, hubs,
                         number="???"),
             ),
+            Request(env, True, start_time, stop_time, hubs,
+                    prefix=HsPrefix.SNALERT, copydir=env.copydst,
+                    ignored=hubs[1]),
         )
 
     def find_open_requests():
@@ -928,7 +979,7 @@ if __name__ == "__main__":
                           action="store_true", default=False,
                           help="Print the absolute minimum")
         argp.add_argument("-r", "--request", dest="request_list",
-                          type=int, nargs="*",
+                          type=int, action="append",
                           help="List of specific requests to run")
 
         args = argp.parse_args()
@@ -938,8 +989,8 @@ if __name__ == "__main__":
             logging.disable(logging.CRITICAL)
 
         env = HsEnvironment(ROOTDIR)
-        hubs = ("ichub01", )
-        requests = build_requests(env, ("ichub01", ))
+        hubs = ("ichub01", "ithub11", "ichub82")
+        requests = build_requests(env, hubs)
 
         if args.request_list is not None and len(args.request_list) > 0:
             # extract only the selected requests
@@ -954,7 +1005,8 @@ if __name__ == "__main__":
                         found = req
                         break
                 if found is None:
-                    raise SystemExit("Unknown request #%d" % num)
+                    raise SystemExit("Unknown request #%d (of %d requests)" %
+                                     (num, len(requests)))
                 newlist.append(found)
                 prev = num
 
@@ -965,12 +1017,7 @@ if __name__ == "__main__":
         with run_and_terminate(("python", "HsPublisher.py",
                                 "-l", "/tmp/publish.log",
                                 "-T")):
-            with run_and_terminate(("python", "HsWorker.py",
-                                    "-l", "/tmp/worker.log",
-                                    "-C", env.copysrc,
-                                    "-H", hubs[0],
-                                    "-R", env.hubroot,
-                                    "-T")):
+            with run_hubs_and_terminate(hubs, env):
                 with run_and_terminate(("python", "HsSender.py",
                                         "-l", "/tmp/sender.log",
                                         "-F",
@@ -1048,6 +1095,33 @@ if __name__ == "__main__":
             if p is not None:
                 p.terminate() # send sigterm, or ...
                 p.kill()      # send sigkill
+
+    @contextmanager
+    def run_hubs_and_terminate(hubs, env):
+        hproc = {}
+        try:
+            for hub in hubs:
+                hproc[hub] = subprocess.Popen(("python", "HsWorker.py",
+                                               "-l", "/tmp/%s.log" % hub,
+                                               "-C", env.copysrc,
+                                               "-H", hub,
+                                               "-R", env.hubroot,
+                                               "-T"))
+            yield hproc
+        finally:
+            failed = None
+            for hub, proc in hproc.iteritems():
+                try:
+                    proc.terminate() # send sigterm, or ...
+                    proc.kill()      # send sigkill
+                except:
+                    if failed is None:
+                        failed = [hub, ]
+                    else:
+                        failed.append(hub)
+            if failed is not None:
+                raise HsException("Failed to stop " + ", ".join(failed))
+
 
     if not main():
         raise SystemExit(1)

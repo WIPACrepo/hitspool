@@ -1,0 +1,472 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Schema for full Directory Interchange Format (DIF), plus IceCube-specific metadata additions. -->
+<!-- $Id: IceCubeDIFPlus.xsd,v 1.28 2010/01/28 21:19:57 mackenzie Exp $ -->
+<!-- If no minOccurs or maxOccurs attribute, assumption is "1" in each case. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+    <xs:element name="DIF_Plus">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="DIF"/>
+                <xs:element ref="Plus"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Access_Constraints" type="string_unbounded"/>
+    <xs:element name="Address" type="string_1_80"/>
+    <xs:element name="Altitude_Resolution" type="string_1_80"/>
+    <xs:element name="Author" type="string_1_80"/>
+    <xs:element name="Caption" type="string_1_80"/>
+    <xs:element name="City" type="string_1_80"/>
+    <xs:element name="Contact_Address">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="Address" minOccurs="0"/>
+                <xs:element ref="City" minOccurs="0"/>
+                <xs:element ref="Province_Or_State" minOccurs="0"/>
+                <xs:element ref="Postal_Code" minOccurs="0"/>
+                <xs:element ref="Country" minOccurs="0"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Country" type="string_1_80"/>
+    <xs:element name="DIF_Creation_Date" type="xs:date"/>
+    <xs:element name="DIF_Revision_History" type="string_unbounded"/>
+    <xs:element name="Data_Center">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="Data_Center_Name"/>
+                <xs:element ref="Data_Center_URL" minOccurs="0"/>
+                <xs:element ref="Data_Set_ID" minOccurs="0"/>
+                <xs:element ref="Personnel"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Data_Center_Name" type="valid_Data_Center_Name"/>
+    <xs:element name="Data_Center_URL" type="string_1_160"/>
+    <xs:element name="Data_Presentation_Form" type="string_1_80"/>
+    <xs:element name="Data_Resolution">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="Latitude_Resolution" minOccurs="0"/>
+                <xs:element ref="Longitude_Resolution" minOccurs="0"/>
+                <xs:element ref="Altitude_Resolution" minOccurs="0"/>
+                <xs:element ref="Depth_Resolution" minOccurs="0"/>
+                <xs:element ref="Temporal_Resolution" minOccurs="0"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Data_Set_Citation">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="Dataset_Creator" minOccurs="0"/>
+                <xs:element ref="Dataset_Title" minOccurs="0"/>
+                <xs:element ref="Dataset_Series_Name" minOccurs="0"/>
+                <xs:element ref="Dataset_Release_Date" minOccurs="0"/>
+                <xs:element ref="Dataset_Release_Place" minOccurs="0"/>
+                <xs:element ref="Dataset_Publisher" minOccurs="0"/>
+                <xs:element ref="Version" minOccurs="0"/>
+                <xs:element ref="Issue_Identification" minOccurs="0"/>
+                <xs:element ref="Data_Presentation_Form" minOccurs="0"/>
+                <xs:element ref="Other_Citation_Details" minOccurs="0"/>
+                <xs:element ref="Online_Resource" minOccurs="0"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Data_Set_ID" type="string_1_160"/>
+    <xs:element name="Data_Set_Language" type="string_1_80"/>
+    <xs:element name="Data_Set_Progress" type="valid_Data_Set_Progress"/>
+    <xs:element name="Dataset_Creator" type="string_1_160"/>
+    <xs:element name="Dataset_Publisher" type="string_1_80"/>
+    <xs:element name="Dataset_Release_Date" type="string_1_80"/>
+    <xs:element name="Dataset_Release_Place" type="string_1_80"/>
+    <xs:element name="Dataset_Series_Name" type="string_1_80"/>
+    <xs:element name="Dataset_Title" type="string_1_160"/>
+    <xs:element name="Depth_Resolution" type="string_1_80"/>
+    <xs:element name="Description" type="string_unbounded"/>
+    <xs:element name="DIF">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="Entry_ID"/>
+                <xs:element ref="Entry_Title"/>
+                <xs:element ref="Parameters" maxOccurs="unbounded"/>
+                <xs:element ref="ISO_Topic_Category"/>
+                <xs:element ref="Data_Center" maxOccurs="unbounded"/>
+                <xs:element ref="Summary"/>
+                <xs:element ref="Metadata_Name"/>
+                <xs:element ref="Metadata_Version"/>
+                <xs:element ref="Personnel" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element ref="Data_Set_Citation" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element ref="Sensor_Name"/>
+                <xs:element ref="Source_Name"/>
+                <xs:element ref="Temporal_Coverage" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element ref="Data_Set_Progress" minOccurs="0"/>
+                <xs:element ref="Spatial_Coverage" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element ref="Location" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element ref="Data_Resolution" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element ref="Project" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element ref="Keyword" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element ref="Quality" minOccurs="0"/>
+                <xs:element ref="Access_Constraints" minOccurs="0"/>
+                <xs:element ref="Use_Constraints" minOccurs="0"/>
+                <xs:element ref="Data_Set_Language" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element ref="Originating_Center" minOccurs="0"/>
+                <xs:element ref="Distribution" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element ref="Multimedia_Sample" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element ref="Reference" minOccurs="0"/>
+                <xs:element ref="Discipline" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element ref="Related_URL" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element ref="Parent_DIF" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element ref="IDN_Node" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element ref="DIF_Creation_Date"/>
+                <xs:element ref="Last_DIF_Revision_Date" minOccurs="0"/>
+                <xs:element ref="DIF_Revision_History" minOccurs="0"/>
+                <xs:element ref="Future_DIF_Review_Date" minOccurs="0"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Discipline" type="valid_Discipline"/>
+    <xs:element name="Distribution">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="Distribution_Media" minOccurs="0"/>
+                <xs:element ref="Distribution_Size" minOccurs="0"/>
+                <xs:element ref="Distribution_Format" minOccurs="0"/>
+                <xs:element ref="Fees" minOccurs="0"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Distribution_Format" type="string_1_80"/>
+    <xs:element name="Distribution_Media" type="string_1_80"/>
+    <xs:element name="Distribution_Size" type="string_1_80"/>
+    <xs:element name="Easternmost_Longitude" type="string_1_31"/>
+    <xs:element name="Email" type="string_1_80"/>
+    <xs:element name="Entry_ID" type="string_1_80"/>
+    <xs:element name="Entry_Title" type="string_1_160"/>
+    <xs:element name="Fax" type="string_1_80"/>
+    <xs:element name="Fees" type="string_1_80"/>
+    <xs:element name="File" type="string_1_80"/>
+    <xs:element name="First_Name" type="string_1_80"/>
+    <xs:element name="Format" type="string_1_80"/>
+    <xs:element name="Future_DIF_Review_Date" type="xs:date"/>
+    <xs:element name="IDN_Node">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="Short_Name"/>
+                <xs:element ref="Long_Name" minOccurs="0"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="ISO_Topic_Category" type="string_1_80"/>
+    <xs:element name="Issue_Identification" type="string_1_80"/>
+    <xs:element name="Keyword" type="string_1_160"/>
+    <xs:element name="Last_DIF_Revision_Date" type="xs:date"/>
+    <xs:element name="Last_Name" type="string_1_80"/>
+    <xs:element name="Latitude_Resolution" type="string_1_80"/>
+    <xs:element name="Location" type="valid_Location"/>
+    <xs:element name="Long_Name" type="string_1_160"/>
+    <xs:element name="Longitude_Resolution" type="string_1_80"/>
+    <xs:element name="Maximum_Altitude" type="string_1_80"/>
+    <xs:element name="Maximum_Depth" type="string_1_80"/>
+    <xs:element name="Metadata_Name" type="string_1_80"/>
+    <xs:element name="Metadata_Version" type="string_1_80"/>
+    <xs:element name="Middle_Name" type="string_1_80"/>
+    <xs:element name="Minimum_Altitude" type="string_1_80"/>
+    <xs:element name="Minimum_Depth" type="string_1_80"/>
+    <xs:element name="Multimedia_Sample">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="File" minOccurs="0"/>
+                <xs:element ref="URL"/>
+                <xs:element ref="Format" minOccurs="0"/>
+                <xs:element ref="Caption" minOccurs="0"/>
+                <xs:element ref="Description" minOccurs="0"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Northernmost_Latitude" type="string_1_31"/>
+    <xs:element name="Online_Resource" type="string_1_80"/>
+    <xs:element name="Originating_Center" type="string_1_80"/>
+    <xs:element name="Originating_Metadata_Node" type="string_1_80"/>
+    <xs:element name="Other_Citation_Details" type="string_1_80"/>
+    <xs:element name="Parameters" type="valid_Parameters"/>
+    <xs:element name="Parent_DIF">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="Entry_ID"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Personnel">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="Role" maxOccurs="unbounded"/>
+                <xs:element ref="First_Name" minOccurs="0"/>
+                <xs:element ref="Middle_Name" minOccurs="0"/>
+                <xs:element ref="Last_Name" minOccurs="0"/>
+                <xs:element ref="Email" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element ref="Phone" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element ref="Fax" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element ref="Contact_Address" minOccurs="0"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Phone" type="string_1_80"/>
+    <xs:element name="Plus">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="Start_DateTime" type="xs:dateTime" minOccurs="0"/>
+                <xs:element name="End_DateTime" type="xs:dateTime"/>
+                <xs:element name="Category" type="valid_Category"/>
+                <xs:element name="Subcategory" type="identifier_1_80"/>
+                <xs:element name="Registry_Key" type="xs:positiveInteger" minOccurs="0"/>
+                <xs:choice>
+                    <xs:group ref="Plus_unbounded" maxOccurs="unbounded" minOccurs="0"/>
+                </xs:choice>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:group name="Plus_unbounded">
+        <xs:sequence>
+            <xs:choice>
+                <xs:element name="Run_Number" type="xs:nonNegativeInteger" minOccurs="0"/>
+                <xs:element name="SubRun_Number" type="xs:nonNegativeInteger" minOccurs="0"/>
+                <xs:element name="First_Event" type="string_1_80" minOccurs="0"/>
+                <xs:element name="Last_Event" type="string_1_80" minOccurs="0"/>
+                <xs:element name="I3Db_Key" type="string_1_80" minOccurs="0"/>
+                <xs:element name="SimDb_Key" type="string_1_80" minOccurs="0"/>
+                <xs:element name="Steering_File" type="string_1_160" minOccurs="0"/>
+                <xs:element name="Log_File" type="string_1_160" minOccurs="0"/>
+                <xs:element name="Command_Line" type="string_1_360" minOccurs="0"/>
+                <xs:element name="Project" minOccurs="0">
+                    <xs:complexType>
+                        <xs:all>
+                            <xs:element name="Name" type="string_1_80"/>
+                            <xs:element name="Version" type="string_1_80" minOccurs="0"/>
+                            <xs:element name="Host" type="string_1_80" minOccurs="0"/>
+                            <xs:element name="DateTime" type="string_1_80" minOccurs="0"/>
+                            <xs:element name="OS" type="string_1_80" minOccurs="0"/>
+                            <xs:element name="Compiler" type="string_1_80" minOccurs="0"/>
+                        </xs:all>
+                    </xs:complexType>
+                </xs:element>
+            </xs:choice>
+        </xs:sequence>
+    </xs:group>
+    <xs:element name="Postal_Code" type="string_1_80"/>
+    <xs:element name="Project" type="valid_Project"/>
+    <xs:element name="Province_Or_State" type="string_1_80"/>
+    <xs:element name="Quality" type="string_unbounded"/>
+    <xs:element name="Reference" type="string_unbounded"/>
+    <xs:element name="Related_URL">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="URL_Content_Type" minOccurs="0"/>
+                <xs:element ref="URL" maxOccurs="unbounded"/>
+                <xs:element ref="Description" minOccurs="0"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Role" type="valid_Role"/>
+    <xs:element name="Sensor_Name" type="valid_Sensor_Name"/>
+    <xs:element name="Short_Name" type="string_1_31"/>
+    <xs:element name="Source_Name" type="valid_Source_Name"/>
+    <xs:element name="Southernmost_Latitude" type="string_1_31"/>
+    <xs:element name="Spatial_Coverage">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="Southernmost_Latitude" minOccurs="0"/>
+                <xs:element ref="Northernmost_Latitude" minOccurs="0"/>
+                <xs:element ref="Westernmost_Longitude" minOccurs="0"/>
+                <xs:element ref="Easternmost_Longitude" minOccurs="0"/>
+                <xs:element ref="Minimum_Altitude" minOccurs="0"/>
+                <xs:element ref="Maximum_Altitude" minOccurs="0"/>
+                <xs:element ref="Minimum_Depth" minOccurs="0"/>
+                <xs:element ref="Maximum_Depth" minOccurs="0"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Start_Date" type="xs:date"/>
+    <xs:element name="Stop_Date" type="xs:date"/>
+    <xs:element name="Summary" type="string_unbounded"/>
+    <xs:element name="Temporal_Coverage">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="Start_Date" minOccurs="0"/>
+                <xs:element ref="Stop_Date" minOccurs="0"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="Temporal_Resolution" type="string_1_80"/>
+    <xs:element name="URL" type="string_1_160"/>
+    <xs:element name="URL_Content_Type" type="string_1_80"/>
+    <xs:element name="Use_Constraints" type="string_unbounded"/>
+    <xs:element name="Version" type="string_1_80"/>
+    <xs:element name="Westernmost_Longitude" type="string_1_31"/>
+    <!-- Definitions for string types -->
+    <xs:simpleType name="identifier_1_80">
+        <xs:restriction base="xs:string">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="80"/>
+            <xs:pattern value="[a-zA-Z][a-zA-Z0-9_\-\.]*"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="string_1_31">
+        <xs:restriction base="xs:string">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="31"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="string_1_80">
+        <xs:restriction base="xs:string">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="80"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="string_1_160">
+        <xs:restriction base="xs:string">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="160"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="string_1_360">
+        <xs:restriction base="xs:string">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="360"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="string_unbounded">
+        <xs:restriction base="xs:string">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="100000"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <!-- "Valids lists" for restricted fields -->
+    <xs:simpleType name="valid_Category">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="calibration"/>
+            <xs:enumeration value="cascades"/>
+            <xs:enumeration value="FAT"/>
+            <xs:enumeration value="filtered"/>
+            <xs:enumeration value="generated"/>
+            <xs:enumeration value="GRB"/>
+            <xs:enumeration value="high-energy"/>
+            <xs:enumeration value="hole"/>
+            <xs:enumeration value="internal-system"/>
+            <xs:enumeration value="minbias"/>
+            <xs:enumeration value="monitoring"/>
+            <xs:enumeration value="propagated"/>
+            <xs:enumeration value="TestDAQ"/>
+            <xs:enumeration value="unbiased"/>
+            <xs:enumeration value="unclassified"/>
+            <xs:enumeration value="upmu"/>
+            <xs:enumeration value="verification"/>
+            <xs:enumeration value="webcam"/>
+            <xs:enumeration value="wimp"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="valid_Data_Center_Name">
+        <xs:restriction base="xs:string">
+            <xs:enumeration
+                    value="UWI-MAD/A3RI > Antarctic Astronomy and Astrophysics Research Institute, University of Wisconsin, Madison"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="valid_Data_Set_Progress">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Planned"/>
+            <xs:enumeration value="In Work"/>
+            <xs:enumeration value="Complete"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="valid_Discipline">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Astrophysics > Particle Astrophysics"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="valid_Location">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Antarctica > South Pole"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="valid_Parameters">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="SPACE SCIENCE > Astrophysics > Neutrinos"/>
+            <xs:enumeration value="SPACE SCIENCE > Astrophysics > Neutrinos > Atmospheric"/>
+            <xs:enumeration value="SPACE SCIENCE > Astrophysics > Neutrinos > Extraterrestrial Point Source"/>
+            <xs:enumeration value="SPACE SCIENCE > Astrophysics > Neutrinos > Gamma Ray Burst"/>
+            <xs:enumeration value="SPACE SCIENCE > Astrophysics > Neutrinos > WIMPS"/>
+            <xs:enumeration value="SPACE SCIENCE > Astrophysics > Neutrinos > Diffuse Source"/>
+            <xs:enumeration value="SPACE SCIENCE > Astrophysics > Neutrinos > Extreme High Energy"/>
+            <xs:enumeration value="SPACE SCIENCE > Astrophysics > Neutrinos > Super Nova"/>
+            <xs:enumeration value="SPACE SCIENCE > Astrophysics > Neutrinos > Cosmic Ray Muon Component"/>
+            <xs:enumeration value="SPACE SCIENCE > Astrophysics > Neutrinos > Tau"/>
+            <xs:enumeration value="SPACE SCIENCE > Astrophysics > Neutrinos > Cascades"/>
+            <xs:enumeration value="SPACE SCIENCE > Astrophysics > Neutrinos > Galactic Plane"/>
+            <xs:enumeration value="SPACE SCIENCE > Astrophysics > Cosmic Rays"/>
+            <xs:enumeration value="SPACE SCIENCE > Astrophysics > Cosmic Rays > Composition"/>
+            <xs:enumeration value="SPACE SCIENCE > Astrophysics > Cosmic Rays > Air Shower"/>
+            <xs:enumeration value="SPACE SCIENCE > Astrophysics > Cosmic Rays > Cosmic Ray Muons"/>
+            <xs:enumeration value="SPACE SCIENCE > Astrophysics > Cosmic Rays > Moon Shadow"/>
+            <xs:enumeration value="SPACE SCIENCE > Engineering > Sensor Characteristics"/>
+            <xs:enumeration value="SPACE SCIENCE > Engineering > Sensor Characteristics > Photomultiplier Tubes"/>
+            <xs:enumeration value="SPACE SCIENCE > Engineering > Sensor Characteristics > Digital Optical Modules"/>
+            <xs:enumeration value="EARTH SCIENCE > Cryosphere > Glaciers/Ice Sheets"/>
+            <xs:enumeration value="EARTH SCIENCE > Cryosphere > Glaciers/Ice Sheets > Hot Water Drilling"/>
+            <xs:enumeration
+                    value="EARTH SCIENCE > Cryosphere > Glaciers/Ice Sheets > Hot Water Drilling > Hole Drilling"/>
+            <xs:enumeration
+                    value="EARTH SCIENCE > Cryosphere > Glaciers/Ice Sheets > Hot Water Drilling > Hole Refreeze"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="valid_Project">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="AMANDA > Antarctic Muon and Neutrino Detector Array"/>
+            <xs:enumeration value="AMANDA-A > Prototype Antarctic Muon and Neutrino Detector Array"/>
+            <xs:enumeration value="ARA > Askaryan Radio Array"/>
+            <xs:enumeration value="AURA > Askaryan Under-ice Radio Array"/>
+            <xs:enumeration value="DM-ICE > DM-Ice"/>
+            <xs:enumeration value="EHWD > Enhanced Hot Water Drill"/>
+            <xs:enumeration value="GASP > Gamma Astronomy-South Pole"/>
+            <xs:enumeration value="ICECUBE > IceCube"/>
+            <xs:enumeration value="ICETOP > IceTop"/>
+            <xs:enumeration value="RICE > Radio Ice Cherenkov Experiment"/>
+            <xs:enumeration value="MET > Meteorology"/>
+            <xs:enumeration value="SPASE-1 > South Pole Air Shower Experiment 1"/>
+            <xs:enumeration value="SPASE-2 > South Pole Air Shower Experiment 2"/>
+            <xs:enumeration value="SPTR > South Pole TDRSS Relay"/>
+            <xs:enumeration value="VULCAN > South Pole Air-Cherenkov Telescope"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="valid_Role">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Data Center Contact"/>
+            <xs:enumeration value="DIF Author"/>
+            <xs:enumeration value="Investigator"/>
+            <xs:enumeration value="Technical Contact"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="valid_Sensor_Name">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="AMANDA > Antarctic Muon and Neutrino Detector Array"/>
+            <xs:enumeration value="AMANDA-A > Prototype Antarctic Muon and Neutrino Detector Array"/>
+            <xs:enumeration value="ARA > Askaryan Radio Array"/>
+            <xs:enumeration value="AURA > Askaryan Under-ice Radio Array"/>
+            <xs:enumeration value="DM-ICE > DM-Ice"/>
+            <xs:enumeration value="EHWD > Enhanced Hot Water Drill"/>
+            <xs:enumeration value="GASP > Gamma Astronomy-South Pole"/>
+            <xs:enumeration value="ICECUBE > IceCube"/>
+            <xs:enumeration value="ICETOP > IceTop"/>
+            <xs:enumeration value="RICE > Radio Ice Cherenkov Experiment"/>
+            <xs:enumeration value="MET > Meteorology"/>
+            <xs:enumeration value="SPASE-1 > South Pole Air Shower Experiment 1"/>
+            <xs:enumeration value="SPASE-2 > South Pole Air Shower Experiment 2"/>
+            <xs:enumeration value="SPTR > South Pole TDRSS Relay"/>
+            <xs:enumeration value="VULCAN > South Pole Air-Cherenkov Telescope"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:simpleType name="valid_Source_Name">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="EXPERIMENTAL > Data with an instrumentation based source"/>
+            <xs:enumeration value="SIMULATION > Data which are numerically generated"/>
+        </xs:restriction>
+    </xs:simpleType>
+</xs:schema>

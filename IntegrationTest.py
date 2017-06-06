@@ -65,10 +65,8 @@ class MockPubSocket(object):
         self.__pubsub.send_to_subs(msg)
 
     def validate(self):
-        rtnval = True
         if not self.__closed:
-            rtnval = False
-        return rtnval
+            raise Exception("Publisher socket was not closed")
 
 
 class MockPubSubSocket(object):
@@ -99,7 +97,7 @@ class MockPubSubSocket(object):
             sub.recv_from_pub(msg)
 
     def validate(self):
-        return True
+        pass
 
 
 class MockPullSocket(HsTestUtil.MockPollableSocket):
@@ -204,21 +202,15 @@ class MockPullSocket(HsTestUtil.MockPollableSocket):
         self.__verbose = True
 
     def validate(self):
-        rtnval = True
         if not self.__closed:
-            import sys
-            print >>sys.stderr, "%s(%s) was not closed" % \
-                (type(self).__name__, self.__name)
-            rtnval = False
+            raise Exception("%s<%s> was not closed" %
+                            (self.__name, type(self).__name__))
         if len(self.__outqueue) > 0:
-            import sys
-            print >>sys.stderr, \
-                "%s(%s) queue contains %s entries (%s)" % \
-                (type(self).__name__, self.__name, len(self.__outqueue),
-                 self.__outqueue)
+            raise Exception("%s<%s> queue contains %s entries (%s)" % \
+                            (self.__name, type(self).__name__,
+                             len(self.__outqueue), self.__outqueue))
         with self.__queueLock:
             self.__queueLock.notify()
-        return rtnval
 
 
 class MockPushPullSocket(object):
@@ -294,13 +286,9 @@ class MockPushSocket(object):
         self.__verbose = (value is True)
 
     def validate(self):
-        rtnval = True
         if not self.__closed:
-            import sys
-            print >>sys.stderr, "%s(%s) was not closed" % \
-                (type(self).__name__, self.__name)
-            rtnval = False
-        return rtnval
+            raise Exception("%s<%s> was not closed" %
+                            (self.__name, type(self).__name__))
 
 
 class MockSubSocket(object):
@@ -333,18 +321,15 @@ class MockSubSocket(object):
                     return self.__outqueue.pop(0)
 
     def validate(self):
-        rtnval = True
         if not self.__closed:
-            rtnval = False
+            raise Exception("%s<%s> was not closed" %
+                            (self.__name, type(self).__name__))
         if len(self.__outqueue) > 0:
-            import sys
-            print >>sys.stderr, \
-                "%s(%s) queue contains %s entries (%s)" % \
-                (type(self).__name__, self.__name, len(self.__outqueue),
-                 self.__outqueue)
+            raise Exception("%s<%s> queue contains %s entries (%s)" %
+                            (self.__name, type(self).__name__,
+                             len(self.__outqueue), self.__outqueue))
         with self.__queueLock:
             self.__queueLock.notify()
-        return rtnval
 
 
 class MyPublisher(HsPublisher.Receiver):
@@ -397,11 +382,9 @@ class MyPublisher(HsPublisher.Receiver):
         self.close_all()
 
     def validate(self):
-        val = True
         for sock in (self.__alert_sock, self.__i3_sock, self.__snd_sock):
             if sock is not None:
-                val |= sock.validate()
-        return val
+                sock.validate()
 
 
 class MySender(HsSender.HsSender):
@@ -441,9 +424,8 @@ class MySender(HsSender.HsSender):
         """
         Check that all expected messages were received by mock sockets
         """
-        val = self.reporter.validate()
-        val |= self.i3socket.validate()
-        return val
+        self.reporter.validate()
+        self.i3socket.validate()
 
 
 class MyWorker(HsWorker.Worker):
@@ -538,17 +520,15 @@ class MyWorker(HsWorker.Worker):
             logfile = "/tmp/%s.log" % self.shorthost
             open(logfile, "w").close()
 
-            self.mainloop(logfile)
+            self.mainloop(logfile, fail_sleep=0.001)
             if not self.__sub_sock.has_input:
                 break
         self.close_all()
 
     def validate(self):
-        val = True
         for sock in (self.__i3_sock, self.__sender_sock, self.__sub_sock):
             if sock is not None:
-                val |= sock.validate()
-        return val
+                sock.validate()
 
 
 class IntegrationTest(LoggingTestCase):
@@ -677,9 +657,10 @@ class IntegrationTest(LoggingTestCase):
             "start_time": start_ticks,
             "stop_time": stop_ticks,
             "destination_dir": destdir,
-            "msgtype": HsMessage.MESSAGE_INITIAL,
+            "msgtype": HsMessage.INITIAL,
             "extract": False,
             "host": "mypublisher",
+            "hubs": None,
             "version": HsMessage.DEFAULT_VERSION,
             "copy_dir": None,
         }
@@ -687,18 +668,18 @@ class IntegrationTest(LoggingTestCase):
 
         for wrk in workers:
             msg_started = msg_initial.copy()
-            msg_started["msgtype"] = HsMessage.MESSAGE_STARTED
+            msg_started["msgtype"] = HsMessage.STARTED
             msg_started["host"] = wrk.shorthost
             sender.reporter.addExpected(msg_started)
 
             msg_working = msg_started.copy()
-            msg_working["msgtype"] = HsMessage.MESSAGE_WORKING
+            msg_working["msgtype"] = HsMessage.WORKING
             sender.reporter.addExpected(msg_working)
             # hard-coded to only expect 2 file transfers
             sender.reporter.addExpected(msg_working)
 
             msg_done = msg_started.copy()
-            msg_done["msgtype"] = HsMessage.MESSAGE_DONE
+            msg_done["msgtype"] = HsMessage.DONE
             msg_done["copy_dir"] = re.compile(os.path.join(destdir, prefix) +
                                               r"_\d+_\d+_" +
                                               wrk.shorthost)
@@ -714,21 +695,22 @@ class IntegrationTest(LoggingTestCase):
             "start_time": start_ticks,
             "stop_time": stop_ticks,
             "destination_dir": destdir,
-            "msgtype": HsMessage.MESSAGE_STARTED,
+            "msgtype": HsMessage.STARTED,
             "extract": False,
             "host": worker.shorthost,
+            "hubs": None,
             "version": HsMessage.DEFAULT_VERSION,
             "copy_dir": None,
         }
         worker.sender.addExpected(msg_started)
 
         msg_working = msg_started.copy()
-        msg_working["msgtype"] = HsMessage.MESSAGE_WORKING
+        msg_working["msgtype"] = HsMessage.WORKING
         worker.sender.addExpected(msg_working)
         worker.sender.addExpected(msg_working)
 
         msg_done = msg_started.copy()
-        msg_done["msgtype"] = HsMessage.MESSAGE_DONE
+        msg_done["msgtype"] = HsMessage.DONE
         # build a copy directory path which substitutes wildcards for date/time
         msg_done["copy_dir"] = re.compile(os.path.join(destdir, prefix) +
                                           r"_\d+_\d+_" +

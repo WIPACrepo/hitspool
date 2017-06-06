@@ -44,12 +44,10 @@ class MyReceiver(HsPublisher.Receiver):
         return self.__sender_sock
 
     def validate(self):
-        val = True
         for sock in (self.__alert_sock, self.__i3_sock, self.__pub_sock,
                      self.__sender_sock):
             if sock is not None:
-                val |= sock.validate()
-        return val
+                sock.validate()
 
 
 class HsPublisherTest(LoggingTestCase):
@@ -411,7 +409,7 @@ class HsPublisherTest(LoggingTestCase):
 
         # build sender status message
         send_msg = {
-            "msgtype": HsMessage.MESSAGE_INITIAL,
+            "msgtype": HsMessage.INITIAL,
             "request_id": self.MATCH_ANY,
             "username": HsPublisher.Receiver.DEFAULT_USERNAME,
             "prefix": HsPrefix.ANON,
@@ -421,6 +419,7 @@ class HsPublisherTest(LoggingTestCase):
             "destination_dir": copydir,
             "extract": False,
             "host": rcvr.shorthost,
+            "hubs": None,
             "version": HsMessage.DEFAULT_VERSION,
         }
 
@@ -462,7 +461,7 @@ class HsPublisherTest(LoggingTestCase):
 
         # fill in defaults for worker request
         send_msg = {
-            "msgtype": HsMessage.MESSAGE_INITIAL,
+            "msgtype": HsMessage.INITIAL,
             "request_id": self.MATCH_ANY,
             "username": HsPublisher.Receiver.DEFAULT_USERNAME,
             "prefix": HsPrefix.ANON,
@@ -472,6 +471,7 @@ class HsPublisherTest(LoggingTestCase):
             "destination_dir": copydir,
             "extract": False,
             "host": rcvr.shorthost,
+            "hubs": None,
             "version": HsMessage.DEFAULT_VERSION,
         }
 
@@ -515,7 +515,7 @@ class HsPublisherTest(LoggingTestCase):
 
         # build sender status message
         send_msg = {
-            "msgtype": HsMessage.MESSAGE_INITIAL,
+            "msgtype": HsMessage.INITIAL,
             "request_id": alertdict["request_id"],
             "username": HsPublisher.Receiver.DEFAULT_USERNAME,
             "prefix": HsPrefix.ANON,
@@ -525,6 +525,7 @@ class HsPublisherTest(LoggingTestCase):
             "destination_dir": copydir,
             "extract": False,
             "host": rcvr.shorthost,
+            "hubs": None,
             "version": HsMessage.DEFAULT_VERSION,
         }
 
@@ -568,7 +569,7 @@ class HsPublisherTest(LoggingTestCase):
 
         # build sender status message
         send_msg = {
-            "msgtype": HsMessage.MESSAGE_INITIAL,
+            "msgtype": HsMessage.INITIAL,
             "request_id": alertdict["request_id"],
             "username": HsPublisher.Receiver.DEFAULT_USERNAME,
             "prefix": HsPrefix.ANON,
@@ -578,6 +579,7 @@ class HsPublisherTest(LoggingTestCase):
             "destination_dir": copydir,
             "extract": False,
             "host": rcvr.shorthost,
+            "hubs": None,
             "version": HsMessage.DEFAULT_VERSION,
         }
 
@@ -623,7 +625,7 @@ class HsPublisherTest(LoggingTestCase):
 
         # build sender status message
         send_msg = {
-            "msgtype": HsMessage.MESSAGE_INITIAL,
+            "msgtype": HsMessage.INITIAL,
             "request_id": alertdict["request_id"],
             "username": HsPublisher.Receiver.DEFAULT_USERNAME,
             "prefix": HsPrefix.ANON,
@@ -633,6 +635,7 @@ class HsPublisherTest(LoggingTestCase):
             "destination_dir": request_dir,
             "extract": False,
             "host": rcvr.shorthost,
+            "hubs": None,
             "version": HsMessage.DEFAULT_VERSION,
         }
 
@@ -678,7 +681,7 @@ class HsPublisherTest(LoggingTestCase):
 
         # build sender status message
         send_msg = {
-            "msgtype": HsMessage.MESSAGE_INITIAL,
+            "msgtype": HsMessage.INITIAL,
             "request_id": alertdict["request_id"],
             "username": HsPublisher.Receiver.DEFAULT_USERNAME,
             "prefix": HsPrefix.ANON,
@@ -688,6 +691,7 @@ class HsPublisherTest(LoggingTestCase):
             "destination_dir": request_dir,
             "extract": False,
             "host": rcvr.shorthost,
+            "hubs": None,
             "version": HsMessage.DEFAULT_VERSION,
         }
 

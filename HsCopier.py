@@ -51,7 +51,7 @@ class Copier(object):
 
             if update_status is not None and request is not None:
                 update_status(request.copy_dir, request.destination_dir,
-                              HsMessage.MESSAGE_WORKING, use_ticks=True)
+                              HsMessage.WORKING)
 
         result = self.summarize()
         if result is not None:

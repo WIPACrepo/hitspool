@@ -16,11 +16,12 @@ from HsUtil import dict_to_object
 DEFAULT_VERSION = 2
 
 # message types
-MESSAGE_INITIAL = "REQUEST"
-MESSAGE_STARTED = "STARTED"
-MESSAGE_WORKING = "WORKING"
-MESSAGE_DONE = "DONE"
-MESSAGE_FAILED = "FAILED"
+INITIAL = "REQUEST"
+STARTED = "STARTED" # hub has received a request
+WORKING = "WORKING" # hub is sending data (can be sent many times)
+DONE = "DONE"       # hub has finished sending data
+FAILED = "FAILED"   # hub failed to fill request
+IGNORED = "IGNORED" # hub is not part of the request
 
 # mandatory message fields
 __MANDATORY_FIELDS = ("username", "prefix", "start_time", "stop_time",
@@ -56,9 +57,9 @@ def fix_message_dict(mdict):
 
     # check for mandatory fields
     if "msgtype" not in mdict:
-        mdict["msgtype"] = MESSAGE_INITIAL
+        mdict["msgtype"] = INITIAL
     if "request_id" not in mdict:
-        if mdict["msgtype"] != MESSAGE_INITIAL:
+        if mdict["msgtype"] != INITIAL:
             raise HsException("No request ID found in %s" % str(mdict))
         mdict["request_id"] = ID.generate()
     if "start_time" in mdict and not isinstance(mdict["start_time"], DAQTime):
@@ -69,6 +70,8 @@ def fix_message_dict(mdict):
         mdict["copy_dir"] = None
     if "extract" not in mdict:
         mdict["extract"] = False
+    if "hubs" not in mdict:
+        mdict["hubs"] = ""
 
     return mdict
 
@@ -81,8 +84,8 @@ def receive(sock):
 
 
 def send(sock, msgtype, req_id, user, start_time, stop_time, destdir,
-         prefix=None, copydir=None, extract=None, host=None, version=None,
-         use_ticks=True):
+         prefix=None, copydir=None, extract=None, host=None, hubs=None,
+         version=None):
     # check for required fields
     if req_id is None:
         raise HsException("Request ID is not set")
@@ -116,33 +119,41 @@ def send(sock, msgtype, req_id, user, start_time, stop_time, destdir,
         "version": version,
         "request_id": req_id,
         "username": user,
-        "start_time": start_time.ticks if use_ticks else str(start_time.utc),
-        "stop_time": stop_time.ticks if use_ticks else str(stop_time.utc),
+        "start_time": start_time.ticks,
+        "stop_time": stop_time.ticks,
         "copy_dir": copydir,
         "destination_dir": destdir,
         "prefix": prefix,
         "extract": extract,
+        "hubs": hubs,
         "host": host,
     }
 
     return sock.send_json(msg) is None
 
 
-def send_for_request(sock, req, host, copydir, destdir, msgtype,
-                     use_ticks=False):
+def send_for_request(sock, req, host, copydir, destdir, msgtype):
     return send(sock, msgtype, req.request_id, req.username, req.start_time,
                 req.stop_time, destdir, prefix=req.prefix, copydir=copydir,
-                extract=req.extract, host=host, version=None,
-                use_ticks=use_ticks)
+                extract=req.extract, host=host, version=None)
 
 
 def send_initial(sock, req_id, start_time, stop_time, destdir, prefix=None,
-                 extract_hits=False, host=None, username=None):
+                 extract_hits=False, hubs=None, host=None, username=None):
+    "Send initial request"
     if req_id is None:
         req_id = ID.generate()
     if username is None:
         username = getpass.getuser()
 
-    return send(sock, MESSAGE_INITIAL, req_id, username, start_time,
+    return send(sock, INITIAL, req_id, username, start_time,
                 stop_time, destdir, prefix=prefix, copydir=None,
-                extract=extract_hits, host=host, version=DEFAULT_VERSION)
+                extract=extract_hits, hubs=hubs, host=host,
+                version=DEFAULT_VERSION)
+
+
+def send_worker_status(sock, req, host, copydir, destdir, msgtype):
+    "Send worker status to HsSender based on the request"
+    return send(sock, msgtype, req.request_id, req.username, req.start_time,
+                req.stop_time, destdir, prefix=req.prefix, copydir=copydir,
+                extract=req.extract, host=host, version=None)
