@@ -25,6 +25,9 @@ from RequestMonitor import RequestMonitor
 def add_arguments(parser):
     example_log_path = os.path.join(HsBase.DEFAULT_LOG_PATH, "hssender.log")
 
+    parser.add_argument("-D", "--state-db", dest="state_db",
+                        help="Path to HitSpool state database"
+                        " (used for testing)")
     parser.add_argument("-F", "--force-spade", dest="force_spade",
                         action="store_true", default=False,
                         help="Always queue files for JADE")
@@ -362,6 +365,12 @@ if __name__ == "__main__":
 
         HsBase.init_logging(args.logfile, basename="hssender",
                             basehost="2ndbuild")
+
+        if args.state_db is not None:
+            if RequestMonitor.STATE_DB_PATH is not None:
+                raise SystemExit("HitSpool state database path has"
+                                 " already been set")
+            RequestMonitor.STATE_DB_PATH = args.state_db
 
         sender = HsSender(is_test=args.is_test)
 

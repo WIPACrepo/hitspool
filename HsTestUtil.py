@@ -14,6 +14,7 @@ import zmq
 
 from HsBase import DAQTime
 from HsRSyncFiles import HsRSyncFiles
+from RequestMonitor import RequestMonitor
 
 
 # January 1 of this year
@@ -22,6 +23,8 @@ JAN1 = None
 TICKS_PER_SECOND = 10000000000
 # match Python date/time string
 TIME_PAT = re.compile(r"\d+-\d+-\d+ +\d+:\d+:\d+(.\d+)?")
+# location of test-only version of RequestMonitor state database
+TEMP_STATE_DB = None
 
 
 def create_hits(filename, start_tick, stop_tick, interval):
@@ -114,6 +117,22 @@ def jan1():
         JAN1 = datetime.datetime(now.year, 1, 1)
 
     return JAN1
+
+def set_state_db_path():
+    "Point RequestMonitor at a temporary state DB for testing"
+
+    global TEMP_STATE_DB
+
+    if TEMP_STATE_DB is None:
+        tmptuple = tempfile.mkstemp(suffix="db", prefix="hsstate")
+        os.close(tmptuple[0])
+        TEMP_STATE_DB = tmptuple[1]
+
+    if RequestMonitor.STATE_DB_PATH is None:
+        RequestMonitor.STATE_DB_PATH = TEMP_STATE_DB
+    elif RequestMonitor.STATE_DB_PATH != TEMP_STATE_DB:
+        raise ValueError("Request state database is already set to \"%s\"" %
+                         (RequestMonitor.STATE_DB_PATH, ))
 
 
 def update_hitspool_db(spooldir, alert_start, alert_stop, run_start, run_stop,

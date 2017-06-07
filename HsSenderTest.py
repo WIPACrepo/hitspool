@@ -18,7 +18,7 @@ import HsUtil
 
 from HsException import HsException
 from HsTestUtil import Mock0MQPoller, Mock0MQSocket, MockHitspool, \
-    MockI3Socket, TIME_PAT, get_time
+    MockI3Socket, TIME_PAT, get_time, set_state_db_path
 from LoggingTestCase import LoggingTestCase
 from RequestMonitor import RequestMonitor
 
@@ -345,6 +345,9 @@ class HsSenderTest(LoggingTestCase):
         super(HsSenderTest, self).setUp()
         # by default, check all log messages
         self.setLogLevel(0)
+
+        # point the RequestMonitor at a temporary state file for tests
+        set_state_db_path()
 
         # get rid of HsSender's state database
         dbpath = RequestMonitor.get_db_path()

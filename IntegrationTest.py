@@ -741,6 +741,9 @@ class IntegrationTest(LoggingTestCase):
         # by default, don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
+        # point the RequestMonitor at a temporary state file for tests
+        HsTestUtil.set_state_db_path()
+
         self.__delete_state()
 
         from DumpThreads import DumpThreadsOnSignal

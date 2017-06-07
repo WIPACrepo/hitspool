@@ -12,7 +12,8 @@ import HsUtil
 from RequestMonitor import RequestMonitor
 from HsBase import DAQTime
 from HsSender import HsSender
-from HsTestUtil import Mock0MQSocket, MockI3Socket, TIME_PAT
+from HsTestUtil import Mock0MQSocket, MockI3Socket, TIME_PAT, \
+    set_state_db_path
 
 from LoggingTestCase import LoggingTestCase
 
@@ -59,10 +60,16 @@ class MockSender(object):
 
 
 class RequestMonitorTest(LoggingTestCase):
+    # cached RequestMonitor object (used in tearDown() cleanup code)
     REQUEST_MONITOR = None
 
+    # temporary request state database
+    TEMP_STATE_DB = None
+
+    # standard format for date/time strings
     TIMEFMT = "%Y-%m-%d %H:%M:%S"
 
+    # used in comparison code as a wildcard for unpredictable values
     MATCH_ANY = re.compile(r"^.*$")
 
     @classmethod
@@ -423,6 +430,9 @@ class RequestMonitorTest(LoggingTestCase):
 
     def setUp(self):
         super(RequestMonitorTest, self).setUp()
+
+        # point the RequestMonitor at a temporary state file for tests
+        set_state_db_path()
 
         # remove old DB file
         path = RequestMonitor.get_db_path()

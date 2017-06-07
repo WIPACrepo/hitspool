@@ -28,7 +28,8 @@ from HsException import HsException
 from HsGrabber import HsGrabber
 from HsPrefix import HsPrefix
 from HsSender import HsSender
-from HsTestUtil import TICKS_PER_SECOND, create_hits, create_hitspool_db
+from HsTestUtil import TICKS_PER_SECOND, create_hits, create_hitspool_db, \
+    set_state_db_path
 from RequestMonitor import RequestMonitor
 
 
@@ -44,6 +45,9 @@ class HsEnvironment(object):
         self.__hubtmp = os.path.join(self.__hubroot, "tmp")
         self.__hubspool = os.path.join(self.__hubroot, "hitspool")
         self.__spadequeue = os.path.join(rootdir, "SpadeQueue")
+
+        # use a temporary copy of the hitspool DB
+        set_state_db_path()
 
         self.__hsdbpath = None
 
@@ -694,7 +698,6 @@ class Processor(object):
 
     def __process_responses(self, request, destination, quiet=False):
         saw_error = False
-        #print "### saw_error %s" % (saw_error, )
         while True:
             if quiet:
                 self.__twirly.print_next()
@@ -720,7 +723,6 @@ class Processor(object):
 
             if rawmsg["service"] == "hitspool" and \
                rawmsg["varname"].startswith("hsrequest_info"):
-                #print "~~~ rawmsg %s" % str(rawmsg)
                 runstatus = self.__process_status(rawmsg["value"],
                                                   request.should_succeed,
                                                   quiet=quiet)
@@ -735,13 +737,11 @@ class Processor(object):
                                       exc_info=True)
                         rtnval = False
 
-                    #print "!!! rtnval %s saw_error %s" % (rtnval, saw_error)
                     return rtnval and not saw_error
 
                 # any status other than None indicates an error
                 if runstatus is not None:
                     saw_error = True
-                    #print "!!! runstatus %s -> saw_error %s" % (runstatus, saw_error)
 
                 # keep looking
                 continue
@@ -1020,6 +1020,7 @@ if __name__ == "__main__":
             with run_hubs_and_terminate(hubs, env):
                 with run_and_terminate(("python", "HsSender.py",
                                         "-l", "/tmp/sender.log",
+                                        "-D", RequestMonitor.STATE_DB_PATH,
                                         "-F",
                                         "-S", env.spadequeue,
                                         "-T")):
