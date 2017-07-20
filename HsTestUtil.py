@@ -12,7 +12,7 @@ import tempfile
 import threading
 import zmq
 
-from HsBase import DAQTime
+from leapseconds import leapseconds
 from HsRSyncFiles import HsRSyncFiles
 from RequestMonitor import RequestMonitor
 
@@ -88,10 +88,9 @@ def dump_dir(path, title=None, indent=""):
                 dump_dir(full, indent=indent + "  ")
 
 
-def get_time(tick, is_ns=False):
+def get_time(tick, year=None, is_ns=False):
     """
     Convert a DAQ tick to a Python `datetime`
-    NOTE: this conversion does not include leapseconds!!!
     """
     global TICKS_PER_SECOND
 
@@ -100,10 +99,23 @@ def get_time(tick, is_ns=False):
         ticks_per_sec /= 10
     ticks_per_ms = ticks_per_sec / 1000000
 
+    # convert ticks to a datetime delta
     secs = int(tick / ticks_per_sec)
     msecs = int(((tick - secs * ticks_per_sec) + (ticks_per_ms / 2)) /
                 ticks_per_ms)
-    return jan1() + datetime.timedelta(seconds=secs, microseconds=msecs)
+    delta = datetime.timedelta(seconds=secs, microseconds=msecs)
+
+    leap = leapseconds.instance()
+
+    # if there's a leap second, add that
+    jan1_leapsecs = leap.get_leap_offset(0, year=year)
+    tick_leapsecs = leap.get_leap_offset(delta.days, year=year)
+    extrasecs = tick_leapsecs - jan1_leapsecs
+    if extrasecs != 0:
+        delta = datetime.timedelta(seconds=secs + extrasecs,
+                                   microseconds=msecs)
+
+    return jan1() + delta
 
 
 def jan1():
@@ -117,6 +129,7 @@ def jan1():
         JAN1 = datetime.datetime(now.year, 1, 1)
 
     return JAN1
+
 
 def set_state_db_path():
     "Point RequestMonitor at a temporary state DB for testing"
@@ -231,10 +244,12 @@ class CompareObjects(object):
 
         debug = False
         if errstr is not None:
-            if debug: print "*** Error: %s" % errstr
+            if debug:
+                print "*** Error: %s" % errstr
             raise CompareException("Message %s: %s" % (jmsg, errstr))
         else:
-            if debug: print "+++ Valid message"
+            if debug:
+                print "+++ Valid message"
 
     def __compare_lists(self, name, obj, exp):
         if not isinstance(obj, list):
@@ -580,8 +595,7 @@ class MockI3Socket(Mock0MQSocket):
         self.__varname = varname
 
     def addDebugEMail(self, host=r".*"):
-        header = re.compile(r"Query for \[\d+-\d+\] failed on " +
-                                host + "$")
+        header = re.compile(r"Query for \[\d+-\d+\] failed on " + host + "$")
         message = re.compile(r"DB contains \d+ entries from .* to .*$")
 
         self.addGenericEMail(HsRSyncFiles.DEBUG_EMAIL, header, message)
@@ -677,11 +691,11 @@ class HsTestRunner(object):
         self.__cur_run = RunParam(cur_start, cur_stop, interval,
                                   self.MAX_FILES)
 
-    def add_expected_files(self, alert_start, firstfile, numfiles,
+    def add_expected_files(self, start_tick, firstfile, numfiles,
                            destdir=None, fail_links=False):
         if firstfile is not None and destdir is None and not fail_links:
-            utc = get_time(alert_start)
-            self.__hsr.add_expected_links(utc, HsRSyncFiles.DEFAULT_SPOOL_NAME,
+            self.__hsr.add_expected_links(start_tick,
+                                          HsRSyncFiles.DEFAULT_SPOOL_NAME,
                                           firstfile, numfiles)
 
         self.__check_links = True
@@ -704,8 +718,7 @@ class HsTestRunner(object):
 
     def run(self, start_ticks, stop_ticks, copydir="me@host:/a/b/c",
             extract_hits=False):
-        self.__hsr.request_parser(None, DAQTime(start_ticks),
-                                  DAQTime(stop_ticks), copydir,
+        self.__hsr.request_parser(None, start_ticks, stop_ticks, copydir,
                                   extract_hits=extract_hits, delay_rsync=False)
 
         if self.__check_links:

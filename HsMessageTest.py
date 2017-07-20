@@ -5,7 +5,6 @@ import unittest
 
 import HsMessage
 
-from HsBase import DAQTime
 from HsPrefix import HsPrefix
 
 
@@ -26,18 +25,18 @@ class MockSocket(object):
 
 
 class HsMessageTest(unittest.TestCase):
-    def __check_request(self, req, msgtype, req_id, username, start_time,
-                        stop_time, dest_dir, prefix, copy_dir, extract, hubs,
+    def __check_request(self, req, msgtype, req_id, username, start_ticks,
+                        stop_ticks, dest_dir, prefix, copy_dir, extract, hubs,
                         host, version):
 
-        self.assertEquals(req.start_time, start_time,
-                          "Expected start time %s<%s>, not %s<%s>" %
-                          (start_time, type(start_time), req.start_time,
-                           type(req.start_time)))
-        self.assertEquals(req.stop_time, stop_time,
-                          "Expected stop time %s<%s>, not %s<%s>" %
-                          (stop_time, type(stop_time), req.stop_time,
-                           type(req.stop_time)))
+        self.assertEquals(req.start_ticks, start_ticks,
+                          "Expected start ticks %s<%s>, not %s<%s>" %
+                          (start_ticks, type(start_ticks), req.start_ticks,
+                           type(req.start_ticks)))
+        self.assertEquals(req.stop_ticks, stop_ticks,
+                          "Expected stop ticks %s<%s>, not %s<%s>" %
+                          (stop_ticks, type(stop_ticks), req.stop_ticks,
+                           type(req.stop_ticks)))
         self.assertEquals(req.destination_dir, dest_dir,
                           "Expected destination directory %s, not %s" %
                           (dest_dir, req.destination_dir))
@@ -68,21 +67,21 @@ class HsMessageTest(unittest.TestCase):
     def test_send_recv(self):
         sock = MockSocket()
 
-        start_time = DAQTime(1234567890L)
-        stop_time = DAQTime(1234567890L + long(1E8))
+        start_ticks = 1234567890L
+        stop_ticks = start_ticks + long(1E8)
         dest_dir = "/foo/dest"
 
         username = getpass.getuser()
 
-        HsMessage.send_initial(sock, None, start_time, stop_time, dest_dir)
+        HsMessage.send_initial(sock, None, start_ticks, stop_ticks, dest_dir)
 
         req = HsMessage.receive(sock)
 
         self.assertTrue(req.request_id is not None,
                         "Request ID should not be None")
         self.__check_request(req, HsMessage.INITIAL, req.request_id,
-                             username, start_time, stop_time, dest_dir,
-                             HsPrefix.ANON, None, False, None, None,
+                             username, start_ticks, stop_ticks,
+                             dest_dir, HsPrefix.ANON, None, False, None, None,
                              HsMessage.DEFAULT_VERSION)
 
         new_host = "xyz"
@@ -96,7 +95,7 @@ class HsMessageTest(unittest.TestCase):
         nreq = HsMessage.receive(sock)
 
         self.__check_request(nreq, new_msgtype, req.request_id,
-                             req.username, req.start_time, req.stop_time,
+                             req.username, req.start_ticks, req.stop_ticks,
                              new_destdir, req.prefix, new_copydir,
                              req.extract, req.hubs, new_host, req.version)
 

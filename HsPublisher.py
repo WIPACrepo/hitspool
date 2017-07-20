@@ -9,11 +9,12 @@ import signal
 import sys
 import zmq
 
+import DAQTime
 import HsConstants
 import HsMessage
 import HsUtil
 
-from HsBase import DAQTime, HsBase
+from HsBase import HsBase
 from HsException import HsException
 from HsPrefix import HsPrefix
 
@@ -61,7 +62,7 @@ class Receiver(HsBase):
         self.__sender = self.create_sender_socket(sec_bldr)
 
     def __handle_request(self, alertdict):
-        version, start_time, stop_time, is_valid \
+        version, start_ticks, stop_ticks, is_valid \
                 = self.__parse_version_and_times(alertdict)
 
         bad_request = not is_valid
@@ -112,8 +113,8 @@ class Receiver(HsBase):
         if not bad_request:
             try:
                 # forward initial request to HsSender
-                HsMessage.send_initial(self.__sender, req_id, start_time,
-                                       stop_time, destdir, prefix, extract,
+                HsMessage.send_initial(self.__sender, req_id, start_ticks,
+                                       stop_ticks, destdir, prefix, extract,
                                        hubs=hubs, host=self.shorthost,
                                        username=user)
 
@@ -130,7 +131,7 @@ class Receiver(HsBase):
         # let Live know there was a problem with this request
         try:
             HsUtil.send_live_status(self.__i3socket, req_id, user, prefix,
-                                    start_time, stop_time, destdir,
+                                    start_ticks, stop_ticks, destdir,
                                     HsUtil.STATUS_REQUEST_ERROR)
         except:
             logging.exception("Failed to send ERROR status to Live")
@@ -186,18 +187,38 @@ class Receiver(HsBase):
         return hs_ssh_dir, False
 
     def __parse_version_and_times(self, alertdict):
-        if "version" in alertdict:
+        if "version" in alertdict and "start_ticks" in alertdict and \
+           "stop_ticks" in alertdict:
             version = int(alertdict["version"])
-            start_time = DAQTime(alertdict["start_time"], is_ns=False)
-            stop_time = DAQTime(alertdict["stop_time"], is_ns=False)
+            start_ticks = alertdict["start_ticks"]
+            stop_ticks = alertdict["stop_ticks"]
             is_valid = True
         else:
+            # XXX remove this block of code after the Jem release
             version = None
-            start_time = None
-            stop_time = None
+            start_ticks = None
+            stop_ticks = None
             is_valid = True
 
             for timetype in ("start", "stop"):
+                if timetype + "_ticks" in alertdict:
+                    # save tick value and set assumed version number
+                    fldname = timetype + "_ticks"
+                    try:
+                        val = int(alertdict[fldname])
+                    except ValueError:
+                        logging.error("Bad %s ticks \"%s\"", timetype,
+                                      alertdict[fldname])
+                        is_valid = False
+                        break
+
+                    if timetype == "start":
+                        start_ticks = val
+                    elif timetype == "stop":
+                        stop_ticks = val
+                    version = 2
+                    continue
+
                 if timetype + '_time' in alertdict:
                     fldname = timetype + '_time'
                     newvers = 1
@@ -221,7 +242,8 @@ class Receiver(HsBase):
 
                 # old requests sent times in nanoseconds, not 0.1ns ticks
                 try:
-                    val = DAQTime(alertdict[fldname], is_ns=True)
+                    val = DAQTime.string_to_ticks(alertdict[fldname],
+                                                  is_ns=True)
                 except HsException:
                     logging.error("Bad %s time \"%s\"", timetype,
                                   alertdict[fldname])
@@ -229,14 +251,14 @@ class Receiver(HsBase):
                     break
 
                 if timetype == "start":
-                    start_time = val
+                    start_ticks = val
                 elif timetype == "stop":
-                    stop_time = val
+                    stop_ticks = val
                 else:
                     logging.error("Ignoring unknown time type \"%s\"",
                                   timetype)
 
-        return (version, start_time, stop_time, is_valid)
+        return (version, start_ticks, stop_ticks, is_valid)
 
     @property
     def alert_socket(self):

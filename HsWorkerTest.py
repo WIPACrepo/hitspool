@@ -7,10 +7,10 @@ import unittest
 
 from collections import namedtuple
 
+import DAQTime
 import HsWorker
 import HsTestUtil
 
-from HsBase import DAQTime
 from HsException import HsException
 from HsRSyncFiles import HsRSyncFiles
 from LoggingTestCase import LoggingTestCase
@@ -57,14 +57,15 @@ class MyWorker(HsWorker.Worker):
         self.MIN_DELAY = 0.0
 
     @classmethod
-    def __timetag(cls, starttime):
-        return starttime.strftime("%Y%m%d_%H%M%S")
+    def __timetag(cls, tick):
+        return DAQTime.ticks_to_utc(tick).strftime("%Y%m%d_%H%M%S")
 
-    def add_expected_links(self, start_utc, firstnum, numfiles,
+    def add_expected_links(self, start_tick, firstnum, numfiles,
                            i3socket=None, finaldir=None):
-        timetag = self.__timetag(start_utc)
+        timetag = self.__timetag(start_tick)
         for i in xrange(firstnum, firstnum + numfiles):
-            frompath = os.path.join(self.TEST_HUB_DIR, self.DEFAULT_SPOOL_NAME,
+            frompath = os.path.join(self.TEST_HUB_DIR,
+                                    self.DEFAULT_SPOOL_NAME,
                                     "HitSpool-%d.dat" % i)
             self.__link_paths.append((frompath, self.TEST_HUB_DIR, timetag))
 
@@ -164,12 +165,6 @@ class HsWorkerTest(LoggingTestCase):
         mydict = xdict.copy()
         if "prefix" not in xdict:
             mydict["prefix"] = None
-        if "start_time" in mydict and \
-           not isinstance(mydict["start_time"], DAQTime):
-            mydict["start_time"] = DAQTime(mydict["start_time"], is_ns=True)
-        if "stop_time" in mydict and \
-           not isinstance(mydict["stop_time"], DAQTime):
-            mydict["stop_time"] = DAQTime(mydict["stop_time"], is_ns=True)
 
         newobj = namedtuple("TestAlert", mydict.keys())(**mydict)
         return newobj
@@ -260,7 +255,7 @@ class HsWorkerTest(LoggingTestCase):
             self.fail("This method should fail")
         except HsException, hse:
             hsestr = str(hse)
-            if hsestr.find("Missing fields ") < 0:
+            if hsestr.find("Request does not contain ") < 0:
                 self.fail("Unexpected exception: " + hsestr)
 
     def test_alert_start_none(self):
@@ -269,9 +264,9 @@ class HsWorkerTest(LoggingTestCase):
 
         # create the alert
         alert = {
-            'start_time': None,
-            'stop_time': None,
-            'destination_dir': None,
+            'start_ticks': None,
+            'stop_ticks': None,
+            'destination_dir': "/xxx/start/none",
             'extract': False,
         }
 
@@ -289,18 +284,20 @@ class HsWorkerTest(LoggingTestCase):
             self.fail("This method should fail")
         except HsException, hse:
             hsestr = str(hse)
-            if hsestr.find("No date/time specified") < 0:
+            if hsestr.find("No tick value specified") < 0:
                 self.fail("Unexpected exception: " + hsestr)
 
     def test_alert_start_bad(self):
         # create the worker object
         hsr = self.wrapped_object
 
+        badticks = "ABC"
+
         # create the alert
         alert = {
-            'start_time': "ABC",
-            'stop_time': None,
-            'destination_dir': None,
+            'start_ticks': badticks,
+            'stop_ticks': None,
+            'destination_dir': "/xxx/start/bad",
             'extract': False,
         }
 
@@ -318,7 +315,7 @@ class HsWorkerTest(LoggingTestCase):
             self.fail("This method should fail")
         except HsException, hse:
             hsestr = str(hse)
-            if hsestr.find("Problem with the time-stamp format") < 0:
+            if hsestr.find("Tick value %s should be number" % badticks) < 0:
                 self.fail("Unexpected exception: " + hsestr)
 
     def test_alert_stop_none(self):
@@ -330,9 +327,9 @@ class HsWorkerTest(LoggingTestCase):
 
         # create the alert
         alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': None,
-            'destination_dir': None,
+            'start_ticks': start_ticks,
+            'stop_ticks': None,
+            'destination_dir': "/xxx/stop/none",
             'extract': False,
         }
 
@@ -340,6 +337,9 @@ class HsWorkerTest(LoggingTestCase):
 
         # check all log messages
         self.setLogLevel(0)
+
+        # add all expected log messages
+        self.expectLogMessage(re.compile(r"START = \d+ (.*)"))
 
         # initialize remaining values
         logfile = None
@@ -350,7 +350,7 @@ class HsWorkerTest(LoggingTestCase):
             self.fail("This method should fail")
         except HsException, hse:
             hsestr = str(hse)
-            if hsestr.find("No date/time specified") < 0:
+            if hsestr.find("No tick value specified") < 0:
                 self.fail("Unexpected exception: " + hsestr)
 
     def test_alert_stop_bad(self):
@@ -359,12 +359,13 @@ class HsWorkerTest(LoggingTestCase):
 
         # define alert times
         start_ticks = 1234567890
+        stop_ticks = "ABC"
 
         # create the alert
         alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': "ABC",
-            'destination_dir': None,
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
+            'destination_dir': "/xxx/stop/bad",
             'extract': False,
         }
 
@@ -372,6 +373,9 @@ class HsWorkerTest(LoggingTestCase):
 
         # check all log messages
         self.setLogLevel(0)
+
+        # add all expected log messages
+        self.expectLogMessage(re.compile(r"START = \d+ (.*)"))
 
         # initialize remaining values
         logfile = None
@@ -382,7 +386,7 @@ class HsWorkerTest(LoggingTestCase):
             self.fail("This method should fail")
         except HsException, hse:
             hsestr = str(hse)
-            if hsestr.find("Problem with the time-stamp format") < 0:
+            if hsestr.find("Tick value %s should be number" % stop_ticks) < 0:
                 self.fail("Unexpected exception: " + hsestr)
 
     def test_alert_bad_copy(self):
@@ -395,8 +399,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create the alert
         alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': str(stop_ticks / 10),
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
             'destination_dir': None,
             'extract': False,
         }
@@ -423,8 +427,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create the alert
         alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': str(stop_ticks / 10),
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
             'destination_dir': "/foo/bar",
             'extract': False,
         }
@@ -457,8 +461,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create the alert
         alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': str(stop_ticks / 10),
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
             'destination_dir': "/foo/bar",
             'extract': False,
         }
@@ -478,7 +482,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # initialize formatted start/stop times
         utcstart = HsTestUtil.get_time(start_ticks)
-        utcstop = HsTestUtil.get_time(stop_ticks)
 
         # add all expected log messages
         self.expectLogMessage("Requested HS data copy destination differs"
@@ -487,11 +490,8 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # TODO should compute the expected number of files
-        hsr.add_expected_links(utcstart, 575, 5, i3socket=hsr.i3socket,
+        hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
                                finaldir=alert['destination_dir'])
-
-        # reformat time string for file names
-        timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
@@ -509,8 +509,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create the alert
         alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': str(stop_ticks / 10),
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
             'destination_dir': "/foo/bar",
             'extract': False,
         }
@@ -534,7 +534,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # initialize formatted start/stop times
         utcstart = HsTestUtil.get_time(start_ticks)
-        utcstop = HsTestUtil.get_time(stop_ticks)
 
         # add all expected log messages
         self.expectLogMessage("Requested HS data copy destination differs"
@@ -543,11 +542,8 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # TODO should compute the expected number of files
-        hsr.add_expected_links(utcstart, 575, 5, i3socket=hsr.i3socket,
+        hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
                                finaldir=alert['destination_dir'])
-
-        # reformat time string for file names
-        timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
@@ -565,8 +561,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create the alert
         alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': str(stop_ticks / 10),
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
             'destination_dir': "/foo/bar",
             'extract': False,
         }
@@ -584,12 +580,8 @@ class HsWorkerTest(LoggingTestCase):
         # set log file name
         logfile = "unknown.log"
 
-        # initialize formatted start/stop times
-        utcstart = HsTestUtil.get_time(start_ticks)
-        utcstop = HsTestUtil.get_time(stop_ticks)
-
         # add all expected log messages
-        self.expectLogMessage("sn_start & sn_stop time-stamps inverted."
+        self.expectLogMessage("Start and stop times are inverted."
                               " Abort request.")
         self.expectLogMessage("Request failed")
 
@@ -611,8 +603,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create the alert
         alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': str(stop_ticks / 10),
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
             'destination_dir': "/foo/bar",
             'extract': False,
         }
@@ -636,7 +628,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # initialize formatted start/stop times
         utcstart = HsTestUtil.get_time(start_ticks)
-        utcstop = HsTestUtil.get_time(stop_ticks)
 
         # add all expected log messages
         self.expectLogMessage("Requested HS data copy destination differs"
@@ -645,11 +636,8 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # TODO should compute the expected number of files
-        hsr.add_expected_links(utcstart, 576, 4, i3socket=hsr.i3socket,
+        hsr.add_expected_links(start_ticks, 576, 4, i3socket=hsr.i3socket,
                                finaldir=alert['destination_dir'])
-
-        # reformat time string for file names
-        timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
@@ -667,8 +655,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create the alert
         alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': str(stop_ticks / 10),
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
             'destination_dir': "/foo/bar",
             'extract': False,
         }
@@ -689,10 +677,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # set log file name
         logfile = "unknown.log"
-
-        # initialize formatted start/stop times
-        utcstart = HsTestUtil.get_time(start_ticks)
-        utcstop = HsTestUtil.get_time(stop_ticks)
 
         hsr.DEBUG_EMPTY = False
 
@@ -718,8 +702,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create the alert
         alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': str(stop_ticks / 10),
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
             'destination_dir': "/foo/bar",
             'extract': False,
         }
@@ -743,7 +727,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # initialize formatted start/stop times
         utcstart = HsTestUtil.get_time(start_ticks)
-        utcstop = HsTestUtil.get_time(stop_ticks)
 
         # add all expected log messages
         self.expectLogMessage("Requested HS data copy destination differs"
@@ -752,11 +735,8 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # TODO should compute the expected number of files
-        hsr.add_expected_links(utcstart, 576, 4, i3socket=hsr.i3socket,
+        hsr.add_expected_links(start_ticks, 576, 4, i3socket=hsr.i3socket,
                                finaldir=alert['destination_dir'])
-
-        # reformat time string for file names
-        timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
@@ -774,8 +754,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create the alert
         alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': str(stop_ticks / 10),
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
             'destination_dir': "/foo/bar",
             'extract': False,
         }
@@ -795,7 +775,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # initialize formatted start/stop times
         utcstart = HsTestUtil.get_time(start_ticks)
-        utcstop = HsTestUtil.get_time(stop_ticks)
 
         # add all expected log messages
         self.expectLogMessage("Requested HS data copy destination differs"
@@ -804,11 +783,8 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # TODO should compute the expected number of files
-        hsr.add_expected_links(utcstart, 575, 5, i3socket=hsr.i3socket,
+        hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
                                finaldir=alert['destination_dir'])
-
-        # reformat time string for file names
-        timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
@@ -826,8 +802,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create the alert
         alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': str(stop_ticks / 10),
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
             'destination_dir': "/foo/bar",
             'extract': False,
         }
@@ -847,7 +823,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # initialize formatted start/stop times
         utcstart = HsTestUtil.get_time(start_ticks)
-        utcstop = HsTestUtil.get_time(stop_ticks)
 
         # add all expected log messages
         self.expectLogMessage("Requested HS data copy destination differs"
@@ -856,11 +831,8 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # TODO should compute the expected number of files
-        hsr.add_expected_links(utcstart, 575, 5, i3socket=hsr.i3socket,
+        hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
                                finaldir=None)
-
-        # reformat time string for file names
-        timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
@@ -879,8 +851,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create the alert
         alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': str(stop_ticks / 10),
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
             'destination_dir': "/foo/bar",
             'extract': False,
         }
@@ -902,10 +874,6 @@ class HsWorkerTest(LoggingTestCase):
         firstfile = 575
         numfiles = 5
 
-        # initialize formatted start/stop times
-        utcstart = HsTestUtil.get_time(start_ticks)
-        utcstop = HsTestUtil.get_time(stop_ticks)
-
         # add all expected log messages
         for num in xrange(firstfile, firstfile + numfiles):
             self.expectLogMessage("failed to link HitSpool-%d.dat to tmp dir:"
@@ -922,9 +890,6 @@ class HsWorkerTest(LoggingTestCase):
         hsr.i3socket.addExpectedValue(" TBD [MB] HS data transferred to %s " %
                                       alert['destination_dir'], prio=1)
 
-        # reformat time string for file names
-        timetag = utcstart.strftime("%Y%m%d_%H%M%S")
-
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
                          delay_rsync=False)
@@ -939,8 +904,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create the alert
         alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': str(stop_ticks / 10),
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
             'destination_dir': "/foo/bar",
             'extract': False,
         }
@@ -957,10 +922,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # set log file name
         logfile = "unknown.log"
-
-        # initialize formatted start/stop times
-        utcstart = HsTestUtil.get_time(start_ticks)
-        utcstop = HsTestUtil.get_time(stop_ticks)
 
         hsr.DEBUG_EMPTY = False
 
@@ -986,8 +947,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create the alert
         alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': str(stop_ticks / 10),
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
             'destination_dir': "/foo/bar",
             'extract': False,
         }
@@ -1004,10 +965,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # set log file name
         logfile = "unknown.log"
-
-        # initialize formatted start/stop times
-        utcstart = HsTestUtil.get_time(start_ticks)
-        utcstop = HsTestUtil.get_time(stop_ticks)
 
         # add all expected log messages
         self.expectLogMessage(re.compile(r"No data found between \d+ and \d+"))
@@ -1032,8 +989,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create the alert
         alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': str(stop_ticks / 10),
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
             'destination_dir': "/foo/bar",
             'extract': False,
         }
@@ -1053,7 +1010,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # initialize formatted start/stop times
         utcstart = HsTestUtil.get_time(start_ticks)
-        utcstop = HsTestUtil.get_time(stop_ticks)
 
         # add all expected log messages
         self.expectLogMessage("Requested HS data copy destination differs"
@@ -1062,11 +1018,8 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # TODO should compute the expected number of files
-        hsr.add_expected_links(utcstart, 575, 5, i3socket=hsr.i3socket,
+        hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
                                finaldir=alert['destination_dir'])
-
-        # reformat time string for file names
-        timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
@@ -1085,8 +1038,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create the alert
         alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': str(stop_ticks / 10),
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
             'destination_dir': "/foo/bar",
             'extract': False,
         }
@@ -1108,10 +1061,6 @@ class HsWorkerTest(LoggingTestCase):
         firstfile = 575
         numfiles = 5
 
-        # initialize formatted start/stop times
-        utcstart = HsTestUtil.get_time(start_ticks)
-        utcstop = HsTestUtil.get_time(stop_ticks)
-
         # add all expected log messages
         for num in xrange(firstfile, firstfile + numfiles):
             self.expectLogMessage("failed to link HitSpool-%d.dat to tmp dir:"
@@ -1125,9 +1074,6 @@ class HsWorkerTest(LoggingTestCase):
             hsr.i3socket.addExpectedValue(errmsg)
         hsr.i3socket.addExpectedValue(" TBD [MB] HS data transferred to %s " %
                                       alert['destination_dir'], prio=1)
-
-        # reformat time string for file names
-        timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
@@ -1143,8 +1089,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create the alert
         alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': str(stop_ticks / 10),
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
             'destination_dir': "/foo/bar",
             'extract': False,
         }
@@ -1161,10 +1107,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # set log file name
         logfile = "unknown.log"
-
-        # initialize formatted start/stop times
-        utcstart = HsTestUtil.get_time(start_ticks)
-        utcstop = HsTestUtil.get_time(stop_ticks)
 
         hsr.DEBUG_EMPTY = False
 
@@ -1190,8 +1132,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create the alert
         alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': str(stop_ticks / 10),
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
             'destination_dir': "/foo/bar",
             'extract': False,
         }
@@ -1211,7 +1153,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # initialize formatted start/stop times
         utcstart = HsTestUtil.get_time(start_ticks)
-        utcstop = HsTestUtil.get_time(stop_ticks)
 
         # add all expected log messages
         self.expectLogMessage("Requested HS data copy destination differs"
@@ -1220,11 +1161,8 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # TODO should compute the expected number of files
-        hsr.add_expected_links(utcstart, 575, 1, i3socket=hsr.i3socket,
+        hsr.add_expected_links(start_ticks, 575, 1, i3socket=hsr.i3socket,
                                finaldir=alert['destination_dir'])
-
-        # reformat time string for file names
-        timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
@@ -1242,8 +1180,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create the alert
         alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': str(stop_ticks / 10),
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
             'destination_dir': "/foo/bar",
             'extract': False,
         }
@@ -1263,7 +1201,6 @@ class HsWorkerTest(LoggingTestCase):
 
         # initialize formatted start/stop times
         utcstart = HsTestUtil.get_time(start_ticks)
-        utcstop = HsTestUtil.get_time(stop_ticks)
 
         # add all expected log messages
         self.expectLogMessage("Requested HS data copy destination differs"
@@ -1272,11 +1209,8 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # TODO should compute the expected number of files
-        hsr.add_expected_links(utcstart, 575, 5, i3socket=hsr.i3socket,
+        hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
                                finaldir=alert['destination_dir'])
-
-        # reformat time string for file names
-        timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
@@ -1294,12 +1228,11 @@ class HsWorkerTest(LoggingTestCase):
 
         # initialize formatted start/stop times
         utcstart = HsTestUtil.get_time(start_ticks)
-        utcstop = HsTestUtil.get_time(stop_ticks)
 
         # create the alert
         alert = {
-            'start_time': str(utcstart),
-            'stop_time': str(utcstop),
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
             'destination_dir': "/foo/bar",
             'extract': False,
         }
@@ -1324,11 +1257,8 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # TODO should compute the expected number of files
-        hsr.add_expected_links(utcstart, 575, 5, i3socket=hsr.i3socket,
+        hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
                                finaldir=alert['destination_dir'])
-
-        # reformat time string for file names
-        timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
@@ -1346,12 +1276,11 @@ class HsWorkerTest(LoggingTestCase):
 
         # initialize formatted start/stop times
         utcstart = HsTestUtil.get_time(start_ticks)
-        utcstop = HsTestUtil.get_time(stop_ticks)
 
         # create the alert
         alert = {
-            'start_time': str(utcstart) + "0000",
-            'stop_time': str(utcstop) + "0",
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
             'destination_dir': "/foo/bar",
             'extract': False,
         }
@@ -1376,11 +1305,8 @@ class HsWorkerTest(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         # TODO should compute the expected number of files
-        hsr.add_expected_links(utcstart, 575, 5, i3socket=hsr.i3socket,
+        hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
                                finaldir=alert['destination_dir'])
-
-        # reformat time string for file names
-        timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,
@@ -1400,8 +1326,8 @@ class HsWorkerTest(LoggingTestCase):
 
         # create the alert
         alert = {
-            'start_time': str(start_ticks / 10),
-            'stop_time': str(stop_ticks / 10),
+            'start_ticks': start_ticks,
+            'stop_ticks': stop_ticks,
             'destination_dir': bad_dest_dir,
             'extract': False,
             'hub': 'foo',
@@ -1410,16 +1336,9 @@ class HsWorkerTest(LoggingTestCase):
         # set log file name
         logfile = "unknown.log"
 
-        # initialize formatted start/stop times
-        utcstart = HsTestUtil.get_time(start_ticks)
-        utcstop = HsTestUtil.get_time(stop_ticks)
-
         # add all expected log messages
         self.expectLogMessage("Destination parsing failed for \"%s\":"
                               "\nAbort request." % (bad_dest_dir, ))
-
-        # reformat time string for file names
-        timetag = utcstart.strftime("%Y%m%d_%H%M%S")
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), logfile,

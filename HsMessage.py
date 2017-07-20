@@ -2,11 +2,11 @@
 
 
 import getpass
+import numbers
 import struct
 import threading
 import time
 
-from HsBase import DAQTime
 from HsException import HsException
 from HsPrefix import HsPrefix
 from HsUtil import dict_to_object
@@ -17,15 +17,15 @@ DEFAULT_VERSION = 2
 
 # message types
 INITIAL = "REQUEST"
-STARTED = "STARTED" # hub has received a request
-WORKING = "WORKING" # hub is sending data (can be sent many times)
-DONE = "DONE"       # hub has finished sending data
-FAILED = "FAILED"   # hub failed to fill request
-IGNORED = "IGNORED" # hub is not part of the request
+STARTED = "STARTED"  # hub has received a request
+WORKING = "WORKING"  # hub is sending data (can be sent many times)
+DONE = "DONE"        # hub has finished sending data
+FAILED = "FAILED"    # hub failed to fill request
+IGNORED = "IGNORED"  # hub is not part of the request
 
 # mandatory message fields
-__MANDATORY_FIELDS = ("username", "prefix", "start_time", "stop_time",
-                      "destination_dir", "host", "version")
+__MANDATORY_FIELDS = ("username", "prefix", "destination_dir", "host",
+                      "version")
 
 
 class ID(object):
@@ -42,12 +42,23 @@ class ID(object):
         return x.encode('hex')
 
 
-def dict_to_message(mdict):
-    return dict_to_object(fix_message_dict(mdict), __MANDATORY_FIELDS,
-                          "Message")
+def dict_to_message(mdict, allow_old_format=False):
+    for prefix in ("start", "stop"):
+        found = False
+        for suffix in ("ticks", "time"):
+            if prefix + "_" + suffix in mdict:
+                found = True
+                break
+        if not found:
+            raise HsException("Dictionary is missing %s_time or %s_ticks" %
+                              (prefix, prefix))
+
+    return dict_to_object(fix_message_dict(mdict,
+                                           allow_old_format=allow_old_format),
+                          __MANDATORY_FIELDS, "Message")
 
 
-def fix_message_dict(mdict):
+def fix_message_dict(mdict, allow_old_format=False):
     if mdict is None:
         return None
 
@@ -62,10 +73,6 @@ def fix_message_dict(mdict):
         if mdict["msgtype"] != INITIAL:
             raise HsException("No request ID found in %s" % str(mdict))
         mdict["request_id"] = ID.generate()
-    if "start_time" in mdict and not isinstance(mdict["start_time"], DAQTime):
-        mdict["start_time"] = DAQTime(mdict["start_time"])
-    if "stop_time" in mdict and not isinstance(mdict["stop_time"], DAQTime):
-        mdict["stop_time"] = DAQTime(mdict["stop_time"])
     if "copy_dir" not in mdict:
         mdict["copy_dir"] = None
     if "extract" not in mdict:
@@ -76,14 +83,18 @@ def fix_message_dict(mdict):
     return mdict
 
 
-def receive(sock):
+def receive(sock, allow_old_format=False):
     mdict = sock.recv_json()
     if mdict is None:
         return None
-    return dict_to_message(mdict)
+    elif not isinstance(mdict, dict):
+        raise HsException("Received %s(%s), not dictionary" %
+                          (mdict, type(mdict).__name__))
+
+    return dict_to_message(mdict, allow_old_format=allow_old_format)
 
 
-def send(sock, msgtype, req_id, user, start_time, stop_time, destdir,
+def send(sock, msgtype, req_id, user, start_ticks, stop_ticks, destdir,
          prefix=None, copydir=None, extract=None, host=None, hubs=None,
          version=None):
     # check for required fields
@@ -93,16 +104,16 @@ def send(sock, msgtype, req_id, user, start_time, stop_time, destdir,
         raise HsException("Message type is not set for Req#" + str(req_id))
     if user is None:
         raise HsException("Username is not set for Req#" + str(req_id))
-    if start_time is None:
+    if start_ticks is None:
         raise HsException("Start time is not set for Req#" + str(req_id))
-    elif not isinstance(start_time, DAQTime):
-        raise TypeError("Start time %s<%s> should be DAQTime for Req#%s" %
-                        (start_time, type(start_time), req_id))
-    if stop_time is None:
+    elif not isinstance(start_ticks, numbers.Number):
+        raise TypeError("Start time %s<%s> should be number for Req#%s" %
+                        (start_ticks, type(start_ticks).__name__, req_id))
+    if stop_ticks is None:
         raise HsException("Stop time is not set for Req#" + str(req_id))
-    elif not isinstance(stop_time, DAQTime):
-        raise TypeError("Stop time %s<%s> should be DAQTime for Req#%s" %
-                        (stop_time, type(stop_time), req_id))
+    elif not isinstance(stop_ticks, numbers.Number):
+        raise TypeError("Stop time %s<%s> should be number for Req#%s" %
+                        (stop_ticks, type(stop_ticks).__name__, req_id))
     if destdir is None:
         raise HsException("Destination directory is not set for Req#" +
                           str(req_id))
@@ -119,8 +130,8 @@ def send(sock, msgtype, req_id, user, start_time, stop_time, destdir,
         "version": version,
         "request_id": req_id,
         "username": user,
-        "start_time": start_time.ticks,
-        "stop_time": stop_time.ticks,
+        "start_ticks": start_ticks,
+        "stop_ticks": stop_ticks,
         "copy_dir": copydir,
         "destination_dir": destdir,
         "prefix": prefix,
@@ -133,12 +144,12 @@ def send(sock, msgtype, req_id, user, start_time, stop_time, destdir,
 
 
 def send_for_request(sock, req, host, copydir, destdir, msgtype):
-    return send(sock, msgtype, req.request_id, req.username, req.start_time,
-                req.stop_time, destdir, prefix=req.prefix, copydir=copydir,
+    return send(sock, msgtype, req.request_id, req.username, req.start_ticks,
+                req.stop_ticks, destdir, prefix=req.prefix, copydir=copydir,
                 extract=req.extract, host=host, version=None)
 
 
-def send_initial(sock, req_id, start_time, stop_time, destdir, prefix=None,
+def send_initial(sock, req_id, start_ticks, stop_ticks, destdir, prefix=None,
                  extract_hits=False, hubs=None, host=None, username=None):
     "Send initial request"
     if req_id is None:
@@ -146,14 +157,30 @@ def send_initial(sock, req_id, start_time, stop_time, destdir, prefix=None,
     if username is None:
         username = getpass.getuser()
 
-    return send(sock, INITIAL, req_id, username, start_time,
-                stop_time, destdir, prefix=prefix, copydir=None,
+    return send(sock, INITIAL, req_id, username, start_ticks,
+                stop_ticks, destdir, prefix=prefix, copydir=None,
                 extract=extract_hits, hubs=hubs, host=host,
                 version=DEFAULT_VERSION)
 
 
 def send_worker_status(sock, req, host, copydir, destdir, msgtype):
     "Send worker status to HsSender based on the request"
-    return send(sock, msgtype, req.request_id, req.username, req.start_time,
-                req.stop_time, destdir, prefix=req.prefix, copydir=copydir,
+    if hasattr(req, "start_ticks"):
+        start_ticks = req.start_ticks
+    elif hasattr(req, "start_time"):
+        start_ticks = req.start_time.ticks
+    else:
+        raise ValueError("Request is missing 'start_ticks' or 'start_time':"
+                         " %s" % (req, ))
+
+    if hasattr(req, "stop_ticks"):
+        stop_ticks = req.stop_ticks
+    elif hasattr(req, "stop_time"):
+        stop_ticks = req.stop_time.ticks
+    else:
+        raise ValueError("Request is missing 'stop_ticks' or 'stop_time':"
+                         " %s" % (req, ))
+
+    return send(sock, msgtype, req.request_id, req.username, start_ticks,
+                stop_ticks, destdir, prefix=req.prefix, copydir=copydir,
                 extract=req.extract, host=host, version=None)

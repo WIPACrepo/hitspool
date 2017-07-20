@@ -10,6 +10,7 @@ import threading
 import time
 import unittest
 
+import DAQTime
 import HsConstants
 import HsMessage
 import HsPublisher
@@ -19,10 +20,10 @@ import HsWorker
 import HsTestUtil
 import HsUtil
 
-from HsBase import DAQTime
 from HsPrefix import HsPrefix
 from LoggingTestCase import LoggingTestCase
 from RequestMonitor import RequestMonitor
+
 
 class MockSenderSocket(HsTestUtil.Mock0MQSocket):
     def __init__(self, name="Sender", verbose=False):
@@ -206,7 +207,7 @@ class MockPullSocket(HsTestUtil.MockPollableSocket):
             raise Exception("%s<%s> was not closed" %
                             (self.__name, type(self).__name__))
         if len(self.__outqueue) > 0:
-            raise Exception("%s<%s> queue contains %s entries (%s)" % \
+            raise Exception("%s<%s> queue contains %s entries (%s)" %
                             (self.__name, type(self).__name__,
                              len(self.__outqueue), self.__outqueue))
         with self.__queueLock:
@@ -444,12 +445,12 @@ class MyWorker(HsWorker.Worker):
         self.MIN_DELAY = 0.0
 
     @classmethod
-    def __timetag(cls, starttime):
-        return starttime.strftime("%Y%m%d_%H%M%S")
+    def __timetag(cls, tick):
+        return DAQTime.ticks_to_utc(tick).strftime("%Y%m%d_%H%M%S")
 
-    def add_expected_links(self, base_utc, rundir, firstnum, numfiles,
+    def add_expected_links(self, tick, rundir, firstnum, numfiles,
                            i3socket=None, finaldir=None):
-        timetag = self.__timetag(base_utc)
+        timetag = self.__timetag(tick)
         srcdir = self.TEST_HUB_DIR
         for i in xrange(firstnum, firstnum + numfiles):
             frompath = os.path.join(srcdir, rundir, "HitSpool-%d.dat" % i)
@@ -581,9 +582,6 @@ class IntegrationTest(LoggingTestCase):
 
     def __init_publisher(self, publisher, req_id, username, prefix,
                          start_ticks, stop_ticks, copydir):
-        start_utc = HsTestUtil.get_time(start_ticks)
-        stop_utc = HsTestUtil.get_time(stop_ticks)
-
         # request message
         alertdict = {
             "start": start_ticks / 10,
@@ -597,11 +595,8 @@ class IntegrationTest(LoggingTestCase):
         publisher.alert_socket.addIncoming(alertdict)
         publisher.alert_socket.addExpected("DONE\0")
 
-    def __init_sender(self, sender, workers, req_id, username, prefix, destdir,
-                      start_ticks, stop_ticks, success=None):
-        start_time = DAQTime(start_ticks)
-        stop_time = DAQTime(stop_ticks)
-
+    def __init_sender(self, sender, workers, req_id, username, prefix,
+                      destdir, start_ticks, stop_ticks, success=None):
         # I3Live status message value
         status_queued = {
             "request_id": req_id,
@@ -620,8 +615,8 @@ class IntegrationTest(LoggingTestCase):
         # notification message strings
         notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % sender.cluster
         notify_lines = [
-            'Start: %s' % start_time.utc,
-            'Stop: %s' % stop_time.utc,
+            'Start: %s' % DAQTime.ticks_to_utc(start_ticks),
+            'Stop: %s' % DAQTime.ticks_to_utc(stop_ticks),
             '(no possible leapseconds applied)',
         ]
         notify_pat = re.compile(r".*" + re.escape("\n".join(notify_lines)),
@@ -654,8 +649,8 @@ class IntegrationTest(LoggingTestCase):
             "request_id": req_id,
             "username": username,
             "prefix": prefix,
-            "start_time": start_ticks,
-            "stop_time": stop_ticks,
+            "start_ticks": start_ticks,
+            "stop_ticks": stop_ticks,
             "destination_dir": destdir,
             "msgtype": HsMessage.INITIAL,
             "extract": False,
@@ -692,8 +687,8 @@ class IntegrationTest(LoggingTestCase):
             "request_id": req_id,
             "username": username,
             "prefix": prefix,
-            "start_time": start_ticks,
-            "stop_time": stop_ticks,
+            "start_ticks": start_ticks,
+            "stop_ticks": stop_ticks,
             "destination_dir": destdir,
             "msgtype": HsMessage.STARTED,
             "extract": False,
@@ -711,18 +706,15 @@ class IntegrationTest(LoggingTestCase):
 
         msg_done = msg_started.copy()
         msg_done["msgtype"] = HsMessage.DONE
-        # build a copy directory path which substitutes wildcards for date/time
+        # build a copy directory path which
+        # substitutes wildcards for date/time
         msg_done["copy_dir"] = re.compile(os.path.join(destdir, prefix) +
                                           r"_\d+_\d+_" +
                                           worker.shorthost)
         worker.sender.addExpected(msg_done)
 
         # build timetag used to construct final destination
-        utcstart = HsTestUtil.get_time(start_ticks)
-        plus30 = utcstart + datetime.timedelta(0, 30)
-
-        # reformat time string for file names
-        timetag = plus30.strftime("%Y%m%d_%H%M%S")
+        plus30 = start_ticks + int(30E10)
 
         # TODO should compute the expected number of files
         worker.add_expected_links(plus30, spoolname, 658, 2,
@@ -765,11 +757,12 @@ class IntegrationTest(LoggingTestCase):
         publisher = MyPublisher(push2snd.create_pusher("publisher"),
                                 verbose=verbose)
 
-        workers = (MyWorker(1, "ichub01.usap.gov", snd2wrk.subscribe(),
-                            push2snd.create_pusher("ichub01")),
-                   MyWorker(2, "ichub66.usap.gov", snd2wrk.subscribe(),
-                            push2snd.create_pusher("ichub66")),
-                   )
+        workers = (
+            MyWorker(1, "ichub01.usap.gov", snd2wrk.subscribe(),
+                     push2snd.create_pusher("ichub01")),
+            MyWorker(2, "ichub66.usap.gov", snd2wrk.subscribe(),
+                     push2snd.create_pusher("ichub66")),
+        )
 
         sender = MySender(push2snd.puller, snd2wrk.publisher, verbose=verbose)
 

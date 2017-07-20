@@ -1,19 +1,21 @@
 #!/usr/bin/env python
 
+import numbers
 import os
 import re
 import time
 import unittest
 
+import DAQTime
 import HsConstants
 import HsMessage
 import HsUtil
 
-from RequestMonitor import RequestMonitor
-from HsBase import DAQTime
+from HsException import HsException
 from HsSender import HsSender
 from HsTestUtil import Mock0MQSocket, MockI3Socket, TIME_PAT, \
     set_state_db_path
+from RequestMonitor import RequestMonitor
 
 from LoggingTestCase import LoggingTestCase
 
@@ -99,10 +101,11 @@ class RequestMonitorTest(LoggingTestCase):
 
         in_progress, error, done = states
         failmsg = None
-        for name, exp, got_tuple in (("in_progress", exp_progress,
-                                      in_progress),
-                         ("error", exp_error, error),
-                         ("done", exp_done, done)):
+        for name, exp, got_tuple in (
+                ("in_progress", exp_progress, in_progress),
+                ("error", exp_error, error),
+                ("done", exp_done, done),
+        ):
             got = list(got_tuple)
             explen = 0 if exp is None else len(exp)
             gotlen = 0 if got is None else len(got)
@@ -130,28 +133,26 @@ class RequestMonitorTest(LoggingTestCase):
         if failmsg is not None:
             self.fail("Expected " + failmsg)
 
+    @classmethod
     def __convert_message_dict(cls, olddict, live_msg=False):
         mdict = olddict.copy()
 
-        # if this is a message to Live, delete unneeded fields
-        if live_msg:
-            for fld in ("copy_dir", "host", "version", "msgtype", "extract"):
-                if fld in mdict:
-                    del mdict[fld]
-
         # fix time-based fields
-        for fld in ("start_time", "stop_time"):
-            if fld not in mdict:
-                raise HsException("Message dictionary is missing \"%s\"" % fld)
+        for prefix in ("start", "stop"):
+            key = prefix + "_ticks"
+            if key not in mdict:
+                raise HsException("Message is missing \"%s_ticks\"" %
+                                  (prefix, prefix))
 
-            if not isinstance(mdict[fld], DAQTime):
-                raise HsException("Message field %s type is %s, not DAQTime" %
-                                  (fld, type(mdict[fld]).__name__))
+            if not isinstance(mdict[key], numbers.Number):
+                raise HsException("Message field %s type is %s, not number" %
+                                  (key, type(mdict[key]).__name__))
 
             if live_msg:
-                mdict[fld] = mdict[fld].utc.strftime(cls.TIMEFMT)
-            else:
-                mdict[fld] = mdict[fld].ticks
+                if key.endswith("_ticks"):
+                    del mdict[key]
+                mdict[prefix + "_time"] \
+                    = str(DAQTime.ticks_to_utc(mdict[key]))
 
         # return new dictionary
         return mdict
@@ -168,8 +169,8 @@ class RequestMonitorTest(LoggingTestCase):
         mdict["request_id"] = request_id
         mdict["username"] = username
         mdict["prefix"] = prefix
-        mdict["start_time"] = start_ticks
-        mdict["stop_time"] = stop_ticks
+        mdict["start_ticks"] = start_ticks
+        mdict["stop_ticks"] = stop_ticks
         mdict["destination_dir"] = dest_dir
         mdict["copy_dir"] = None
         mdict["host"] = host
@@ -202,15 +203,32 @@ class RequestMonitorTest(LoggingTestCase):
             else:
                 raise HsException("Must specify status or success/failed")
 
-        livedict = self.__convert_message_dict(mdict, live_msg=True)
+        livedict = mdict.copy()
+        # delete non-Live fields
+        for fld in ("copy_dir", "host", "version", "msgtype", "extract",
+                    "hubs"):
+            if fld in livedict:
+                del livedict[fld]
+
+        # fix time-based fields
+        for prefix in ("start", "stop"):
+            tick_key = prefix + "_ticks"
+            time_key = prefix + "_time"
+            if tick_key in livedict:
+                utc = DAQTime.ticks_to_utc(livedict[tick_key])
+                livedict[time_key] = str(utc)
+                del livedict[tick_key]
+            elif time_key not in livedict:
+                raise ValueError("Message has neither \"%s_ticks\" nor"
+                                 " \"%s_time\"" % (prefix, prefix))
+
+        # add a few Live-specific fields
         livedict["status"] = status
         livedict["update_time"] = TIME_PAT
         if success is not None:
             livedict["success"] = success
         if failed is not None:
             livedict["failed"] = failed
-        if "hubs" in livedict:
-            del livedict["hubs"]
 
         sender.i3socket.addExpectedMessage(livedict, service="hitspool",
                                            varname="hsrequest_info", prio=1,
@@ -256,7 +274,7 @@ class RequestMonitorTest(LoggingTestCase):
         if rmon.is_started:
             raise Exception("Cannot stop %s" % rmon)
 
-    def __standard_two_hub_test(self, req_id, hub_pairs, restart=False):
+    def __standard_hub_test(self, req_id, hub_pairs, restart=False):
         sender = MockSender()
         rmon = self.__create_monitor(sender)
 
@@ -273,10 +291,8 @@ class RequestMonitorTest(LoggingTestCase):
 
         mdict = self.__create_message(request_id=req_id, hubs=hubstr)
 
-        test_msg = self.__convert_message_dict(mdict)
-
         # tell workers to expect the request
-        sender.workers.addExpected(test_msg)
+        sender.workers.addExpected(mdict.copy())
 
         # tell Live to expect a status message from the sender
         self.__expect_live_status(sender, mdict, status=HsUtil.STATUS_QUEUED)
@@ -287,14 +303,14 @@ class RequestMonitorTest(LoggingTestCase):
 
         # add request notification email
         notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % sender.cluster
-        notify_msg = re.compile(r'Start: .*\nStop: .*\n' + \
+        notify_msg = re.compile(r'Start: .*\nStop: .*\n' +
                                 r'\(no possible leapseconds applied\)',
                                 flags=re.MULTILINE)
         sender.i3socket.addGenericEMail(HsConstants.ALERT_EMAIL_DEV,
                                         notify_hdr, notify_msg, prio=1)
 
         # send initial message to RequestMonitor
-        self.__send_message(rmon, test_msg)
+        self.__send_message(rmon, mdict.copy())
 
         # shouldn't have any worker state yet
         self.__check_reqmon_state(rmon, req_id, None, None, None)
@@ -464,8 +480,8 @@ class RequestMonitorTest(LoggingTestCase):
         self.expectLogMessage("Request %s was not initialized (received"
                               " START from %s)" % (req_id, hubname))
 
-        self.__send_message(rmon, self.__convert_message_dict(mdict),
-                            msgtype=HsMessage.STARTED, host=hubname)
+        self.__send_message(rmon, mdict.copy(), msgtype=HsMessage.STARTED,
+                            host=hubname)
 
         self.__check_reqmon_state(rmon, req_id, (11, ), None, None)
 
@@ -490,8 +506,8 @@ class RequestMonitorTest(LoggingTestCase):
                               " but host was unknown" %
                               (req_id, hubname))
 
-        self.__send_message(rmon, self.__convert_message_dict(mdict),
-                            msgtype=HsMessage.WORKING, host=hubname)
+        self.__send_message(rmon, mdict.copy(), msgtype=HsMessage.WORKING,
+                            host=hubname)
 
         self.__check_reqmon_state(rmon, req_id, None, None, None)
 
@@ -517,8 +533,8 @@ class RequestMonitorTest(LoggingTestCase):
 
         self.expectLogMessage("Req#%s SUCCESS success=%s" % (req_id, 11))
 
-        self.__send_message(rmon, self.__convert_message_dict(mdict),
-                            msgtype=HsMessage.DONE, host=hubname)
+        self.__send_message(rmon, mdict.copy(), msgtype=HsMessage.DONE,
+                            host=hubname)
 
         result = rmon.request_state(req_id)
         self.assertTrue(result is None,
@@ -546,8 +562,8 @@ class RequestMonitorTest(LoggingTestCase):
 
         self.expectLogMessage("Req#%s FAIL failed=%s" % (req_id, 11))
 
-        self.__send_message(rmon, self.__convert_message_dict(mdict),
-                            msgtype=HsMessage.FAILED, host=hubname)
+        self.__send_message(rmon, mdict.copy(), msgtype=HsMessage.FAILED,
+                            host=hubname)
 
         result = rmon.request_state(req_id)
         self.assertTrue(result is None,
@@ -557,43 +573,43 @@ class RequestMonitorTest(LoggingTestCase):
         pairs = (("ichub11", HsMessage.DONE),
                  ("scube", HsMessage.FAILED))
 
-        self.__standard_two_hub_test("StdStuff", hub_pairs=pairs)
+        self.__standard_hub_test("StdStuff", hub_pairs=pairs)
 
     def test_standard_stuff_restart(self):
         pairs = (("ichub11", HsMessage.DONE),
                  ("scube", HsMessage.FAILED))
 
-        self.__standard_two_hub_test("RestartStd", hub_pairs=pairs,
-                                     restart=True)
+        self.__standard_hub_test("RestartStd", hub_pairs=pairs,
+                                 restart=True)
 
     def test_ignored_hub(self):
         pairs = (("ichub11", HsMessage.DONE),
                  ("ithub05", HsMessage.IGNORED),
                  ("ichub85", HsMessage.DONE))
 
-        self.__standard_two_hub_test("IgnoreHub", hub_pairs=pairs)
+        self.__standard_hub_test("IgnoreHub", hub_pairs=pairs)
 
     def test_ignored_hub_restart(self):
         pairs = (("ichub11", HsMessage.DONE),
                  ("ithub05", HsMessage.IGNORED),
                  ("ichub85", HsMessage.DONE))
 
-        self.__standard_two_hub_test("RestartIgn", hub_pairs=pairs,
-                                     restart=True)
+        self.__standard_hub_test("RestartIgn", hub_pairs=pairs,
+                                 restart=True)
 
     def test_failed(self):
         pairs = (("ichub11", HsMessage.FAILED),
                  ("ithub05", HsMessage.IGNORED),
                  ("ichub85", HsMessage.FAILED))
 
-        self.__standard_two_hub_test("FailedHubs", hub_pairs=pairs)
+        self.__standard_hub_test("FailedHubs", hub_pairs=pairs)
 
     def test_failed_restart(self):
         pairs = (("ichub11", HsMessage.FAILED),
                  ("ithub05", HsMessage.IGNORED),
                  ("ichub85", HsMessage.FAILED))
 
-        self.__standard_two_hub_test("FailedHubs", hub_pairs=pairs)
+        self.__standard_hub_test("FailedHubs", hub_pairs=pairs)
 
     def test_interleaved_requests(self):
         sender = MockSender()
@@ -602,7 +618,7 @@ class RequestMonitorTest(LoggingTestCase):
         req_id1 = "ReqOne"
         mdict1 = self.__create_message(request_id=req_id1)
 
-        test_msg1 = self.__convert_message_dict(mdict1)
+        test_msg1 = mdict1.copy()
 
         # workers receive the first request
         sender.workers.addExpected(test_msg1)
@@ -612,7 +628,7 @@ class RequestMonitorTest(LoggingTestCase):
 
         # add first request notification email
         notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % sender.cluster
-        notify_msg = re.compile(r'Start: .*\nStop: .*\n' + \
+        notify_msg = re.compile(r'Start: .*\nStop: .*\n' +
                                 r'\(no possible leapseconds applied\)',
                                 flags=re.MULTILINE)
         sender.i3socket.addGenericEMail(HsConstants.ALERT_EMAIL_DEV,
@@ -626,7 +642,7 @@ class RequestMonitorTest(LoggingTestCase):
                                        start_ticks=int(12E10),
                                        stop_ticks=int(13E10))
 
-        test_msg2 = self.__convert_message_dict(mdict2)
+        test_msg2 = mdict2.copy()
 
         # workers receive the second request
         sender.workers.addExpected(test_msg2)
@@ -636,7 +652,7 @@ class RequestMonitorTest(LoggingTestCase):
 
         # add second request notification email
         notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % sender.cluster
-        notify_msg = re.compile(r'Start: .*\nStop: .*\n' + \
+        notify_msg = re.compile(r'Start: .*\nStop: .*\n' +
                                 r'\(no possible leapseconds applied\)',
                                 flags=re.MULTILINE)
         sender.i3socket.addGenericEMail(HsConstants.ALERT_EMAIL_DEV,

@@ -3,20 +3,17 @@
 
 import datetime
 import logging
+import numbers
 import os
 import re
-import shutil
-import signal
 import sqlite3
 import threading
-import time
-import zmq
 
+import DAQTime
 import HsConstants
 import HsMessage
 import HsUtil
 
-from HsBase import DAQTime, HsBase
 from HsException import HsException
 from HsPrefix import HsPrefix
 
@@ -61,9 +58,10 @@ class RequestMonitor(threading.Thread):
 
         super(RequestMonitor, self).__init__(target=self.__run)
 
-    def __build_json_email(self, start_time, stop_time, prefix, extract):
+    def __build_json_email(self, start_ticks, stop_ticks, prefix, extract):
         alertmsg = "Start: %s\nStop: %s\n(no possible leapseconds applied)" % \
-                   (start_time.utc, stop_time.utc)
+                   (DAQTime.ticks_to_utc(start_ticks),
+                    DAQTime.ticks_to_utc(stop_ticks))
         if extract:
             alertmsg += "\nExtracting matching hits"
 
@@ -87,8 +85,9 @@ class RequestMonitor(threading.Thread):
                 astr = " (no active request)"
             else:
                 astr = " (Req#%s is active)" % self.__active
-            logging.error("Received unexpected %s message from %s for Req#%s%s",
-                          msg.msgtype, msg.host, msg.request_id, astr)
+            logging.error("Received unexpected %s message from %s for"
+                          " Req#%s%s", msg.msgtype, msg.host, msg.request_id,
+                          astr)
 
     def __close_database(self):
         if self.__sqlconn is not None:
@@ -180,14 +179,15 @@ class RequestMonitor(threading.Thread):
             for req_id in deleted:
                 self.__delete_request(req_id)
 
-    def __finish_request(self, req_id, username, prefix, start_time, stop_time,
-                         dest_dir, status, success=None, failed=None):
+    def __finish_request(self, req_id, username, prefix, start_ticks,
+                         stop_ticks, dest_dir, status, success=None,
+                         failed=None):
         "send final message to LIVE"
         logging.info("Req#%s %s%s%s", req_id, status,
                      "" if success is None else " success=%s" % success,
                      "" if failed is None else " failed=%s" % failed)
         HsUtil.send_live_status(self.__sender.i3socket, req_id, username,
-                                prefix, start_time, stop_time, dest_dir,
+                                prefix, start_ticks, stop_ticks, dest_dir,
                                 status, success=success, failed=failed)
 
     def __get_request_status(self, req_id):
@@ -234,7 +234,7 @@ class RequestMonitor(threading.Thread):
               msg.msgtype == HsMessage.FAILED):
             return self.__handle_req_completed(msg, force_spade=force_spade)
 
-        logging.error("Ignoring unknown message type \"%s\" in \"%s\"",
+        logging.error("Not handling message type \"%s\" in \"%s\"",
                       msg.msgtype, msg)
 
     def __handle_req_initial(self, msg):
@@ -246,19 +246,29 @@ class RequestMonitor(threading.Thread):
 
             self.__requests[msg.request_id] = {}
 
+            if hasattr(msg, "start_ticks") and hasattr(msg, "stop_ticks"):
+                start_ticks = msg.start_ticks
+                stop_ticks = msg.stop_ticks
+            elif hasattr(msg, "start_time") and hasattr(msg, "stop_time"):
+                start_ticks = DAQTime.string_to_ticks(msg.start_time)
+                stop_ticks = DAQTime.string_to_ticks(msg.stop_time)
+            else:
+                logging.error("Missing/bad start/stop times in request %s",
+                              str(msg))
+                return
+
             # add new request to DB
             self.__update_db(msg.request_id, self.INITIAL_REQUEST,
                              self.DBPHASE_QUEUED)
             self.__insert_detail(msg.request_id, msg.username, msg.prefix,
-                                 msg.start_time, msg.stop_time,
+                                 start_ticks, stop_ticks,
                                  msg.destination_dir, msg.hubs, msg.extract,
                                  self.DBPHASE_QUEUED)
 
         # tell LIVE that we've received the request
         HsUtil.send_live_status(self.__sender.i3socket, msg.request_id,
-                                msg.username, msg.prefix,
-                                msg.start_time, msg.stop_time,
-                                msg.destination_dir,
+                                msg.username, msg.prefix, start_ticks,
+                                stop_ticks, msg.destination_dir,
                                 HsUtil.STATUS_QUEUED)
 
     def __handle_req_started(self, msg):
@@ -274,7 +284,7 @@ class RequestMonitor(threading.Thread):
                 # tell Live that the first host has started processing
                 HsUtil.send_live_status(self.__sender.i3socket, msg.request_id,
                                         msg.username, msg.prefix,
-                                        msg.start_time, msg.stop_time,
+                                        msg.start_ticks, msg.stop_ticks,
                                         msg.destination_dir,
                                         HsUtil.STATUS_IN_PROGRESS)
 
@@ -288,8 +298,8 @@ class RequestMonitor(threading.Thread):
                     = (self.DBPHASE_START, datetime.datetime.now())
                 if self.DETAIL_KEY not in self.__requests[msg.request_id]:
                     self.__insert_detail(msg.request_id, msg.username,
-                                         msg.prefix, msg.start_time,
-                                         msg.stop_time, msg.destination_dir,
+                                         msg.prefix, msg.start_ticks,
+                                         msg.stop_ticks, msg.destination_dir,
                                          msg.hubs, msg.extract,
                                          self.DBPHASE_START)
                 self.__update_db(msg.request_id, msg.host,
@@ -312,8 +322,8 @@ class RequestMonitor(threading.Thread):
                     = (self.DBPHASE_WORKING, datetime.datetime.now())
                 if self.DETAIL_KEY not in self.__requests[msg.request_id]:
                     self.__insert_detail(msg.request_id, msg.username,
-                                         msg.prefix, msg.start_time,
-                                         msg.stop_time, msg.destination_dir,
+                                         msg.prefix, msg.start_ticks,
+                                         msg.stop_ticks, msg.destination_dir,
                                          msg.hubs, msg.extract,
                                          self.DBPHASE_WORKING)
                 self.__update_db(msg.request_id, msg.host,
@@ -341,7 +351,7 @@ class RequestMonitor(threading.Thread):
                               " without a START message", msg.msgtype,
                               msg.request_id, msg.host)
                 self.__insert_detail(msg.request_id, msg.username, msg.prefix,
-                                     msg.start_time, msg.stop_time,
+                                     msg.start_ticks, msg.stop_ticks,
                                      msg.destination_dir, msg.hubs,
                                      msg.extract, self.DBPHASE_WORKING)
 
@@ -376,7 +386,7 @@ class RequestMonitor(threading.Thread):
 
                 # send final message to Live
                 self.__finish_request(msg.request_id, msg.username, msg.prefix,
-                                      msg.start_time, msg.stop_time,
+                                      msg.start_ticks, msg.stop_ticks,
                                       msg.destination_dir, status,
                                       success=success, failed=failed)
 
@@ -404,24 +414,24 @@ class RequestMonitor(threading.Thread):
                 snd = self.__sender
                 result = snd.spade_pickup_data(hs_basedir, data_dir,
                                                prefix=msg.prefix,
-                                               start_time=msg.start_time,
-                                               stop_time=msg.stop_time)
+                                               start_ticks=msg.start_ticks,
+                                               stop_ticks=msg.stop_ticks)
                 if result is None:
                     return False
         return True
 
-    def __insert_detail(self, request_id, username, prefix, start_time,
-                        stop_time, dest_dir, hubs, extract, phase):
-        if start_time is None:
+    def __insert_detail(self, request_id, username, prefix, start_ticks,
+                        stop_ticks, dest_dir, hubs, extract, phase):
+        if start_ticks is None:
             raise HsException("Start time cannot be None")
-        elif not isinstance(start_time, DAQTime):
-            raise HsException("Start time must be DAQTime, not %s(%s)" %
-                              (type(start_time), str(start_time)))
-        if stop_time is None:
+        elif not isinstance(start_ticks, numbers.Number):
+            raise HsException("Start time must be number, not %s(%s)" %
+                              (type(start_ticks), str(start_ticks)))
+        if stop_ticks is None:
             raise HsException("Stop time cannot be None")
-        elif not isinstance(stop_time, DAQTime):
-            raise HsException("Stop time must be DAQTime, not %s(%s)" %
-                              (type(stop_time), str(stop_time)))
+        elif not isinstance(stop_ticks, numbers.Number):
+            raise HsException("Stop time must be number, not %s(%s)" %
+                              (type(stop_ticks), str(stop_ticks)))
 
         if self.__sqlconn is None:
             self.__sqlconn = self.__open_database()
@@ -433,15 +443,14 @@ class RequestMonitor(threading.Thread):
                            "(id, username, prefix, start_time, stop_time,"
                            " destination, hubs, extract, phase)"
                            " values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                           (request_id, username, prefix, start_time.ticks,
-                            stop_time.ticks, dest_dir,
-                            "" if hubs is None else hubs,
+                           (request_id, username, prefix, start_ticks,
+                            stop_ticks, dest_dir, "" if hubs is None else hubs,
                             1 if extract else 0, phase))
 
             # add details to cache
             with self.__reqlock:
                 self.__requests[request_id][self.DETAIL_KEY] \
-                    = (username, prefix, start_time, stop_time, dest_dir,
+                    = (username, prefix, start_ticks, stop_ticks, dest_dir,
                        hubs, extract, phase)
 
     @classmethod
@@ -495,7 +504,7 @@ class RequestMonitor(threading.Thread):
 
             if req_id not in requests:
                 logging.error("Request %s does not have an initial DB entry"
-                              " (phase is %s)",  req_id,
+                              " (phase is %s)", req_id,
                               self.__phase_name(phase))
                 requests[req_id] = {}
 
@@ -509,8 +518,8 @@ class RequestMonitor(threading.Thread):
             req_id = row[0]
             username = row[1]
             prefix = row[2]
-            start_time = row[3]
-            stop_time = row[4]
+            start_ticks = row[3]
+            stop_ticks = row[4]
             dest_dir = row[5]
             hubs = row[6]
             extract = row[7] != 0
@@ -518,8 +527,8 @@ class RequestMonitor(threading.Thread):
 
             try:
                 requests[req_id][self.DETAIL_KEY] \
-                    = (username, prefix, DAQTime(start_time),
-                       DAQTime(stop_time), dest_dir, hubs, extract, phase)
+                    = (username, prefix, start_ticks, stop_ticks, dest_dir,
+                       hubs, extract, phase)
             except KeyError:
                 logging.error("Req#%s is in request_details table"
                               " but not requests dictionary; ignored", req_id)
@@ -596,6 +605,7 @@ class RequestMonitor(threading.Thread):
                            "(id, host, phase, update_time)"
                            " values (?, ?, ?, ?)",
                            (request_id, host, phase, datetime.datetime.now()))
+
     def __run(self):
         # load cached requests from database
         self.__requests = self.__load_state_db()
@@ -636,7 +646,6 @@ class RequestMonitor(threading.Thread):
         self.__running = False
         self.__stopping = False
 
-
     def __start_next_request(self):
         """
         Start next queued request (if any).
@@ -650,6 +659,7 @@ class RequestMonitor(threading.Thread):
             return
 
         next_id = None
+        next_start = None
         next_details = None
         for req_id in self.__requests:
             # a queued request will only have a DETAIL entry
@@ -671,8 +681,7 @@ class RequestMonitor(threading.Thread):
                 continue
 
             # unpack the DETAIL fields
-            (username, prefix, start_time, stop_time, dest_dir, hubs,
-             extract, phase) = details
+            (_, _, start_time, _, _, _, _, phase) = details
 
             # oops, entry has a confusing 'phase'
             if phase != self.DBPHASE_QUEUED:
@@ -682,8 +691,10 @@ class RequestMonitor(threading.Thread):
                 continue
 
             # save this request if it's the earliest found
-            if next_id is None or details[2] < next_details[2]:
+            if next_id is None or next_start is None or \
+               next_details is None or start_time < next_start:
                 next_id = req_id
+                next_start = start_time
                 next_details = details
 
         if next_id is None:
@@ -691,20 +702,20 @@ class RequestMonitor(threading.Thread):
             return
 
         # unpack details
-        (username, prefix, start_time, stop_time, dest_dir, hubs, extract,
+        (username, prefix, start_ticks, stop_ticks, dest_dir, hubs, extract,
          phase) = next_details
 
         # send request to workers
         HsMessage.send(self.__sender.workers, HsMessage.INITIAL,
-                       next_id, username, start_time, stop_time, dest_dir,
-                       prefix=prefix, hubs=hubs, extract=extract,
+                       next_id, username, start_ticks, stop_ticks,
+                       dest_dir, prefix=prefix, hubs=hubs, extract=extract,
                        host=self.__sender.shorthost)
 
         # this is now the active request
         self.__active = next_id
 
         # send Live alert JSON for email notification:
-        alertjson = self.__build_json_email(start_time, stop_time, prefix,
+        alertjson = self.__build_json_email(start_ticks, stop_ticks, prefix,
                                             extract)
         self.__sender.i3socket.send_json(alertjson)
 
@@ -712,6 +723,13 @@ class RequestMonitor(threading.Thread):
         if not isinstance(msg, tuple) or not hasattr(msg, "_fields"):
             raise TypeError("Unexpected type <%s> for %s" %
                             (type(msg).__name__, msg))
+
+        # validate message type
+        if msg.msgtype not in (HsMessage.INITIAL, HsMessage.STARTED,
+                               HsMessage.WORKING, HsMessage.IGNORED,
+                               HsMessage.DONE, HsMessage.FAILED):
+            raise ValueError("Unknown message type \"%s\" in \"%s\"" %
+                             (msg.msgtype, msg))
 
         # validate list of hubs
         if msg.hubs is not None and len(msg.hubs) > 0:
@@ -766,9 +784,9 @@ class RequestMonitor(threading.Thread):
                 try:
                     host_id = HsUtil.hub_name_to_id(key)
                 except ValueError:
-                   logging.error("request_state() ignoring bad hub name %s",
-                                 key)
-                   continue
+                    logging.error("request_state() ignoring bad hub name %s",
+                                  key)
+                    continue
 
                 phase, _ = phase_time
                 if phase == self.DBPHASE_START or \

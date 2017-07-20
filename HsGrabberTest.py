@@ -5,11 +5,11 @@ import logging
 import re
 import unittest
 
-import HsBase
 import HsGrabber
 import HsMessage
 import HsTestUtil
 
+from HsBase import HsBase
 from HsPrefix import HsPrefix
 
 from LoggingTestCase import LoggingTestCase
@@ -67,8 +67,8 @@ class HsGrabberTest(LoggingTestCase):
             pass
 
     def test_negative_time(self):
-        start_time = HsBase.DAQTime(15789006796024620)
-        stop_time = HsBase.DAQTime(start_time.ticks - 1000000000)
+        start_ticks = 15789006796024620
+        stop_ticks = start_ticks - 1000000000
         copydir = None
 
         # create the grabber object
@@ -80,29 +80,28 @@ class HsGrabberTest(LoggingTestCase):
         # add all expected log messages
         msg = "Requesting negative time range (%.2f).\n" \
               "Try another time window." % \
-              ((stop_time.ticks - start_time.ticks) / 1E10)
+              ((stop_ticks - start_ticks) / 1E10)
         self.expectLogMessage(msg)
 
         # run it!
-        hsg.send_alert(start_time, stop_time, copydir, print_to_console=False)
+        hsg.send_alert(start_ticks, stop_ticks, copydir, print_to_console=False)
 
         hsg.validate()
 
     def test_nonstandard_time(self):
-        start_time = HsBase.DAQTime(15789006796024620)
-        stop_ticks = start_time.ticks + 1E10 * (HsGrabber.WARN_SECONDS + 1)
-        stop_time = HsBase.DAQTime(stop_ticks)
+        start_ticks = 15789006796024620
+        stop_ticks = start_ticks + int(1E10 * (HsGrabber.WARN_SECONDS + 1))
         copydir = "/not/valid/path"
 
-        secrange = (stop_time.ticks - start_time.ticks) / 1E10
+        secrange = (stop_ticks - start_ticks) / 1E10
 
         # create the grabber object
         hsg = MyGrabber()
 
         # add all JSON and response messages
         expected = {
-            "start_time": start_time.ticks,
-            "stop_time": stop_time.ticks,
+            "start_ticks": start_ticks,
+            "stop_ticks": stop_ticks,
             "destination_dir": copydir,
             "prefix": HsPrefix.ANON,
             "request_id": self.MATCH_ANY,
@@ -126,7 +125,7 @@ class HsGrabberTest(LoggingTestCase):
         self.expectLogMessage(msg)
 
         # run it!
-        hsg.send_alert(start_time, stop_time, copydir, print_to_console=False)
+        hsg.send_alert(start_ticks, stop_ticks, copydir, print_to_console=False)
 
         hsg.validate()
 
@@ -140,13 +139,12 @@ class HsGrabberTest(LoggingTestCase):
         hsg.wait_for_response(timeout=timeout, print_to_console=False)
 
     def test_huge_time(self):
-        start_time = HsBase.DAQTime(15789006796024620)
-        stop_ticks = start_time.ticks + \
-            1E10 * (HsBase.HsBase.MAX_REQUEST_SECONDS + 1)
-        stop_time = HsBase.DAQTime(stop_ticks)
+        start_ticks = 15789006796024620
+        stop_ticks = start_ticks + \
+                     int(1E10 * (HsBase.MAX_REQUEST_SECONDS + 1))
         copydir = None
 
-        secrange = (stop_time.ticks - start_time.ticks) / 1E10
+        secrange = (stop_ticks - start_ticks) / 1E10
 
         # create the grabber object
         hsg = MyGrabber()
@@ -158,11 +156,11 @@ class HsGrabberTest(LoggingTestCase):
         msg = "Request for %.2f seconds is too huge.\n" \
               "HsWorker processes request only up to %d seconds.\n" \
               "Try a smaller time window." % \
-              (secrange, HsBase.HsBase.MAX_REQUEST_SECONDS)
+              (secrange, HsBase.MAX_REQUEST_SECONDS)
         self.expectLogMessage(msg)
 
         # run it!
-        hsg.send_alert(start_time, stop_time, copydir, print_to_console=False)
+        hsg.send_alert(start_ticks, stop_ticks, copydir, print_to_console=False)
 
         hsg.validate()
 
@@ -189,8 +187,8 @@ class HsGrabberTest(LoggingTestCase):
         hsg.validate()
 
     def test_working(self):
-        start_time = HsBase.DAQTime(15789006796024620)
-        stop_time = HsBase.DAQTime(15789066796024620)
+        start_ticks = 15789006796024620
+        stop_ticks =  15789066796024620
         copydir = "/somewhere/else"
 
         # create the grabber object
@@ -198,8 +196,8 @@ class HsGrabberTest(LoggingTestCase):
 
         # add all JSON and response messages
         expected = {
-            "start_time": start_time.ticks,
-            "stop_time": stop_time.ticks,
+            "start_ticks": start_ticks,
+            "stop_ticks": stop_ticks,
             "destination_dir": copydir,
             "prefix": HsPrefix.ANON,
             "request_id": self.MATCH_ANY,
@@ -221,7 +219,8 @@ class HsGrabberTest(LoggingTestCase):
         self.setLogLevel(logging.WARN)
 
         # run it!
-        hsg.send_alert(start_time, stop_time, copydir, print_to_console=False)
+        hsg.send_alert(start_ticks, stop_ticks, copydir,
+                       print_to_console=False)
 
         timeout = 1
         hsg.wait_for_response(timeout=timeout, print_to_console=False)

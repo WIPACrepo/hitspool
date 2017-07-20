@@ -3,6 +3,7 @@
 
 import json
 import logging
+import numbers
 import os
 import re
 import shutil
@@ -11,6 +12,7 @@ import tempfile
 import time
 import unittest
 
+import DAQTime
 import HsConstants
 import HsSender
 import HsMessage
@@ -18,7 +20,7 @@ import HsUtil
 
 from HsException import HsException
 from HsTestUtil import Mock0MQPoller, Mock0MQSocket, MockHitspool, \
-    MockI3Socket, TIME_PAT, get_time, set_state_db_path
+    MockI3Socket, TIME_PAT, set_state_db_path
 from LoggingTestCase import LoggingTestCase
 from RequestMonitor import RequestMonitor
 
@@ -108,7 +110,7 @@ class FailableSender(MySender):
     def remove_tree(self, path):
         pass
 
-    def write_meta_xml(self, spadedir, basename, start_time, stop_time):
+    def write_meta_xml(self, spadedir, basename, start_ticks, stop_ticks):
         if self.__fail_touch_file:
             raise HsException("Fake Touch Error")
         return basename + HsSender.HsSender.META_SUFFIX
@@ -135,11 +137,20 @@ class MockRequestBuilder(object):
 
     USRDIR = None
 
-    def __init__(self, req_id, req_type, username, start_utc, stop_utc,
+    def __init__(self, req_id, req_type, username, start_ticks, stop_ticks,
                  timetag, host, firstfile, numfiles):
+        if start_ticks is not None and \
+           not isinstance(start_ticks, numbers.Number):
+            raise TypeError("Start time %s<%s> is not number" %
+                            (start_ticks, type(start_ticks).__name__))
+        if stop_ticks is not None and \
+           not isinstance(stop_ticks, numbers.Number):
+            raise TypeError("Stop time %s<%s> is not number" %
+                            (stop_ticks, type(stop_ticks).__name__))
+
         self.__req_id = req_id
-        self.__start_utc = start_utc
-        self.__stop_utc = stop_utc
+        self.__start_ticks = start_ticks
+        self.__stop_ticks = stop_ticks
         self.__username = username
         self.__host = host
         self.__firstfile = firstfile
@@ -169,13 +180,16 @@ class MockRequestBuilder(object):
         raise NotImplementedError("Unknown request type #%s" % reqtype)
 
     def add_i3live_message(self, i3socket, status, success=None, failed=None):
+        start_utc = DAQTime.ticks_to_utc(self.__start_ticks)
+        stop_utc = DAQTime.ticks_to_utc(self.__stop_ticks)
+
         # build I3Live success message
         value = {
             'status': status,
             'request_id': self.__req_id,
             'username': self.__username,
-            'start_time': str(self.__start_utc),
-            'stop_time': str(self.__stop_utc),
+            'start_time': start_utc.strftime(DAQTime.TIME_FORMAT),
+            'stop_time': stop_utc.strftime(DAQTime.TIME_FORMAT),
             'destination_dir': self.__destdir,
             'prefix': None,
             'update_time': TIME_PAT,
@@ -193,15 +207,15 @@ class MockRequestBuilder(object):
 
     @classmethod
     def add_reporter_request(cls, reporter, msgtype, req_id, username,
-                             start_time, stop_time, host, hsdir, destdir,
+                             start_ticks, stop_ticks, host, hsdir, destdir,
                              success=None, failed=None):
         # initialize message
         rcv_msg = {
             "msgtype": msgtype,
             "request_id": req_id,
             "username": username,
-            "start_time": start_time,
-            "stop_time": stop_time,
+            "start_ticks": start_ticks,
+            "stop_ticks": stop_ticks,
             "copy_dir": hsdir,
             "destination_dir": destdir,
             "prefix": None,
@@ -220,10 +234,10 @@ class MockRequestBuilder(object):
 
     def add_request(self, reporter, msgtype, success=None, failed=None):
         self.add_reporter_request(reporter, msgtype, self.__req_id,
-                                  self.__username, self.__start_utc,
-                                  self.__stop_utc, self.__host, self.__hsdir,
-                                  self.__destdir, success=success,
-                                  failed=failed)
+                                  self.__username, self.__start_ticks,
+                                  self.__stop_ticks, self.__host,
+                                  self.__hsdir, self.__destdir,
+                                  success=success, failed=failed)
 
     def check_files(self):
         if os.path.exists(self.__hsdir):
@@ -766,7 +780,6 @@ class HsSenderTest(LoggingTestCase):
         self.SENDER = sender
 
         # initialize message
-        msg = "abc"
         snd_msg = json.dumps("abc")
 
         # add all expected JSON messages
@@ -781,9 +794,8 @@ class HsSenderTest(LoggingTestCase):
                 self.fail("'str' message was accepted")
         except HsException, hse:
             hsestr = str(hse)
-            expstr = "Message is not a dictionary: \"\"%s\"\"<%s>" % \
-                     (msg, type(msg))
-            if hsestr.find(expstr) < 0:
+            if hsestr.find("Received ") < 0 or \
+               hsestr.find(", not dictionary") < 0:
                 self.fail("Unexpected exception: " + hsestr)
 
         # wait for message to be processed
@@ -797,7 +809,11 @@ class HsSenderTest(LoggingTestCase):
         self.SENDER = sender
 
         # initialize message
-        rcv_msg = {"msgtype": "rsync_sum"}
+        rcv_msg = {
+            "msgtype": "rsync_sum",
+            "start_time": None,
+            "stop_time": None,
+        }
 
         # add all expected JSON messages
         sender.reporter.addIncoming(rcv_msg)
@@ -839,7 +855,7 @@ class HsSenderTest(LoggingTestCase):
                 self.fail("Bad message was accepted")
         except HsException, hse:
             hsestr = str(hse)
-            if hsestr.find("Missing fields ") < 0:
+            if hsestr.find("Dictionary is missing start_") < 0:
                 self.fail("Unexpected exception: " + hsestr)
 
         # wait for message to be processed
@@ -864,6 +880,7 @@ class HsSenderTest(LoggingTestCase):
             "prefix": None,
             "extract": None,
             "host": None,
+            "version": None,
         }
 
         # add all expected JSON messages
@@ -872,14 +889,12 @@ class HsSenderTest(LoggingTestCase):
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
+        # add all expected log messages
+        self.expectLogMessage(re.compile("Received bad message .*"))
+
         # run it!
-        try:
-            if sender.process_one_message():
-                self.fail("Bad message was accepted")
-        except HsException, hse:
-            hsestr = str(hse)
-            if hsestr.find("No date/time specified") < 0:
-                self.fail("Unexpected exception: " + hsestr)
+        if sender.process_one_message():
+            self.fail("Bad message was accepted")
 
         # wait for message to be processed
         sender.wait_for_idle()
@@ -893,11 +908,11 @@ class HsSenderTest(LoggingTestCase):
 
         # initialize message
         rcv_msg = {
-            "msgtype": "xxx",
+            "msgtype": HsMessage.INITIAL,
             "request_id": "BadHubs",
             "username": "abc",
-            "start_time": 0,
-            "stop_time": int(1E10),
+            "start_ticks": 0,
+            "stop_ticks": int(1E10),
             "copy_dir": None,
             "destination_dir": None,
             "prefix": None,
@@ -913,7 +928,7 @@ class HsSenderTest(LoggingTestCase):
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
-        # expect log message about bad hub list
+        # add all expected log messages
         self.expectLogMessage(re.compile(r"Received bad message .*"))
 
         # run it!
@@ -933,11 +948,9 @@ class HsSenderTest(LoggingTestCase):
         # expected start/stop times
         start_ticks = 98765432100000
         stop_ticks = 98899889980000
-        start_utc = get_time(start_ticks)
-        stop_utc = get_time(stop_ticks)
 
         req = MockRequestBuilder("MnLoopNIJS", MockRequestBuilder.SNDAQ, None,
-                                 start_utc, stop_utc, "12345678_987654",
+                                 start_ticks, stop_ticks, "12345678_987654",
                                  "ichub01", 11, 3)
 
         msgtype = HsMessage.DONE
@@ -980,8 +993,6 @@ class HsSenderTest(LoggingTestCase):
         # expected start/stop times
         start_ticks = 98765432100000
         stop_ticks = 98899889980000
-        start_utc = get_time(start_ticks)
-        stop_utc = get_time(stop_ticks)
 
         # request details
         req_id = "MnLoopMReq"
@@ -990,10 +1001,10 @@ class HsSenderTest(LoggingTestCase):
         timetag = "12345678_987654"
 
         # create two requests
-        req01 = MockRequestBuilder(req_id, req_type, username, start_utc,
-                                   stop_utc, timetag, "ichub01", 11, 3)
-        req86 = MockRequestBuilder(req_id, req_type, username, start_utc,
-                                   stop_utc, timetag, "ichub86", 11, 3)
+        req01 = MockRequestBuilder(req_id, req_type, username, start_ticks,
+                                   stop_ticks, timetag, "ichub01", 11, 3)
+        req86 = MockRequestBuilder(req_id, req_type, username, start_ticks,
+                                   stop_ticks, timetag, "ichub86", 11, 3)
 
         # add initial message
         req01.add_request(sender.reporter, HsMessage.INITIAL)
@@ -1008,8 +1019,8 @@ class HsSenderTest(LoggingTestCase):
         # initialize some notification data
         notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % sender.cluster
         notify_lines = [
-            'Start: %s' % start_utc,
-            'Stop: %s' % stop_utc,
+            'Start: %s' % DAQTime.ticks_to_utc(start_ticks),
+            'Stop: %s' % DAQTime.ticks_to_utc(stop_ticks),
             '(no possible leapseconds applied)',
         ]
         notify_pat = re.compile(r".*" + re.escape("\n".join(notify_lines)),

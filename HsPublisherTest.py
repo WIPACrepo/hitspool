@@ -81,10 +81,6 @@ class HsPublisherTest(LoggingTestCase):
         rcvr = MyReceiver()
         self.RECEIVER = rcvr
 
-        # expected start/stop times
-        start_utc = "TBD"
-        stop_utc = "TBD"
-
         # request message
         req_str = ""
 
@@ -106,10 +102,6 @@ class HsPublisherTest(LoggingTestCase):
     def test_bad_msg(self):
         rcvr = MyReceiver()
         self.RECEIVER = rcvr
-
-        # expected start/stop times
-        start_utc = "TBD"
-        stop_utc = "TBD"
 
         # request message
         req_str = "XXX"
@@ -390,8 +382,6 @@ class HsPublisherTest(LoggingTestCase):
         # expected start/stop times
         start_ticks = 98765432100000
         stop_ticks = 98899889980000
-        start_utc = HsTestUtil.get_time(start_ticks)
-        stop_utc = HsTestUtil.get_time(stop_ticks)
         copydir = "/bad/copy/path"
 
         # build initial message
@@ -413,8 +403,8 @@ class HsPublisherTest(LoggingTestCase):
             "request_id": self.MATCH_ANY,
             "username": HsPublisher.Receiver.DEFAULT_USERNAME,
             "prefix": HsPrefix.ANON,
-            "start_time": start_ticks,
-            "stop_time": stop_ticks,
+            "start_ticks": start_ticks,
+            "stop_ticks": stop_ticks,
             "copy_dir": None,
             "destination_dir": copydir,
             "extract": False,
@@ -443,8 +433,6 @@ class HsPublisherTest(LoggingTestCase):
         # expected start/stop times
         start_ticks = 98765432100000
         stop_ticks = 98899889980000
-        start_utc = HsTestUtil.get_time(start_ticks)
-        stop_utc = HsTestUtil.get_time(stop_ticks)
         copydir = "/bad/copy/path"
 
         # request message
@@ -465,8 +453,8 @@ class HsPublisherTest(LoggingTestCase):
             "request_id": self.MATCH_ANY,
             "username": HsPublisher.Receiver.DEFAULT_USERNAME,
             "prefix": HsPrefix.ANON,
-            "start_time": start_ticks,
-            "stop_time": stop_ticks,
+            "start_ticks": start_ticks,
+            "stop_ticks": stop_ticks,
             "copy_dir": None,
             "destination_dir": copydir,
             "extract": False,
@@ -495,8 +483,6 @@ class HsPublisherTest(LoggingTestCase):
         # expected start/stop times
         start_ticks = 98765432100000
         stop_ticks = 98899889980000
-        start_utc = HsTestUtil.get_time(start_ticks)
-        stop_utc = HsTestUtil.get_time(stop_ticks)
         copydir = "/bad/copy/path"
 
         # request message
@@ -519,8 +505,8 @@ class HsPublisherTest(LoggingTestCase):
             "request_id": alertdict["request_id"],
             "username": HsPublisher.Receiver.DEFAULT_USERNAME,
             "prefix": HsPrefix.ANON,
-            "start_time": start_ticks,
-            "stop_time": stop_ticks,
+            "start_ticks": start_ticks,
+            "stop_ticks": stop_ticks,
             "copy_dir": None,
             "destination_dir": copydir,
             "extract": False,
@@ -549,14 +535,12 @@ class HsPublisherTest(LoggingTestCase):
         # expected start/stop times
         start_ticks = 98765432100000
         stop_ticks = 98899889980000
-        start_utc = HsTestUtil.get_time(start_ticks)
-        stop_utc = HsTestUtil.get_time(stop_ticks)
         copydir = "/bad/copy/path"
 
         # request message
         alertdict = {
-            "start_time": str(start_utc),
-            "stop_time": str(stop_utc),
+            "start_time": str(HsTestUtil.get_time(start_ticks)),
+            "stop_time": str(HsTestUtil.get_time(stop_ticks)),
             "destination_dir": copydir,
             "prefix": HsPrefix.ANON,
             "request_id": "NO ID",
@@ -573,8 +557,8 @@ class HsPublisherTest(LoggingTestCase):
             "request_id": alertdict["request_id"],
             "username": HsPublisher.Receiver.DEFAULT_USERNAME,
             "prefix": HsPrefix.ANON,
-            "start_time": start_ticks,
-            "stop_time": stop_ticks,
+            "start_ticks": start_ticks,
+            "stop_ticks": stop_ticks,
             "copy_dir": None,
             "destination_dir": copydir,
             "extract": False,
@@ -603,8 +587,6 @@ class HsPublisherTest(LoggingTestCase):
         # expected start/stop times
         start_ticks = 98765432100000
         stop_ticks = 98899889980000
-        start_utc = HsTestUtil.get_time(start_ticks)
-        stop_utc = HsTestUtil.get_time(stop_ticks)
         copydir = "localhost:/tmp"
 
         # request message
@@ -629,8 +611,8 @@ class HsPublisherTest(LoggingTestCase):
             "request_id": alertdict["request_id"],
             "username": HsPublisher.Receiver.DEFAULT_USERNAME,
             "prefix": HsPrefix.ANON,
-            "start_time": start_ticks,
-            "stop_time": stop_ticks,
+            "start_ticks": start_ticks,
+            "stop_ticks": stop_ticks,
             "copy_dir": None,
             "destination_dir": request_dir,
             "extract": False,
@@ -659,14 +641,12 @@ class HsPublisherTest(LoggingTestCase):
         # expected start/stop times
         start_ticks = 98765432100000
         stop_ticks = 98899889980000
-        start_utc = HsTestUtil.get_time(start_ticks)
-        stop_utc = HsTestUtil.get_time(stop_ticks)
         copydir = "localhost:/tmp"
 
         # request message
         alertdict = {
-            "start_time": str(start_utc),
-            "stop_time": str(stop_utc),
+            "start_time": str(HsTestUtil.get_time(start_ticks)),
+            "stop_time": str(HsTestUtil.get_time(stop_ticks)),
             "destination_dir": copydir,
             "prefix": HsPrefix.ANON,
             "request_id": "NO ID",
@@ -685,8 +665,8 @@ class HsPublisherTest(LoggingTestCase):
             "request_id": alertdict["request_id"],
             "username": HsPublisher.Receiver.DEFAULT_USERNAME,
             "prefix": HsPrefix.ANON,
-            "start_time": start_ticks,
-            "stop_time": stop_ticks,
+            "start_ticks": start_ticks,
+            "stop_ticks": stop_ticks,
             "copy_dir": None,
             "destination_dir": request_dir,
             "extract": False,

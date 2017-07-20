@@ -5,7 +5,6 @@ import logging
 import os
 import re
 import shutil
-import socket
 
 import HsTestUtil
 
@@ -132,7 +131,7 @@ class HsRSyncTestCase(LoggingTestCase):
         tstrun.populate(self)
 
         # add all expected log messages
-        self.expectLogMessage("sn_start & sn_stop time-stamps inverted."
+        self.expectLogMessage("Start and stop times are inverted."
                               " Abort request.")
 
         tstrun.run(start_ticks, stop_ticks)

@@ -46,7 +46,7 @@ class MySpader(HsSpader.HsSpader):
     def set_file_list(self, files):
         self.__filelist = files
 
-    def write_meta_xml(self, spadedir, basename, start_time, stop_time):
+    def write_meta_xml(self, spadedir, basename, start_ticks=None, stop_ticks=None):
         if self.__fail_touch_file:
             raise HsException("Fake Touch Error")
         return "fake.meta.xml"

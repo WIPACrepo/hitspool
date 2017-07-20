@@ -3,6 +3,7 @@
 import os
 import unittest
 
+import DAQTime
 import HsRSyncFiles
 import HsRSyncTestCase
 import HsTestUtil
@@ -23,11 +24,11 @@ class MyHsRSyncFiles(HsRSyncFiles.HsRSyncFiles):
         self.MIN_DELAY = 0.0
 
     @classmethod
-    def __timetag(cls, starttime):
-        return starttime.strftime("%Y%m%d+%H%M%S")
+    def __timetag(cls, ticks):
+        return DAQTime.ticks_to_utc(ticks).strftime("%Y%m%d+%H%M%S")
 
-    def add_expected_links(self, start_utc, rundir, firstnum, numfiles):
-        timetag = self.__timetag(start_utc)
+    def add_expected_links(self, start_tick, rundir, firstnum, numfiles):
+        timetag = self.__timetag(start_tick)
         for i in xrange(firstnum, firstnum + numfiles):
             frompath = os.path.join(self.TEST_HUB_DIR, rundir,
                                     "HitSpool-%d.dat" % i)
@@ -50,8 +51,8 @@ class MyHsRSyncFiles(HsRSyncFiles.HsRSyncFiles):
     def fail_hardlink(self):
         self.__fail_hardlink = True
 
-    def get_timetag_tuple(self, prefix, starttime):
-        return self.__timetag(starttime)
+    def get_timetag_tuple(self, prefix, ticks):
+        return self.__timetag(ticks)
 
     def hardlink(self, filename, targetdir):
         if self.__fail_hardlink:

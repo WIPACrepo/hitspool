@@ -325,8 +325,8 @@ class CopyUsingRSync(Copier):
 
 class CopyUsingSCP(Copier):
     def __init__(self, rmt_user, rmt_host, rmt_dir, rmt_subdir,
-                 bwlimit=None, cipher=None, log_format="%i%n%L",
-                 make_remote_dir=True, relative=True):
+                 bwlimit=None, cipher=None, log_format=None,
+                 make_remote_dir=True, relative=None):
 
         self.__filename = None
         self.__size = None
@@ -415,7 +415,7 @@ class CopyUsingSCP(Copier):
                     self.__filename = self.__filename[:-2]
 
                 fsize = os.path.getsize(flds[-2])
-                if size is None:
+                if self.__size is None:
                     self.__size = fsize
                 else:
                     self.__size += fsize

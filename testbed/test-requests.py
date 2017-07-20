@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
 import logging
+import numbers
 import os
+import select
 import shutil
 import sqlite3
 import sys
@@ -18,12 +20,12 @@ if not os.path.exists(os.path.join(current, "HsConstants.py")):
         raise System.exit("Cannot find HsConstants.py")
     sys.path.insert(0, parent)
 
+import DAQTime
 import HsConstants
 import HsUtil
 
 from lxml import etree, objectify
 
-from HsBase import DAQTime
 from HsException import HsException
 from HsGrabber import HsGrabber
 from HsPrefix import HsPrefix
@@ -35,6 +37,25 @@ from RequestMonitor import RequestMonitor
 
 # Root testbed directory
 ROOTDIR = "/tmp/TESTCLUSTER"
+
+
+def print_process_output(proclist):
+    reads = []
+    for name, proc in proclist:
+        reads.append(proc.stdout.fileno())
+        reads.append(proc.stderr.fileno())
+    try:
+        ready = select.select(reads, [], [], 0.01)
+    except select.error:
+        return
+
+    # only need to check readable handles (element 0)
+    readable = ready[0]
+    for name, proc in proclist:
+        for hname, stream in (("OUT", proc.stdout), ("ERR", proc.stderr)):
+            if stream.fileno() in readable:
+                print "[%s:%s] %s" % (name, hname, stream.readline().rstrip())
+
 
 class HsEnvironment(object):
     def __init__(self, rootdir):
@@ -79,9 +100,9 @@ class HsEnvironment(object):
 
             # update hitspool DB
             conn.execute("insert or replace"
-                           " into hitspool(filename, start_tick, stop_tick)"
-                           " values (?,?,?)", (filename, cur_time,
-                                               cur_time + timespan - 1))
+                         " into hitspool(filename, start_tick, stop_tick)"
+                         " values (?,?,?)", (filename, cur_time,
+                                             cur_time + timespan - 1))
 
             # onto the next file?
             file_num += 1
@@ -148,21 +169,22 @@ class HsEnvironment(object):
         "SPADE queue directory"
         return self.__spadequeue
 
+
 class Request(object):
     SCHEMA_PATH = "testbed/schema/IceCubeDIFPlus.xsd"
     NEXT_NUM = 1
 
-    def __init__(self, env, succeed, start_time, stop_time, expected_hubs,
+    def __init__(self, env, succeed, start_ticks, stop_ticks, expected_hubs,
                  expected_files=None, request_id=None, username=None,
                  prefix=None, copydir=None, extract=False, send_old=False,
                  number=None, ignored=None):
         # check parameters
-        if not isinstance(start_time, DAQTime):
-            raise TypeError("Start time %s is <%s>, not <DAQTime>" %
-                            (start_time, type(start_time)))
-        if not isinstance(stop_time, DAQTime):
-            raise TypeError("Stop time %s is <%s>, not <DAQTime>" %
-                            (stop_time, type(stop_time)))
+        if not isinstance(start_ticks, numbers.Number):
+            raise TypeError("Start time %s is <%s>, not number" %
+                            (start_ticks, type(start_ticks)))
+        if not isinstance(stop_ticks, numbers.Number):
+            raise TypeError("Stop time %s is <%s>, not number" %
+                            (stop_ticks, type(stop_ticks)))
 
         # if present, validate list of ignored hubs
         if ignored is not None:
@@ -185,8 +207,8 @@ class Request(object):
         else:
             self.__number = self.get_next_number()
 
-        self.__start_time = start_time
-        self.__stop_time = stop_time
+        self.__start_ticks = start_ticks
+        self.__stop_ticks = stop_ticks
 
         if extract:
             if expected_files is None:
@@ -194,8 +216,8 @@ class Request(object):
         else:
             if expected_files is not None:
                 raise HsException("Expected files should not be specified!")
-            expected_files = env.files_in_range(start_time.ticks,
-                                                stop_time.ticks)
+            expected_files = env.files_in_range(start_ticks,
+                                                stop_ticks)
 
         if copydir is None:
             copydir = os.path.join(ROOTDIR, "HsDataCopy")
@@ -216,7 +238,7 @@ class Request(object):
         self.__ignored = ignored
 
     def __str__(self):
-        secs = (self.__stop_time.ticks - self.__start_time.ticks) / 1E10
+        secs = (self.__stop_ticks - self.__start_ticks) / 1E10
 
         if self.__req_id is None:
             rstr = ""
@@ -245,7 +267,8 @@ class Request(object):
 
         return "Request #%s%s: %.2f secs%s%s to %s%s%s\n\t[%s :: %s]" % \
             (self.__number, rstr, secs, ustr, pstr, self.__copydir, jstr,
-             estr, self.__start_time.utc, self.__stop_time.utc)
+             estr, DAQTime.ticks_to_utc(self.__start_ticks),
+             DAQTime.ticks_to_utc(self.__stop_ticks))
 
     def __check_destination(self, destination, quiet=False):
         if not os.path.isdir(destination):
@@ -279,7 +302,8 @@ class Request(object):
             exp_prefix = self.__prefix
         else:
             exp_prefix = HsPrefix.guess_from_dir(destination)
-        exp_yymmdd = self.__start_time.utc.strftime("%Y%m%d")
+        utc = DAQTime.ticks_to_utc(self.__start_ticks)
+        exp_yymmdd = utc.strftime("%Y%m%d")
 
         # make sure the subdirectory has all the expected pieces
         subpieces = subdir.split("_")
@@ -307,13 +331,13 @@ class Request(object):
             if entry == subdir:
                 raise HsException("Found %s subdirectory under %s" %
                                   (subdir, subpath))
-            if not entry in self.__expected_files:
+            if entry not in self.__expected_files:
                 badfiles.append(entry)
 
         # complain about unexpected files
         if len(badfiles) > 0:
             raise HsException("Found unexpected files under %s: %s" %
-                                  (subdir, badfiles))
+                              (subdir, badfiles))
 
         exp_num = len(self.__expected_files)
         if not quiet:
@@ -496,10 +520,10 @@ class Request(object):
                 else:
                     hubs += "," + hub
 
-        return send_method(self.__start_time, self.__stop_time, self.__copydir,
-                           request_id=self.__req_id, username=self.__username,
-                           prefix=self.__prefix, extract_hits=self.__extract,
-                           hubs=hubs)
+        return send_method(self.__start_ticks, self.__stop_ticks,
+                           self.__copydir, request_id=self.__req_id,
+                           username=self.__username, prefix=self.__prefix,
+                           extract_hits=self.__extract, hubs=hubs)
 
     def set_number(self, number):
         self.__number = number
@@ -689,30 +713,32 @@ class Processor(object):
                           type(value_dict), value_dict)
             return
 
-        if not "condition" in value_dict:
+        if "condition" not in value_dict:
             logging.error("Alert value does not contain 'condition' (in %s)",
                           value_dict)
             return
 
         logging.info("LiveAlert:\n\tCondition %s", value_dict["condition"])
 
-    def __process_responses(self, request, destination, quiet=False):
+    def __process_responses(self, request, proclist, destination,
+                            quiet=False):
         saw_error = False
         while True:
+            print_process_output(proclist)
             if quiet:
                 self.__twirly.print_next()
 
             rawmsg = self.__socket.recv_json()
             if not isinstance(rawmsg, dict):
-                logging.error("Expected 'dict', not '%s' for %s" %
-                              (type(rawmsg), rawmsg))
+                logging.error("Expected 'dict', not '%s' for %s",
+                              type(rawmsg), rawmsg)
                 continue
 
             badtop = False
             for exp in self.REQUIRED_FIELDS:
-                if not exp in rawmsg:
-                    logging.error("Missing '%s' in Live message %s" %
-                                  (exp, rawmsg))
+                if exp not in rawmsg:
+                    logging.error("Missing '%s' in Live message %s",
+                                  exp, rawmsg)
                     badtop = True
                     break
             if badtop:
@@ -726,15 +752,14 @@ class Processor(object):
                 runstatus = self.__process_status(rawmsg["value"],
                                                   request.should_succeed,
                                                   quiet=quiet)
-                if (runstatus == self.RUN_ERR_EXPECTED or \
-                    runstatus == self.RUN_ERR_ERROR):
+                if runstatus == self.RUN_ERR_EXPECTED or \
+                   runstatus == self.RUN_ERR_ERROR:
                     # got success/failure status
                     rtnval = runstatus == self.RUN_ERR_EXPECTED
                     try:
                         request.validate(destination, quiet=quiet)
-                    except HsException, hsex:
-                        logging.error("Could not validate %s" % request,
-                                      exc_info=True)
+                    except HsException:
+                        logging.exception("Could not validate %s", request)
                         rtnval = False
 
                     return rtnval and not saw_error
@@ -751,8 +776,8 @@ class Processor(object):
                 self.__process_alert(rawmsg["value"])
                 continue
 
-            logging.error("Bad service/varname pair \"%s/%s\" for %s" %
-                          (rawmsg["service"], rawmsg["varname"], rawmsg))
+            logging.error("Bad service/varname pair \"%s/%s\" for %s",
+                          rawmsg["service"], rawmsg["varname"], rawmsg)
             continue
 
     def __process_status(self, value_dict, should_succeed, quiet=False):
@@ -838,26 +863,27 @@ class Processor(object):
             return False
 
         try:
-            result = self.__requester.wait_for_response()
+            response = self.__requester.wait_for_response()
         except:
             if not quiet:
                 logging.exception("Problem with %s response", request)
             return False
 
-        if not result:
+        if not response:
             if not quiet:
                 logging.error("%s response failed", request)
             return False
 
         return True
 
-    def run(self, target, quiet=False):
+    def run(self, target, proclist, quiet=False):
         if isinstance(target, MultiRequest):
             requests = target.requests
         else:
             requests = (target, )
 
         for request in requests:
+            print_process_output(proclist)
             (user, host, path) \
                 = self.__requester.split_rsync_path(request.copydir)
             request.update_copydir(user, host, path)
@@ -869,10 +895,12 @@ class Processor(object):
 
         try:
             for request in requests:
+                print_process_output(proclist)
                 if not self.__submit(request, quiet=quiet):
                     return False
             for request in requests:
-                if not self.__process_responses(request, path, quiet=quiet):
+                if not self.__process_responses(request, proclist, path,
+                                                quiet=quiet):
                     return False
             return True
         finally:
@@ -886,7 +914,6 @@ if __name__ == "__main__":
 
     from contextlib import contextmanager
 
-
     def build_requests(env, hubs, first_ticks=None):
         if first_ticks is None:
             first_ticks = 123450067960246236L
@@ -898,13 +925,13 @@ if __name__ == "__main__":
 
         env.create(first_ticks, last_ticks, hits_per_file)
 
-        start_time = DAQTime(first_ticks + TICKS_PER_SECOND)
-        stop_time = DAQTime(first_ticks + 6 * TICKS_PER_SECOND)
-        second_start_time = DAQTime(first_ticks + 7 * TICKS_PER_SECOND)
-        second_stop_time = DAQTime(first_ticks + 12 * TICKS_PER_SECOND)
-        third_start_time = DAQTime(first_ticks + 13 * TICKS_PER_SECOND)
-        third_stop_time = DAQTime(first_ticks + 18 * TICKS_PER_SECOND)
-        final_stop_time = DAQTime(last_ticks - 1 * TICKS_PER_SECOND)
+        start_ticks = first_ticks + TICKS_PER_SECOND
+        stop_ticks = first_ticks + 6 * TICKS_PER_SECOND
+        second_start_ticks = first_ticks + 7 * TICKS_PER_SECOND
+        second_stop_ticks = first_ticks + 12 * TICKS_PER_SECOND
+        third_start_ticks = first_ticks + 13 * TICKS_PER_SECOND
+        third_stop_ticks = first_ticks + 18 * TICKS_PER_SECOND
+        final_stop_ticks = last_ticks - 1 * TICKS_PER_SECOND
 
         extracted_hits_filename = "hits_%d_%d.dat" % \
                                   (first_extracted_hit,
@@ -912,49 +939,50 @@ if __name__ == "__main__":
 
         # list of requests
         return (
-            Request(env, True, start_time, stop_time, hubs),
-            Request(env, True, start_time, final_stop_time, hubs),
-            Request(env, True, start_time, stop_time, hubs,
+            Request(env, True, start_ticks, stop_ticks, hubs),
+            Request(env, True, start_ticks, final_stop_ticks, hubs),
+            Request(env, True, start_ticks, stop_ticks, hubs,
                     prefix=HsPrefix.SNALERT, copydir=env.copydst),
             Request(env, False,
-                    DAQTime((first_ticks - 6 * TICKS_PER_SECOND) / 10),
-                    DAQTime((first_ticks - 1 * TICKS_PER_SECOND) / 10),
+                    first_ticks - 6 * TICKS_PER_SECOND,
+                    first_ticks - 1 * TICKS_PER_SECOND,
                     hubs, prefix=HsPrefix.SNALERT),
-            Request(env, True, start_time, stop_time, hubs,
+            Request(env, True, start_ticks, stop_ticks, hubs,
                     expected_files=(extracted_hits_filename, ),
-                     copydir=os.path.join(ROOTDIR, "hese_hs"), extract=True),
-            Request(env, True, start_time, stop_time, hubs,
+                    copydir=os.path.join(ROOTDIR, "hese_hs"), extract=True),
+            Request(env, True, start_ticks, stop_ticks, hubs,
                     expected_files=(extracted_hits_filename, ),
                     prefix=HsPrefix.HESE, copydir=os.path.join(ROOTDIR, "xxx"),
                     extract=True),
-            Request(env, True, start_time, stop_time, hubs,
+            Request(env, True, start_ticks, stop_ticks, hubs,
                     expected_files=(extracted_hits_filename, ),
                     request_id="ABC123", prefix=HsPrefix.ANON,
                     copydir=os.path.join(ROOTDIR, "anonymous"),
                     extract=True),
-            Request(env, True, start_time, stop_time, hubs,
+            Request(env, True, start_ticks, stop_ticks, hubs,
                     expected_files=(extracted_hits_filename, ),
                     request_id="AliveOrDead", prefix=HsPrefix.LIVE,
                     username="mfrere",
                     copydir=os.path.join(ROOTDIR, "live_and_let_die"),
                     extract=True),
-            Request(env, True, start_time, stop_time, hubs,
+            Request(env, True, start_ticks, stop_ticks, hubs,
                     prefix=HsPrefix.HESE, copydir=env.copydst),
-            Request(env, True, start_time, stop_time, hubs,
+            Request(env, True, start_ticks, stop_ticks, hubs,
                     prefix=HsPrefix.ANON, copydir=env.copydst),
-            Request(env, True, start_time, stop_time, hubs,
+            Request(env, True, start_ticks, stop_ticks, hubs,
                     prefix="UNOFFICIAL", copydir=env.copydst),
-            Request(env, True, start_time, stop_time, hubs,
+            Request(env, True, start_ticks, stop_ticks, hubs,
                     prefix=HsPrefix.SNALERT, copydir=env.copydst,
                     send_old=True),
             MultiRequest(
-                Request(env, True, start_time, stop_time, hubs, number="???"),
-                Request(env, True, second_start_time, second_stop_time, hubs,
+                Request(env, True, start_ticks, stop_ticks, hubs,
                         number="???"),
-                Request(env, True, third_start_time, third_stop_time, hubs,
+                Request(env, True, second_start_ticks, second_stop_ticks,
+                        hubs, number="???"),
+                Request(env, True, third_start_ticks, third_stop_ticks, hubs,
                         number="???"),
             ),
-            Request(env, True, start_time, stop_time, hubs,
+            Request(env, True, start_ticks, stop_ticks, hubs,
                     prefix=HsPrefix.SNALERT, copydir=env.copydst,
                     ignored=hubs[1]),
         )
@@ -965,8 +993,8 @@ if __name__ == "__main__":
         conn = sqlite3.connect(RequestMonitor.get_db_path())
         try:
             cursor = conn.cursor()
-            for row in cursor.execute("select id, count(id) from requests"
-                                      " group by id"):
+            for _ in cursor.execute("select id, count(id) from requests"
+                                    " group by id"):
                 num_open += 1
         finally:
             conn.close()
@@ -1016,23 +1044,30 @@ if __name__ == "__main__":
         success = True
         with run_and_terminate(("python", "HsPublisher.py",
                                 "-l", "/tmp/publish.log",
-                                "-T")):
+                                "-T"), stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE) as pub_proc:
             with run_hubs_and_terminate(hubs, env):
                 with run_and_terminate(("python", "HsSender.py",
                                         "-l", "/tmp/sender.log",
                                         "-D", RequestMonitor.STATE_DB_PATH,
                                         "-F",
                                         "-S", env.spadequeue,
-                                        "-T")):
+                                        "-T"), stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE) as snd_proc:
                     # give everything a chance to start up
                     time.sleep(5)
-                    if not process_requests(requests, quiet=args.quiet):
+
+                    proclist = (
+                        ("Publisher", pub_proc),
+                        ("Sender", snd_proc),
+                    )
+                    if not process_requests(requests, proclist,
+                                            quiet=args.quiet):
                         success = False
 
         return success
 
-
-    def process_requests(requests, quiet=False):
+    def process_requests(requests, proclist, quiet=False):
         processor = Processor(quiet=quiet)
 
         failed = []
@@ -1051,7 +1086,7 @@ if __name__ == "__main__":
 
             result = None
             try:
-                result = processor.run(request, quiet=quiet)
+                result = processor.run(request, proclist, quiet=quiet)
                 if not result:
                     failed.append(request.number)
             except:
@@ -1063,6 +1098,8 @@ if __name__ == "__main__":
             if quiet:
                 sys.stdout.write("." if result else "!")
                 sys.stdout.flush()
+
+            print_process_output(proclist)
 
         if quiet:
             sys.stdout.write("\n")
@@ -1085,7 +1122,6 @@ if __name__ == "__main__":
 
         return rtnval
 
-
     @contextmanager
     def run_and_terminate(*args, **kwargs):
         p = None
@@ -1094,8 +1130,8 @@ if __name__ == "__main__":
             yield p
         finally:
             if p is not None:
-                p.terminate() # send sigterm, or ...
-                p.kill()      # send sigkill
+                p.terminate()  # send sigterm, or ...
+                p.kill()       # send sigkill
 
     @contextmanager
     def run_hubs_and_terminate(hubs, env):
@@ -1113,8 +1149,8 @@ if __name__ == "__main__":
             failed = None
             for hub, proc in hproc.iteritems():
                 try:
-                    proc.terminate() # send sigterm, or ...
-                    proc.kill()      # send sigkill
+                    proc.terminate()  # send sigterm, or ...
+                    proc.kill()       # send sigkill
                 except:
                     if failed is None:
                         failed = [hub, ]
@@ -1122,7 +1158,6 @@ if __name__ == "__main__":
                         failed.append(hub)
             if failed is not None:
                 raise HsException("Failed to stop " + ", ".join(failed))
-
 
     if not main():
         raise SystemExit(1)

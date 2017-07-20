@@ -1,14 +1,11 @@
 #!/usr/bin/env python
 
 
-import datetime
 import logging
 import os
 import re
 import shutil
 import signal
-import sqlite3
-import threading
 import time
 import zmq
 
@@ -16,7 +13,7 @@ import HsConstants
 import HsMessage
 import HsUtil
 
-from HsBase import DAQTime, HsBase
+from HsBase import HsBase
 from HsException import HsException
 from HsPrefix import HsPrefix
 from RequestMonitor import RequestMonitor
@@ -179,7 +176,7 @@ class HsSender(HsBase):
 
             error = True
             try:
-                msg = HsMessage.receive(sock)
+                msg = HsMessage.receive(sock, allow_old_format=True)
                 if msg is None:
                     continue
                 error = False
@@ -305,7 +302,7 @@ class HsSender(HsBase):
         return self.__reporter
 
     def spade_pickup_data(self, hs_basedir, data_dir, prefix=None,
-                          start_time=None, stop_time=None):
+                          start_ticks=None, stop_ticks=None):
         '''
         tar & bzip folder
         move tar file to SPADE directory
@@ -331,8 +328,8 @@ class HsSender(HsBase):
             spade_dir = hs_basedir
 
         result = self.queue_for_spade(hs_basedir, data_dir, spade_dir,
-                                      hs_basename, start_time=start_time,
-                                      stop_time=stop_time)
+                                      hs_basename, start_ticks=start_ticks,
+                                      stop_ticks=stop_ticks)
         if result is None:
             logging.error("Please put the data manually in the SPADE"
                           " directory. Use HsSpader.py, for example.")

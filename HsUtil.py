@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 
 import datetime
+import logging
 import numbers
-import re
 
 from collections import namedtuple
 
-import HsUtil
+import DAQTime
 
-from HsBase import DAQTime
 from HsException import HsException
 
 
@@ -124,25 +123,25 @@ def hubs_to_string(hublist):
         return None
 
     # convert hub names to numeric values
-    numbers = []
+    hub_ids = []
     for hub in hublist:
         try:
-            numbers.append(HsUtil.hub_name_to_id(hub))
+            hub_ids.append(hub_name_to_id(hub))
         except ValueError:
             logging.error("Bad hub name \"%s\"", hub)
 
     # if we didn't find any valid names, we're done
-    if len(numbers) == 0:
+    if len(hub_ids) == 0:
         return None
 
     # sort hub numbers
-    numbers.sort()
+    hub_ids.sort()
 
     # build comma-separated groups of ranges
     num_str = None
     prev_num = -1
     in_range = False
-    for num in numbers:
+    for num in hub_ids:
         if num_str is None:
             num_str = str(num)
         else:
@@ -165,8 +164,9 @@ def hubs_to_string(hublist):
     return num_str
 
 
-def send_live_status(i3socket, req_id, username, prefix, start_time, stop_time,
-                     copydir, status, success=None, failed=None):
+def send_live_status(i3socket, req_id, username, prefix, start_ticks,
+                     stop_ticks, copydir, status, success=None,
+                     failed=None):
     if status is None:
         raise HsException("Status is not set")
     if req_id is None:
@@ -174,28 +174,25 @@ def send_live_status(i3socket, req_id, username, prefix, start_time, stop_time,
     if copydir is None:
         raise HsException("Destination directory is not set")
 
-    if start_time is None:
-        if status != HsUtil.STATUS_REQUEST_ERROR:
+    if start_ticks is None:
+        if status != STATUS_REQUEST_ERROR:
             raise HsException("Start time is not set")
         start_utc = ""
-    elif isinstance(start_time, DAQTime):
-        start_utc = start_time.utc
-    elif isinstance(start_utc, datetime.datetime):
-        raise TypeError("Start time should not be datetime")
+    elif isinstance(start_ticks, numbers.Number):
+        start_utc = DAQTime.ticks_to_utc(start_ticks)
     else:
         raise HsException("Bad start time %s<%s>" %
-                          (start_utc, type(start_utc)))
+                          (start_ticks, type(start_ticks).__name__))
 
-    if stop_time is None:
-        if status != HsUtil.STATUS_REQUEST_ERROR:
+    if stop_ticks is None:
+        if status != STATUS_REQUEST_ERROR:
             raise HsException("Stop time is not set")
         stop_utc = ""
-    elif isinstance(stop_time, DAQTime):
-        stop_utc = stop_time.utc
-    elif isinstance(stop_utc, datetime.datetime):
-        raise TypeError("Stop time should not be datetime")
+    elif isinstance(stop_ticks, numbers.Number):
+        stop_utc = DAQTime.ticks_to_utc(stop_ticks)
     else:
-        raise HsException("Bad stop time %s<%s>" % (stop_utc, type(stop_utc)))
+        raise HsException("Bad stop time %s<%s>" %
+                          (stop_ticks, type(stop_ticks).__name__))
 
     nowstr = str(datetime.datetime.utcnow())
 

@@ -9,16 +9,19 @@ https://wiki.icecube.wisc.edu/index.php/HitSpool_Interface_Operation_Manual
 """
 import functools
 import logging
+import numbers
 import os
 import signal
+import time
 import zmq
 
 from zmq import ZMQError
 
+import DAQTime
 import HsMessage
 import HsUtil
 
-from HsBase import DAQTime, HsBase
+from HsBase import HsBase
 from HsException import HsException
 from HsRSyncFiles import HsRSyncFiles
 
@@ -85,17 +88,8 @@ class Worker(HsRSyncFiles):
         and directory where-to the data has to be copied.
         """
 
-        if isinstance(req.start_time, DAQTime):
-            start_time = req.start_time
-        else:
-            raise TypeError("Start time %s<%s> is not a DAQTime" %
-                            (req.start_time, type(req.start_time)))
-
-        if isinstance(req.stop_time, DAQTime):
-            stop_time = req.stop_time
-        else:
-            raise TypeError("Stop time %s<%s> is not a DAQTime" %
-                            (req.stop_time, type(req.stop_time)))
+        start_ticks = req.start_ticks
+        stop_ticks = req.stop_ticks
 
         # should we extract only the matching hits to a new file?
         extract_hits = req.extract
@@ -114,11 +108,13 @@ class Worker(HsRSyncFiles):
         if hs_ssh_access != "":
             logging.info("Ignoring rsync user/host \"%s\"", hs_ssh_access)
 
-        logging.info("START = %d (%s)", start_time.ticks, start_time.utc)
-        logging.info("STOP  = %d (%s)", stop_time.ticks, stop_time.utc)
+        logging.info("START = %d (%s)", start_ticks,
+                     DAQTime.ticks_to_utc(start_ticks))
+        logging.info("STOP  = %d (%s)", stop_ticks,
+                     DAQTime.ticks_to_utc(stop_ticks))
 
         # check for data range
-        tick_secs = (stop_time.ticks - start_time.ticks) / 1E10
+        tick_secs = (stop_ticks - start_ticks) / 1E10
         if tick_secs > self.MAX_REQUEST_SECONDS:
             errmsg = "Request for %.2fs exceeds limit of allowed data time" \
                      " range of %.2fs. Abort request..." % \
@@ -127,7 +123,7 @@ class Worker(HsRSyncFiles):
             logging.error(errmsg)
             return None
 
-        rsyncdir = self.request_parser(req, start_time, stop_time,
+        rsyncdir = self.request_parser(req, start_ticks, stop_ticks,
                                        hs_copydir, extract_hits=extract_hits,
                                        update_status=update_status,
                                        delay_rsync=delay_rsync,
@@ -224,21 +220,19 @@ class Worker(HsRSyncFiles):
             raise HsException("JSON message should be a dict: \"%s\"<%s>" %
                               (req_dict, type(req_dict)))
 
-        # ensure 'start_time' and 'stop_time' are present and are DAQTimes
-        for tkey in ("start_time", "stop_time"):
-            if tkey in req_dict and not isinstance(req_dict[tkey], DAQTime):
-                try:
-                    req_dict[tkey] = DAQTime(req_dict[tkey], is_ns=False)
-                except:
-                    raise TypeError("Cannot make %s DAQTime from %s<%s>" %
-                                    (tkey, req_dict[tkey],
-                                     type(req_dict[tkey])))
+        # ensure 'start_time' and 'stop_time' are present and numbers
+        for tkey in ("start_ticks", "stop_ticks"):
+            if tkey not in req_dict:
+                raise HsException("Request does not contain '%s'" % (tkey, ))
+            elif not isinstance(req_dict[tkey], numbers.Number):
+                raise HsException("Request '%s' should be a number, not %s" %
+                                  (tkey, type(req_dict[tkey]).__name__))
 
         # ensure 'extract' field is present and is a boolean value
         req_dict["extract"] = "extract" in req_dict and \
             req_dict["extract"] is True
 
-        alert_flds = ("request_id", "username", "start_time", "stop_time",
+        alert_flds = ("request_id", "username", "start_ticks", "stop_ticks",
                       "destination_dir", "prefix", "extract")
 
         return HsUtil.dict_to_object(req_dict, alert_flds, 'WorkerRequest')

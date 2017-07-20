@@ -5,18 +5,20 @@
 # author: dheereman
 #
 
+import datetime
 import getpass
 import json
 import logging
 import os
 import re
 import sys
-import traceback
+import traceback  # used by LogToConsole
 import zmq
 
+import DAQTime
 import HsMessage
 
-from HsBase import DAQTime, HsBase
+from HsBase import HsBase
 from HsConstants import ALERT_PORT, OLDALERT_PORT
 from HsException import HsException
 from HsPrefix import HsPrefix
@@ -173,7 +175,7 @@ class HsGrabber(HsBase):
     def sender(self):
         return self.__sender
 
-    def send_alert(self, start_time, stop_time, destdir, request_id=None,
+    def send_alert(self, start_ticks, stop_ticks, destdir, request_id=None,
                    username=None, prefix=None, extract_hits=False, hubs=None,
                    print_to_console=False):
         '''
@@ -186,7 +188,7 @@ class HsGrabber(HsBase):
             print_log = logging
 
         # get number of seconds of data requested
-        secrange = (stop_time.ticks - start_time.ticks) / 1E10
+        secrange = (stop_ticks - start_ticks) / 1E10
 
         # catch negative ranges
         if secrange <= 0:
@@ -213,13 +215,15 @@ class HsGrabber(HsBase):
                 return False
 
         logging.info("Requesting %.2f seconds of HS data [%d-%d]",
-                     secrange, start_time.ticks, stop_time.ticks)
+                     secrange, start_ticks, stop_ticks)
 
         try:
-            if not HsMessage.send_initial(self.__sender, None, start_time,
-                                          stop_time, destdir, prefix=prefix,
-                                          extract_hits=extract_hits, hubs=hubs,
-                                          host=self.shorthost, username=None):
+            if not HsMessage.send_initial(self.__sender, None,
+                                          start_ticks, stop_ticks,
+                                          destdir, prefix=prefix,
+                                          extract_hits=extract_hits,
+                                          hubs=hubs, host=self.shorthost,
+                                          username=None):
                 print_log.error("Initial message was not sent!")
             else:
                 print_log.info("HsGrabber sent request")
@@ -229,9 +233,9 @@ class HsGrabber(HsBase):
 
         return True
 
-    def send_old_alert(self, start_time, stop_time, destdir, request_id=None,
-                       username=None, prefix=None, extract_hits=False,
-                       hubs=None):
+    def send_old_alert(self, start_ticks, stop_ticks, destdir,
+                       request_id=None, username=None, prefix=None,
+                       extract_hits=False, hubs=None):
         '''
         Send request to Publisher and wait for response
         '''
@@ -242,7 +246,7 @@ class HsGrabber(HsBase):
         print_log = logging
 
         # get number of seconds of data requested
-        secrange = (stop_time.ticks - start_time.ticks) / 1E10
+        secrange = (stop_ticks - start_ticks) / 1E10
 
         # catch negative ranges
         if secrange <= 0:
@@ -268,7 +272,7 @@ class HsGrabber(HsBase):
             return False
 
         logging.info("Requesting %.2f seconds of HS data [%d-%d]",
-                     secrange, start_time.ticks, stop_time.ticks)
+                     secrange, start_ticks, stop_ticks)
 
         if prefix is None and username is None:
             # if user didn't specify prefix or username,
@@ -284,8 +288,8 @@ class HsGrabber(HsBase):
                 return False
 
             alert = {
-                "start": start_time.ticks / 10,
-                "stop": stop_time.ticks / 10,
+                "start": start_ticks / 10,
+                "stop": stop_ticks / 10,
                 "copy": destdir,
             }
         else:
@@ -299,8 +303,8 @@ class HsGrabber(HsBase):
             alert = {
                 "username": username,
                 "prefix": prefix,
-                "start_time": str(start_time.utc),
-                "stop_time": str(stop_time.utc),
+                "start_ticks": start_ticks,
+                "stop_ticks": stop_ticks,
                 "destination_dir": destdir,
             }
 
@@ -404,10 +408,31 @@ class HsGrabber(HsBase):
 if __name__ == "__main__":
     import argparse
 
+    def parse_time(name, rawval, now_ticks):
+        try:
+            # convert string to starting time
+            daq_ticks = DAQTime.string_to_ticks(rawval, is_ns=True)
+        except HsException:
+            return None
+
+        # if time is in the future, assume they specified ticks instead of NS
+        if daq_ticks < now_ticks:
+            return daq_ticks
+
+        print >>sys.stderr, "WARNING: %s %s is %s" % \
+            (name, rawval, DAQTime.ticks_to_utc(daq_ticks))
+        print >>sys.stderr, \
+            "         Assuming ticks instead of nanoseconds"
+        print >>sys.stderr
+
+        return DAQTime.string_to_ticks(rawval)
+
+
     def main():
         ''''Process arguments'''
-        start_time = None
-        stop_time = None
+        start_ticks = None
+        stop_ticks = None
+        now_ticks = DAQTime.utc_to_ticks(datetime.datetime.now())
 
         p = argparse.ArgumentParser(epilog="HsGrabber submits a request to"
                                     "the HitSpool system", add_help=False)
@@ -420,12 +445,13 @@ if __name__ == "__main__":
 
         usage = False
         if not usage:
-            try:
-                # convert string to starting time
-                start_time = DAQTime(args.begin_time, is_ns=True)
-            except HsException:
-                traceback.print_exc()
+            tmptime = parse_time("Starting time", args.begin_time, now_ticks)
+            if tmptime is None:
+                print >>sys.stderr, "Invalid starting time \"%s\"" % \
+                        args.begin_time
                 usage = True
+
+            start_ticks = tmptime
 
         if not usage:
             if args.end_time is not None:
@@ -434,17 +460,17 @@ if __name__ == "__main__":
                         "Cannot specify -d(uration) and -e(nd_time) together"
                     usage = True
                 else:
-                    try:
-                        # convert string to stopping time
-                        stop_time = DAQTime(args.end_time, is_ns=True)
-                    except HsException:
-                        traceback.print_exc()
+                    tmptime = parse_time("Stopping time", args.end_time,
+                                         now_ticks)
+                    if tmptime is None:
+                        print >>sys.stderr, "Invalid ending time \"%s\"" % \
+                            args.end_time
                         usage = True
+                    stop_ticks = tmptime
             elif args.duration is not None:
                 try:
                     dur = getDurationFromString(args.duration)
-                    stop_time = DAQTime(int(start_time.ticks + (dur * 1E10)),
-                                        is_ns=False)
+                    stop_ticks = start_ticks + int(dur * 1E10)
                 except ValueError:
                     print >>sys.stderr, "Invalid duration \"%s\"" % \
                         args.duration
@@ -471,9 +497,9 @@ if __name__ == "__main__":
         logging.info("This HsGrabber runs on: %s", hsg.fullhost)
 
         print "Request start: %s (%d ns)" % \
-            (start_time.utc, start_time.ticks / 10)
+            (DAQTime.ticks_to_utc(start_ticks), start_ticks / 10)
         print "Request end: %s (%d ns)" % \
-            (stop_time.utc, stop_time.ticks / 10)
+            (DAQTime.ticks_to_utc(stop_ticks), stop_ticks / 10)
         if hubs is not None:
             print "Hubs: %s" % (hubs, )
 
@@ -481,7 +507,7 @@ if __name__ == "__main__":
         (user, host, path) = hsg.split_rsync_path(args.copydir)
         destdir = "%s@%s:%s" % (user, host, path)
 
-        if not hsg.send_alert(start_time, stop_time, destdir,
+        if not hsg.send_alert(start_ticks, stop_ticks, destdir,
                               request_id=args.request_id,
                               username=args.username, prefix=args.prefix,
                               extract_hits=args.extract, hubs=hubs,

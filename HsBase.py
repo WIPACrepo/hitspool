@@ -18,144 +18,9 @@ try:
 except ImportError:
     USE_LXML = False
 
+import DAQTime
+
 from HsException import HsException
-
-
-class DAQTime(object):
-    # format string used to parse dates
-    TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
-    # dictionary of year->datetime("Jan 1 %d" % year)
-    JAN1 = {}
-
-    def __init__(self, arg, is_ns=False):
-        """
-        Parse string as either a timestamp (in nanoseconds) or a date string.
-        Return a tuple containing the nanosecond timestamp and a date string,
-        deriving one value from the other.
-        """
-        if arg is None:
-            raise HsException("No date/time specified")
-        elif isinstance(arg, DAQTime):
-            raise HsException("Cannot construct DAQTime from another DAQTime")
-
-        self.__ticks = None
-        self.__utc = None
-
-        multiplier = 10 if is_ns else 1
-        if isinstance(arg, numbers.Number):
-            # argument is a number
-            self.__ticks = arg * multiplier
-        elif self.__is_string_type(arg) and arg.isdigit():
-            # argument is a numeric string
-            try:
-                self.__ticks = int(arg) * multiplier
-            except:
-                # argument is unknown
-                self.__ticks = None
-
-        self.__utc = None
-        if self.__ticks is None:
-            # if we haven't parsed the argument, see if it's a date
-            dstr = str(arg)
-            try:
-                self.__utc = datetime.datetime.strptime(dstr, self.TIME_FORMAT)
-            except ValueError, err:
-                try:
-                    # convert high-precision times into parseable times
-                    short = re.sub(r"(\.\d{6})\d+", r"\1", dstr)
-                    self.__utc = datetime.datetime.strptime(short,
-                                                            self.TIME_FORMAT)
-                except ValueError:
-                    raise HsException("Problem with the time-stamp format"
-                                      " \"%s\": %s" % (arg, err))
-
-        if self.__utc is not None:
-            jan1 = self.__jan1_by_year(self.__utc)
-        else:
-            # XXX this breaks when requesting old times after the new year
-            jan1 = self.__jan1_by_year(self.__utc)
-
-        if self.__ticks is None and self.__utc is not None:
-            self.__ticks = self.__get_daq_ticks(jan1, self.__utc,
-                                                is_ns=False)
-        elif self.__utc is None and self.__ticks is not None:
-            self.__utc = jan1 + datetime.timedelta(seconds=self.__ticks /
-                                                   1E10)
-
-    def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return NotImplemented
-        return self.__ticks == other.__ticks
-
-    def __hash__(self):
-        return hash(tuple(sorted(self.__dict__.items())))
-
-    def __lt__(self, other):
-        if not isinstance(other, self.__class__):
-            return NotImplemented
-        return self.__ticks < other.__ticks
-
-    def __ne__(self, other):
-        val = self.__eq__(other)
-        if not isinstance(val, bool):
-            return NotImplemented
-        return not val
-
-    def __repr__(self):
-        return "DAQTime(%d)" % self.__ticks
-
-    def __str__(self):
-        if self.__utc is None:
-            ustr = ""
-        else:
-            ustr = "(%s)" % str(self.__utc)
-        return str(self.__ticks) + ustr
-
-    @classmethod
-    def __get_daq_ticks(cls, start_time, end_time, is_ns=False):
-        """
-        Get the difference between two datetimes.
-        If `is_ns` is True, returned value is in nanoseconds.
-        Otherwise the value is in DAQ ticks (0.1ns)
-        """
-        if is_ns:
-            multiplier = 1E3
-        else:
-            multiplier = 1E4
-
-        # XXX this should use leapseconds
-        delta = end_time - start_time
-
-        return int(((delta.days * 24 * 3600 + delta.seconds) * 1E6 +
-                    delta.microseconds) * multiplier)
-
-    @classmethod
-    def __is_string_type(self, arg):
-        return isinstance(arg, str) or isinstance(arg, unicode)
-
-    @classmethod
-    def __jan1_by_year(cls, daq_time=None):
-        """
-        Return the datetime value for January 1 of the specified year.
-        If year is None, return January 1 for the current year.
-        """
-        if daq_time is not None:
-            year = daq_time.year
-        else:
-            year = datetime.datetime.utcnow().year
-
-        if year not in cls.JAN1:
-            cls.JAN1[year] = datetime.datetime(year, 1, 1)
-
-        return cls.JAN1[year]
-
-    @property
-    def ticks(self):
-        return self.__ticks
-
-    @property
-    def utc(self):
-        return self.__utc
 
 
 class HsBase(object):
@@ -323,7 +188,7 @@ class HsBase(object):
                               (src, dst, sex))
 
     def queue_for_spade(self, sourcedir, sourcefile, spadedir, basename,
-                        start_time=None, stop_time=None):
+                        start_ticks=None, stop_ticks=None):
         tarname = basename + self.TAR_SUFFIX
         semname = None
 
@@ -350,7 +215,7 @@ class HsBase(object):
                 semname = self.write_sem(spadedir, basename)
             elif USE_LXML:
                 semname = self.write_meta_xml(spadedir, basename,
-                                              start_time, stop_time)
+                                              start_ticks, stop_ticks)
             else:
                 semname = None
             self.remove_tree(os.path.join(sourcedir, sourcefile))
@@ -388,7 +253,7 @@ class HsBase(object):
         except StandardError, err:
             raise HsException("Failed to 'touch' \"%s\": %s" % (name, err))
 
-    def write_meta_xml(self, spadedir, basename, start_time, stop_time):
+    def write_meta_xml(self, spadedir, basename, start_ticks, stop_ticks):
         # use the tarfile creation time as the DIF_Creation_Date value
         tarpath = os.path.join(spadedir, basename + self.TAR_SUFFIX)
         try:
@@ -398,13 +263,13 @@ class HsBase(object):
                               " %s does not exist" % tarpath)
         tartime = datetime.datetime.fromtimestamp(tarstamp)
 
-        if stop_time is not None:
-            stop_utc = stop_time.utc
+        if stop_ticks is not None:
+            stop_utc = DAQTime.ticks_to_utc(stop_ticks)
         else:
             # set stop time to the time the tarfile was written
             stop_utc = tartime
-        if start_time is not None:
-            start_utc = start_time.utc
+        if start_ticks is not None:
+            start_utc = DAQTime.ticks_to_utc(start_ticks)
         else:
             # set start time to midnight
             start_utc = datetime.datetime(stop_utc.year, stop_utc.month,

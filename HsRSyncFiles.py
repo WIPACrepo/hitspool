@@ -2,6 +2,7 @@
 
 
 import logging
+import numbers
 import os
 import random
 import re
@@ -13,9 +14,10 @@ import zmq
 
 from datetime import datetime, timedelta
 
+import DAQTime
 import HsUtil
 
-from HsBase import DAQTime, HsBase
+from HsBase import HsBase
 from HsConstants import I3LIVE_PORT, PUBLISHER_PORT, SENDER_PORT
 from HsCopier import CopyUsingRSync, CopyUsingSCP
 from HsException import HsException
@@ -104,7 +106,7 @@ class HsRSyncFiles(HsBase):
 
         return str(total / self.BYTES_PER_MB)
 
-    def __copy_and_send(self, req, alert_start, alert_stop, hs_copydir,
+    def __copy_and_send(self, req, start_ticks, stop_ticks, hs_copydir,
                         extract_hits, update_status=None, delay_rsync=True,
                         make_remote_dir=False):
         # if no prefix was supplied, guess it from the destination directory
@@ -112,10 +114,6 @@ class HsRSyncFiles(HsBase):
             prefix = req.prefix
         else:
             prefix = HsPrefix.guess_from_dir(hs_copydir)
-
-        # convert start/stop times to DAQ ticks
-        start_ticks = alert_start.ticks
-        stop_ticks = alert_stop.ticks
 
         # get the list of files containing hits within the interval
         src_tuples_list = self.__query_requested_files(start_ticks, stop_ticks)
@@ -125,7 +123,7 @@ class HsRSyncFiles(HsBase):
             return None, None
 
         # get ASCII representation of starting time
-        timetag = self.get_timetag_tuple(prefix, alert_start.utc)
+        timetag = self.get_timetag_tuple(prefix, start_ticks)
 
         # create temporary directory for relevant hs data copy
         tmp_dir = self.__make_staging_dir(timetag)
@@ -138,8 +136,10 @@ class HsRSyncFiles(HsBase):
             hitfile = self.__extract_hits(src_tuples_list, start_ticks,
                                           stop_ticks, tmp_dir)
             if hitfile is None:
-                logging.error("No hits found for [%s-%s] in %s", alert_start,
-                              alert_stop, src_tuples_list)
+                logging.error("No hits found for [%s-%s] in %s",
+                              DAQTime.ticks_to_utc(start_ticks),
+                              DAQTime.ticks_to_utc(stop_ticks),
+                              src_tuples_list)
                 return None, tmp_dir
 
             copy_files_list = (hitfile, )
@@ -434,16 +434,14 @@ class HsRSyncFiles(HsBase):
         sock.connect("tcp://%s:%d" % (host, PUBLISHER_PORT))
         return sock
 
-    def get_timetag_tuple(self, prefix, starttime):
+    def get_timetag_tuple(self, prefix, ticks):
+
         if prefix == HsPrefix.SNALERT:
             # this is a SNDAQ request -> SNALERT tag
             # time window around trigger is [-30,+60], so add 30 seconds
-            plus30 = starttime + timedelta(0, 30)
-            timetag = plus30.strftime("%Y%m%d_%H%M%S")
-        else:
-            timetag = starttime.strftime("%Y%m%d_%H%M%S")
+            ticks += int(30E10)
 
-        return timetag
+        return DAQTime.ticks_to_utc(ticks).strftime("%Y%m%d_%H%M%S")
 
     def hardlink(self, filename, targetdir):
         path = os.path.join(targetdir, os.path.basename(filename))
@@ -471,25 +469,24 @@ class HsRSyncFiles(HsBase):
     def mkdir(self, _, path):
         os.makedirs(path)
 
-    def request_parser(self, req, alert_start, alert_stop, hs_copydir,
+    def request_parser(self, req, start_ticks, stop_ticks, hs_copydir,
                        extract_hits=False, update_status=None,
                        delay_rsync=True, make_remote_dir=False):
 
         # catch bogus requests
-        if alert_start is None or alert_stop is None:
+        if start_ticks is None or stop_ticks is None:
             logging.error("Missing start/stop time(s). Abort request.")
             self.send_alert("Missing start/stop time(s). Abort request.")
             return None
-        if not isinstance(alert_start, DAQTime):
-            logging.error("Starting time %s<%s> is not DAQTime", alert_start,
-                          type(alert_start))
-        if not isinstance(alert_stop, DAQTime):
-            logging.error("Stopping time %s<%s> is not DAQTime", alert_stop,
-                          type(alert_stop))
-        if alert_stop < alert_start:
-            logging.error("sn_start & sn_stop time-stamps inverted."
+        if not isinstance(start_ticks, numbers.Number):
+            logging.error("Starting time %s is %s, not a number",
+                          start_ticks, type(start_ticks).__name__)
+        if not isinstance(stop_ticks, numbers.Number):
+            logging.error("Stopping time %s is %s, not a number",
+                          stop_ticks, type(stop_ticks).__name__)
+        if start_ticks >= stop_ticks:
+            logging.error("Start and stop times are inverted."
                           " Abort request.")
-            self.send_alert("alert_stop < alert_start. Abort request.")
             return None
 
         logging.info("HsInterface running on: %s", self.cluster)
@@ -499,7 +496,7 @@ class HsRSyncFiles(HsBase):
         tmp_dir = None
         try:
             rsyncdir, tmp_dir \
-                = self.__copy_and_send(req, alert_start, alert_stop,
+                = self.__copy_and_send(req, start_ticks, stop_ticks,
                                        hs_copydir, extract_hits,
                                        update_status=update_status,
                                        delay_rsync=delay_rsync,
