@@ -106,6 +106,8 @@ class HsRSyncTestCase(LoggingTestCase):
 
         tstrun.run(start_ticks, stop_ticks)
 
+        hsr.validate()
+
     def test_bad_alert_range(self):
         # create the worker object
         hsr = self.wrapped_object
@@ -129,10 +131,12 @@ class HsRSyncTestCase(LoggingTestCase):
         tstrun.populate(self)
 
         # add all expected log messages
-        self.expectLogMessage("sn_start & sn_stop time-stamps inverted."
+        self.expectLogMessage("Start and stop times are inverted."
                               " Abort request.")
 
         tstrun.run(start_ticks, stop_ticks)
+
+        hsr.validate()
 
     def test_partial_current_front(self):
         # create the worker object
@@ -176,6 +180,8 @@ class HsRSyncTestCase(LoggingTestCase):
 
         tstrun.run(start_ticks, stop_ticks)
 
+        hsr.validate()
+
     def test_between_runs(self):
         # create the worker object
         hsr = self.wrapped_object
@@ -214,9 +220,11 @@ class HsRSyncTestCase(LoggingTestCase):
         self.expectLogMessage(re.compile(r"No data found between \d+ and \d+"))
 
         if HsRSyncFiles.DEBUG_EMPTY:
-            tstrun.add_debug_email()
+            hsr.i3socket.addDebugEMail(hsr.shorthost)
 
         tstrun.run(start_ticks, stop_ticks)
+
+        hsr.validate()
 
     def test_partial_last_front(self):
         # create the worker object
@@ -260,6 +268,8 @@ class HsRSyncTestCase(LoggingTestCase):
 
         tstrun.run(start_ticks, stop_ticks)
 
+        hsr.validate()
+
     def test_partial_last_end(self):
         # create the worker object
         hsr = self.wrapped_object
@@ -302,6 +312,8 @@ class HsRSyncTestCase(LoggingTestCase):
 
         tstrun.run(start_ticks, stop_ticks)
 
+        hsr.validate()
+
     def test_span_time_gap(self):
         # create the worker object
         hsr = self.wrapped_object
@@ -343,6 +355,8 @@ class HsRSyncTestCase(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         tstrun.run(start_ticks, stop_ticks)
+
+        hsr.validate()
 
     def test_span_link_fail(self):
         # create the worker object
@@ -392,6 +406,8 @@ class HsRSyncTestCase(LoggingTestCase):
 
         tstrun.run(start_ticks, stop_ticks)
 
+        hsr.validate()
+
     def test_before_last_start(self):
         # create the worker object
         hsr = self.wrapped_object
@@ -430,9 +446,11 @@ class HsRSyncTestCase(LoggingTestCase):
         self.expectLogMessage(re.compile(r"No data found between \d+ and \d+"))
 
         if HsRSyncFiles.DEBUG_EMPTY:
-            tstrun.add_debug_email()
+            hsr.i3socket.addDebugEMail(hsr.shorthost)
 
         tstrun.run(start_ticks, stop_ticks)
+
+        hsr.validate()
 
     def test_case5(self):
         # create the worker object
@@ -475,6 +493,8 @@ class HsRSyncTestCase(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         tstrun.run(start_ticks, stop_ticks)
+
+        hsr.validate()
 
     def test_case5_link_fail(self):
         # create the worker object
@@ -525,6 +545,8 @@ class HsRSyncTestCase(LoggingTestCase):
 
         tstrun.run(start_ticks, stop_ticks)
 
+        hsr.validate()
+
     def test_alert_in_future(self):
         # create the worker object
         hsr = self.wrapped_object
@@ -563,9 +585,11 @@ class HsRSyncTestCase(LoggingTestCase):
         self.expectLogMessage(re.compile(r"No data found between \d+ and \d+"))
 
         if HsRSyncFiles.DEBUG_EMPTY:
-            tstrun.add_debug_email()
+            hsr.i3socket.addDebugEMail(hsr.shorthost)
 
         tstrun.run(start_ticks, stop_ticks)
+
+        hsr.validate()
 
     def test_penultimate(self):
         # create the worker object
@@ -609,48 +633,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
         tstrun.run(start_ticks, stop_ticks)
 
-    def test_fail_rsync(self):
-        # create the worker object
-        hsr = self.wrapped_object
-        hsr.fail_rsync()
-
-        # define alert times
-        start_ticks = 157886364643994920
-        stop_ticks = start_ticks + self.ONE_MINUTE
-
-        # create lastRun directory
-        last_start = start_ticks - (self.ONE_MINUTE * 10)
-        last_stop = start_ticks - (self.ONE_MINUTE * 6)
-
-        # create currentRun directory
-        cur_start = start_ticks - self.ONE_MINUTE
-        cur_stop = stop_ticks + self.ONE_MINUTE
-
-        tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
-                                         cur_stop, interval=self.INTERVAL)
-
-        # populate directory with hit files and database
-        tstrun.populate(self)
-
-        # fill info database
-        (lastfile, numlast) \
-            = tstrun.update_hitspool_db(start_ticks, stop_ticks, last_start,
-                                        last_stop, self.INTERVAL)
-        (curfile, numcur) = tstrun.update_hitspool_db(start_ticks, stop_ticks,
-                                                      cur_start, cur_stop,
-                                                      self.INTERVAL)
-
-        # add all expected files being transferred
-        tstrun.add_expected_files(start_ticks, lastfile, numlast)
-        tstrun.add_expected_files(start_ticks, curfile, numcur)
-
-        # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
-
-        tstrun.run(start_ticks, stop_ticks)
+        hsr.validate()
 
     def test_works(self):
         # create the worker object
@@ -693,6 +676,8 @@ class HsRSyncTestCase(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         tstrun.run(start_ticks, stop_ticks)
+
+        hsr.validate()
 
     def test_extract(self):
         # create the worker object
@@ -740,6 +725,8 @@ class HsRSyncTestCase(LoggingTestCase):
                               hsr.TEST_COPY_DIR)
 
         tstrun.run(start_ticks, stop_ticks, extract_hits=True)
+
+        hsr.validate()
 
     def test_extract_fail(self):
         # create the worker object
@@ -789,3 +776,5 @@ class HsRSyncTestCase(LoggingTestCase):
                                   destdir=destdir)
 
         tstrun.run(start_ticks, stop_ticks, extract_hits=True)
+
+        hsr.validate()

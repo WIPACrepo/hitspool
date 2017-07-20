@@ -16,6 +16,22 @@ On access:
 
 `cd HsInterface/current && fab hs_deploy && fab hs_start`
 
+### Basic architecture
+
+```
+    "sndaq"           "HsPublisher"      "HsWorker"           "HsSender"
+    -----------        -----------
+    | sni3daq |        | access  |         -----------        ------------
+    | REQUEST | <----->| REPLY   |         | IcHub n |        | 2ndbuild |
+    -----------        | PUB     | ------> | SUB    n|        | PULL     |
+                       ----------          |PUSH     | ---->  |          |
+                                            ---------          -----------
+    This is the NEW HsSender for the HS Interface.
+    It's started via fabric on access.
+    It receives messages from the HsWorkers and is responsible of putting
+    the HitSpool Data in the SPADE queue.
+```
+
 ### Testing
 
 All-in-one testing:

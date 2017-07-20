@@ -4,9 +4,12 @@ import datetime
 import getpass
 import logging
 import logging.handlers
+import numbers
 import os
+import re
 import shutil
 import socket
+import sys
 import tarfile
 
 try:
@@ -14,6 +17,8 @@ try:
     USE_LXML = True
 except ImportError:
     USE_LXML = False
+
+import DAQTime
 
 from HsException import HsException
 
@@ -110,25 +115,21 @@ class HsBase(object):
     def fullhost(self):
         return self.__src_mchn
 
-    def init_logging(self, logfile=None, basename=None, basehost=None,
+    @classmethod
+    def init_logging(cls, logfile=None, basename=None, basehost=None,
                      level=logging.INFO, both=False):
+        if logfile is None:
+            if basename is None or basehost is None:
+                if basename is not None or basehost is not None:
+                    print >>sys.stderr, \
+                        "Not logging to file (basehost=%s, basename=%s)" % \
+                        (basehost, basename)
+            else:
+                logfile = os.path.join(HsBase.DEFAULT_LOG_PATH,
+                                       "%s_%s.log" % (basename, basehost))
+
         if logfile is not None:
             logdir = os.path.dirname(logfile)
-        elif basename is None or basehost is None:
-            logdir = None
-            if basename is not None or basehost is not None:
-                print >>sys.stderr, \
-                    "Not logging to file (basehost=%s, basename=%s)" % \
-                    (basehost, basename)
-        else:
-            if self.is_cluster_sps or self.is_cluster_spts:
-                logdir = self.DEFAULT_LOG_PATH
-            else:
-                logdir = "/home/david/TESTCLUSTER/%s/logs" % basehost
-            logfile = os.path.join(logdir,
-                                   "%s_%s.log" % (basename, self.shorthost))
-
-        if logdir is not None:
             if not os.path.exists(logdir):
                 os.makedirs(logdir)
             elif not os.path.isdir(logdir):
@@ -187,19 +188,34 @@ class HsBase(object):
                               (src, dst, sex))
 
     def queue_for_spade(self, sourcedir, sourcefile, spadedir, basename,
-                        start_time=None, stop_time=None):
+                        start_ticks=None, stop_ticks=None):
         tarname = basename + self.TAR_SUFFIX
         semname = None
+
+        create_path = os.path.join(sourcedir, tarname)
+        if os.path.exists(create_path):
+            logging.error("WARNING: Overwriting temporary tar file \"%s\"",
+                          create_path)
+
+        final_path = os.path.join(spadedir, tarname)
+        if os.path.exists(final_path):
+            logging.error("WARNING: Overwriting final tar file \"%s\"",
+                          final_path)
 
         try:
             self.write_tarfile(sourcedir, sourcefile, tarname)
             if os.path.normpath(sourcedir) != os.path.normpath(spadedir):
+                final_path = os.path.join(spadedir, tarname)
+                if os.path.exists(final_path):
+                    logging.error("WARNING: Overwriting final tar file \"%s\"",
+                                  final_path)
+
                 self.move_file(os.path.join(sourcedir, tarname), spadedir)
             if not self.WRITE_META_XML:
                 semname = self.write_sem(spadedir, basename)
             elif USE_LXML:
                 semname = self.write_meta_xml(spadedir, basename,
-                                              start_time, stop_time)
+                                              start_ticks, stop_ticks)
             else:
                 semname = None
             self.remove_tree(os.path.join(sourcedir, sourcefile))
@@ -237,7 +253,7 @@ class HsBase(object):
         except StandardError, err:
             raise HsException("Failed to 'touch' \"%s\": %s" % (name, err))
 
-    def write_meta_xml(self, spadedir, basename, start_time, stop_time):
+    def write_meta_xml(self, spadedir, basename, start_ticks, stop_ticks):
         # use the tarfile creation time as the DIF_Creation_Date value
         tarpath = os.path.join(spadedir, basename + self.TAR_SUFFIX)
         try:
@@ -247,18 +263,21 @@ class HsBase(object):
                               " %s does not exist" % tarpath)
         tartime = datetime.datetime.fromtimestamp(tarstamp)
 
-        if start_time is None or stop_time is None:
-            if stop_time is None:
-                # set stop time to the time the tarfile was written
-                stop_time = tartime
-            if start_time is None:
-                # set start time to midnight
-                start_time = datetime.datetime(stop_time.year, stop_time.month,
-                                               stop_time.day)
+        if stop_ticks is not None:
+            stop_utc = DAQTime.ticks_to_utc(stop_ticks)
+        else:
+            # set stop time to the time the tarfile was written
+            stop_utc = tartime
+        if start_ticks is not None:
+            start_utc = DAQTime.ticks_to_utc(start_ticks)
+        else:
+            # set start time to midnight
+            start_utc = datetime.datetime(stop_utc.year, stop_utc.month,
+                                          stop_utc.day)
 
         root = etree.Element("DIF_Plus")
         root.set("{http://www.w3.org/2001/XMLSchema-instance}"
-                  "noNamespaceSchemaLocation", "IceCubeDIFPlus.xsd")
+                 "noNamespaceSchemaLocation", "IceCubeDIFPlus.xsd")
 
         # Metadata specification is at:
         # https://docushare.icecube.wisc.edu/dsweb/Get/Document-20546/metadata_specification.pdf
@@ -294,8 +313,8 @@ class HsBase(object):
                 ("DIF_Creation_Date", tartime.strftime("%Y-%m-%d")),
             )),
             ("Plus", (
-                ("Start_DateTime", start_time.strftime("%Y-%m-%dT%H:%M:%S")),
-                ("End_DateTime", stop_time.strftime("%Y-%m-%dT%H:%M:%S")),
+                ("Start_DateTime", start_utc.strftime("%Y-%m-%dT%H:%M:%S")),
+                ("End_DateTime", stop_utc.strftime("%Y-%m-%dT%H:%M:%S")),
                 ("Category", "internal-system"),
                 ("Subcategory", "hit-spooling"),
             )),

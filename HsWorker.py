@@ -7,24 +7,22 @@
 #check out the icecube wiki page for instructions:
 https://wiki.icecube.wisc.edu/index.php/HitSpool_Interface_Operation_Manual
 """
+import functools
 import logging
+import numbers
 import os
-import random
-import re
 import signal
 import time
-import traceback
 import zmq
 
-from datetime import datetime, timedelta
 from zmq import ZMQError
 
+import DAQTime
 import HsMessage
 import HsUtil
 
 from HsBase import HsBase
 from HsException import HsException
-from HsPrefix import HsPrefix
 from HsRSyncFiles import HsRSyncFiles
 
 
@@ -68,40 +66,30 @@ class Worker(HsRSyncFiles):
     4. writes a short report about was has been done.
     """
 
-    # should worker logfiles be rsynced to 2ndbuild after every request?
-    RSYNC_LOGFILE = False
-
     def __init__(self, progname, host=None, is_test=False):
         super(Worker, self).__init__(host=host, is_test=is_test)
 
         self.__service = "HSiface"
         self.__varname = "%s@%s" % (progname, self.shorthost)
 
-    def alert_parser(self, req, logfile, delay_rsync=True):
+    def __in_hub_list(self, hublist):
+        if hublist is None:
+            return True
+
+        for hub in hublist.split(","):
+            if hub == self.shorthost:
+                return True
+
+        return False
+
+    def alert_parser(self, req, logfile, update_status=None, delay_rsync=True):
         """
         Parse the Alert message for starttime, stoptime, sn-alert-time-stamp
         and directory where-to the data has to be copied.
         """
 
-        try:
-            # timestamp in ns as a string
-            sn_start, start_utc = HsUtil.parse_sntime(req.start_time)
-        except:
-            raise HsException("Bad start time \"%s\": %s" %
-                              (req.start_time, traceback.format_exc()))
-
-        (sn_start, start_utc) \
-            = HsUtil.fix_date_or_timestamp(sn_start, start_utc, is_sn_ns=True)
-
-        try:
-            # timestamp in ns as a string
-            sn_stop, stop_utc = HsUtil.parse_sntime(req.stop_time)
-        except:
-            raise HsException("Bad stop time in %s: %s" %
-                              (req.stop_time, traceback.format_exc()))
-
-        (sn_stop, stop_utc) \
-            = HsUtil.fix_date_or_timestamp(sn_stop, stop_utc, is_sn_ns=True)
+        start_ticks = req.start_ticks
+        stop_ticks = req.stop_ticks
 
         # should we extract only the matching hits to a new file?
         extract_hits = req.extract
@@ -120,62 +108,29 @@ class Worker(HsRSyncFiles):
         if hs_ssh_access != "":
             logging.info("Ignoring rsync user/host \"%s\"", hs_ssh_access)
 
-        # initialize a couple of time values
-        utc_now = datetime.utcnow()
-        jan1 = datetime(utc_now.year, 1, 1)
+        logging.info("START = %d (%s)", start_ticks,
+                     DAQTime.ticks_to_utc(start_ticks))
+        logging.info("STOP  = %d (%s)", stop_ticks,
+                     DAQTime.ticks_to_utc(stop_ticks))
 
-        logging.info("SN START [ns] = %d", sn_start)
-        # sndaq time units are nanoseconds
-        alertstart = jan1 + timedelta(seconds=sn_start*1.0E-9)
-        logging.info("ALERTSTART: %s", alertstart)
-
-        logging.info("SN STOP [ns] = %s", sn_stop)
-        # sndaq time units are nanosecond
-        alertstop = jan1 + timedelta(seconds=sn_stop*1.0E-9)
-        logging.info("ALERTSTOP = %s", alertstop)
-
-        # -----after correcting parsing, check for data range ------------#
-        datarange = alertstop - alertstart
-        datamax = timedelta(0, self.MAX_REQUEST_SECONDS)
-        if datarange > datamax:
-            range_secs = datarange.days * (24 * 60 * 60) + \
-                datarange.seconds + (datarange.microseconds / 1E6)
-            max_secs = datamax.days * (24 * 60 * 60) + datamax.seconds + \
-                (datamax.microseconds / 1E6)
+        # check for data range
+        tick_secs = (stop_ticks - start_ticks) / 1E10
+        if tick_secs > self.MAX_REQUEST_SECONDS:
             errmsg = "Request for %.2fs exceeds limit of allowed data time" \
                      " range of %.2fs. Abort request..." % \
-                     (range_secs, max_secs)
+                     (tick_secs, self.MAX_REQUEST_SECONDS)
             self.send_alert("ERROR: " + errmsg)
             logging.error(errmsg)
             return None
 
-        rsyncdir = self.request_parser(req.prefix, alertstart, alertstop,
+        rsyncdir = self.request_parser(req, start_ticks, stop_ticks,
                                        hs_copydir, extract_hits=extract_hits,
-                                       sender=self.sender,
+                                       update_status=update_status,
                                        delay_rsync=delay_rsync,
                                        make_remote_dir=False)
         if rsyncdir is None:
             logging.error("Request failed")
             return None
-
-        if self.RSYNC_LOGFILE:
-            # -- also transmit the log file to the HitSpool copy directory:
-            if self.is_cluster_sps or self.is_cluster_spts:
-                logfiledir = os.path.join(HsBase.DEFAULT_LOG_PATH,
-                                          "workerlogs")
-                logtargetdir = "%s@%s:%s" % (self.rsync_user, self.rsync_host,
-                                             logfiledir)
-            else:
-                logfiledir = os.path.join(self.TEST_COPY_DIR, "logs")
-                logtargetdir = logfiledir
-
-            try:
-                outlines = self.rsync((logfile, ), logtargetdir,
-                                      relative=False)
-                logging.info("logfile transmitted to copydir: %s", outlines)
-            except HsException:
-                logging.exception("Logfile RSync failed")
-                # rsync of logfile should not cause request to fail
 
         return rsyncdir
 
@@ -201,7 +156,7 @@ class Worker(HsRSyncFiles):
 
         raise SystemExit(0)
 
-    def mainloop(self, logfile):
+    def mainloop(self, logfile, fail_sleep=1.5):
         if self.subscriber is None:
             raise Exception("Subscriber has not been initialized")
 
@@ -215,10 +170,21 @@ class Worker(HsRSyncFiles):
             raise
         except:
             logging.exception("Cannot read request")
-            return False
+            return
 
         logging.info("HsWorker received request:\n"
-                     "%s\nfrom Publisher", req)
+                     "%s\nfrom Publisher", str(req))
+
+        update_status = functools.partial(HsMessage.send_worker_status,
+                                          self.sender, req, self.shorthost)
+
+        update_status(req.copy_dir, req.destination_dir,
+                      HsMessage.STARTED)
+
+        if not self.__in_hub_list(req.hubs):
+            update_status(req.copy_dir, req.destination_dir,
+                          HsMessage.IGNORED)
+            return
 
         # extract actual directory from rsync path
         try:
@@ -226,27 +192,27 @@ class Worker(HsRSyncFiles):
         except:
             logging.exception("Illegal destination directory \"%s\"<%s>",
                               req.destination_dir, type(req.destination_dir))
-            return False
 
-        HsMessage.send(self.sender, HsMessage.MESSAGE_STARTED, req.request_id,
-                       req.username, req.start_time, req.stop_time,
-                       req.copy_dir, req.destination_dir, req.prefix,
-                       req.extract, self.shorthost)
+            # give other hubs time to start before sending failure message
+            time.sleep(fail_sleep)
+
+            update_status(req.copy_dir, req.destination_dir,
+                          HsMessage.FAILED)
+            return
 
         try:
-            rsyncdir = self.alert_parser(req, logfile)
+            rsyncdir = self.alert_parser(req, logfile,
+                                         update_status=update_status)
         except:
             logging.exception("Cannot process request \"%s\"", req)
             rsyncdir = None
 
         if rsyncdir is not None:
-            msgtype = HsMessage.MESSAGE_DONE
+            msgtype = HsMessage.DONE
         else:
-            msgtype = HsMessage.MESSAGE_FAILED
+            msgtype = HsMessage.FAILED
 
-        HsMessage.send(self.sender, msgtype, req.request_id, req.username,
-                       req.start_time, req.stop_time, rsyncdir, destdir,
-                       req.prefix, req.extract, self.shorthost)
+        update_status(rsyncdir, destdir, msgtype)
 
     def receive_request(self, sock):
         req_dict = sock.recv_json()
@@ -254,11 +220,19 @@ class Worker(HsRSyncFiles):
             raise HsException("JSON message should be a dict: \"%s\"<%s>" %
                               (req_dict, type(req_dict)))
 
+        # ensure 'start_time' and 'stop_time' are present and numbers
+        for tkey in ("start_ticks", "stop_ticks"):
+            if tkey not in req_dict:
+                raise HsException("Request does not contain '%s'" % (tkey, ))
+            elif not isinstance(req_dict[tkey], numbers.Number):
+                raise HsException("Request '%s' should be a number, not %s" %
+                                  (tkey, type(req_dict[tkey]).__name__))
+
         # ensure 'extract' field is present and is a boolean value
         req_dict["extract"] = "extract" in req_dict and \
             req_dict["extract"] is True
 
-        alert_flds = ("request_id", "username", "start_time", "stop_time",
+        alert_flds = ("request_id", "username", "start_ticks", "stop_ticks",
                       "destination_dir", "prefix", "extract")
 
         return HsUtil.dict_to_object(req_dict, alert_flds, 'WorkerRequest')
@@ -298,7 +272,7 @@ if __name__ == '__main__':
         signal.signal(signal.SIGTERM, worker.handler)
 
         logfile = worker.init_logging(args.logfile, basename="hsworker",
-                                      basehost="testhub")
+                                      basehost=worker.shorthost)
 
         logging.info("this Worker runs on: %s", worker.shorthost)
 
@@ -310,8 +284,9 @@ if __name__ == '__main__':
             except KeyboardInterrupt:
                 logging.warning("Interruption received, shutting down...")
                 raise SystemExit(0)
-            except zmq.ZMQError:
-                logging.exception("ZMQ error received, shutting down...")
+            except zmq.ZMQError, zex:
+                if str(zex).find("Socket operation on non-socket") < 0:
+                    logging.exception("ZMQ error received, shutting down...")
                 raise SystemExit(1)
             except:
                 logging.exception("Caught exception, continuing")

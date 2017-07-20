@@ -149,6 +149,53 @@ class UnknownPayload(Payload):  # pragma: no cover
             (self.__type_id, self.utime, lenstr)
 
 
+class SimpleHit(Payload):
+    "The simplified hit format sent to the local trigger handlers"
+
+    TYPE_ID = 1
+    MIN_LENGTH = 38
+
+    def __init__(self, utime, data, keep_data=True):
+        "Create a simple hit"
+
+        flds = struct.unpack(">3iqh", data)
+        self.__trig_type = flds[0]
+        self.__cfg_id = flds[1]
+        self.__src_id = flds[2]
+        self.__mbid = flds[3]
+        if flds[4] != self.__trig_type:
+            raise PayloadException("SimpleHit@%d: type %0x != mode %0x" %
+                                   (self.__trig_type, flds[4]))
+
+        super(SimpleHit, self).__init__(utime, data, keep_data=keep_data)
+
+    def __str__(self):
+        "Payload description"
+        return "SimpleHit@%d[%s %s cfg %d type %0x]" % \
+            (self.utime, self.source_name(self.__src_id), self.mbid_str,
+             self.__cfg_id, self.__trig_type)
+
+    @property
+    def config_id(self):
+        "Trigger configuration ID"
+        return self.__cfg_id
+
+    @property
+    def mbid(self):
+        "Mainboard ID as an integer"
+        return self.__mbid
+
+    @property
+    def mbid_str(self):
+        "Mainboard ID as a string"
+        return "%012x" % self.__mbid
+
+    @property
+    def trigger_type(self):
+        "Trigger flags"
+        return self.__trig_type
+
+
 # pylint: disable=invalid-name
 # This is an internal class
 class delta_codec(object):  # pragma: no cover
@@ -233,6 +280,33 @@ class delta_codec(object):  # pragma: no cover
         else:
             raise ValueError("Bad BPW value %d" % self.bpw)
         # print "Shifted down to", self.bpw, self.bth
+
+
+class HitPayload(Payload):
+    def __init__(self, utime, data, keep_data=True):
+        super(HitPayload, self).__init__(utime, data, keep_data=keep_data)
+
+    @property
+    def simple_hit(self):
+        return struct.pack(">2iq3iqh", 38, self.payload_type_id(), self.utime,
+                           self.trigger_type, self.config_id, self.source_id,
+                           self.mbid, self.trigger_mode)
+
+    @property
+    def config_id(self):
+        raise NotImplementedError()
+
+    @property
+    def trigger_mode(self):
+        raise NotImplementedError()
+
+    @property
+    def trigger_type(self):
+        raise NotImplementedError()
+
+    @property
+    def trigger_type(self):
+        raise NotImplementedError()
 
 
 # pylint: disable=too-many-instance-attributes
@@ -804,6 +878,8 @@ class PayloadReader(object):
         else:
             rawdata = stream.read(length - Payload.ENVELOPE_LENGTH)
 
+        if type_id == SimpleHit.TYPE_ID:
+            return SimpleHit(utime, rawdata, keep_data=keep_data)
         if type_id == DeltaCompressedHit.TYPE_ID:
             # 'utime' is actually mainboard ID
             return DeltaCompressedHit(utime, rawdata, keep_data=keep_data)
@@ -836,12 +912,20 @@ if __name__ == "__main__":
         args = parser.parse_args()
 
         for fnm in args.fileList:
-            with PayloadReader(fnm) as rdr:
-                for pay in rdr:
-                    if args.max_payloads is not None and \
-                       rdr.nrec > args.max_payloads:
-                        break
+            if fnm.startswith("HitSpool-"):
+                outnm = "SimpleHit-" + fnm[9:]
+            else:
+                import sys
+                print >>sys.stderr, "Unknown file name " + fnm
+                continue
 
-                    print str(pay)
+            with open(outnm, "w") as out:
+                with PayloadReader(fnm) as rdr:
+                    for pay in rdr:
+                        if args.max_payloads is not None and \
+                           rdr.nrec > args.max_payloads:
+                            break
+
+                    out.write(pay.simple_hit)
 
     main()

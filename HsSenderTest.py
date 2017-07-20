@@ -3,42 +3,76 @@
 
 import json
 import logging
+import numbers
 import os
+import re
 import shutil
 import tarfile
 import tempfile
+import time
 import unittest
 
+import DAQTime
+import HsConstants
 import HsSender
 import HsMessage
 import HsUtil
 
 from HsException import HsException
-from HsTestUtil import Mock0MQSocket, MockHitspool, MockI3Socket, TIME_PAT, \
-    get_time
+from HsTestUtil import Mock0MQPoller, Mock0MQSocket, MockHitspool, \
+    MockI3Socket, TIME_PAT, set_state_db_path
 from LoggingTestCase import LoggingTestCase
+from RequestMonitor import RequestMonitor
 
 
 class MySender(HsSender.HsSender):
     """
     Use mock 0MQ sockets for testing
     """
-    def __init__(self):
+    def __init__(self, verbose=False):
+        self.__i3_sock = None
+        self.__poll_sock = None
+        self.__rptr_sock = None
+
         super(MySender, self).__init__(host="tstsnd", is_test=True)
 
-    def create_reporter(self):
-        return Mock0MQSocket("Reporter")
+        # unit tests were running to completion before the RequestMonitor had
+        # started, causing tearDown() to hang on `monitor.join()`
+        while not self.monitor_started:
+            time.sleep(0.1)
+
+        if verbose:
+            self.__i3_sock.set_verbose()
+            self.__rptr.set_verbose()
 
     def create_i3socket(self, host):
-        return MockI3Socket("HsSender@%s" % self.shorthost)
+        if self.__i3_sock is not None:
+            raise Exception("Cannot create multiple I3 sockets")
+
+        self.__i3_sock = MockI3Socket('HsPublisher')
+        return self.__i3_sock
+
+    def create_poller(self):
+        if self.__poll_sock is not None:
+            raise Exception("Cannot create multiple I3 sockets")
+
+        self.__poll_sock = Mock0MQPoller("Poller")
+        return self.__poll_sock
+
+    def create_reporter(self):
+        if self.__rptr_sock is not None:
+            raise Exception("Cannot create multiple Reporter sockets")
+
+        self.__rptr_sock = Mock0MQSocket("Reporter")
+        return self.__rptr_sock
 
     def validate(self):
         """
         Check that all expected messages were received by mock sockets
         """
-        val = self.reporter.validate()
-        val |= self.i3socket.validate()
-        return val
+        for sock in (self.__rptr_sock, self.__poll_sock, self.__i3_sock):
+            if sock is not None:
+                sock.validate()
 
 
 class FailableSender(MySender):
@@ -76,7 +110,7 @@ class FailableSender(MySender):
     def remove_tree(self, path):
         pass
 
-    def write_meta_xml(self, spadedir, basename, start_time, stop_time):
+    def write_meta_xml(self, spadedir, basename, start_ticks, stop_ticks):
         if self.__fail_touch_file:
             raise HsException("Fake Touch Error")
         return basename + HsSender.HsSender.META_SUFFIX
@@ -103,11 +137,21 @@ class MockRequestBuilder(object):
 
     USRDIR = None
 
-    def __init__(self, req_id, req_type, start_utc, stop_utc, timetag, host,
-                 firstfile, numfiles):
+    def __init__(self, req_id, req_type, username, start_ticks, stop_ticks,
+                 timetag, host, firstfile, numfiles):
+        if start_ticks is not None and \
+           not isinstance(start_ticks, numbers.Number):
+            raise TypeError("Start time %s<%s> is not number" %
+                            (start_ticks, type(start_ticks).__name__))
+        if stop_ticks is not None and \
+           not isinstance(stop_ticks, numbers.Number):
+            raise TypeError("Stop time %s<%s> is not number" %
+                            (stop_ticks, type(stop_ticks).__name__))
+
         self.__req_id = req_id
-        self.__start_utc = start_utc
-        self.__stop_utc = stop_utc
+        self.__start_ticks = start_ticks
+        self.__stop_ticks = stop_ticks
+        self.__username = username
         self.__host = host
         self.__firstfile = firstfile
         self.__numfiles = numfiles
@@ -136,13 +180,16 @@ class MockRequestBuilder(object):
         raise NotImplementedError("Unknown request type #%s" % reqtype)
 
     def add_i3live_message(self, i3socket, status, success=None, failed=None):
+        start_utc = DAQTime.ticks_to_utc(self.__start_ticks)
+        stop_utc = DAQTime.ticks_to_utc(self.__stop_ticks)
+
         # build I3Live success message
         value = {
             'status': status,
             'request_id': self.__req_id,
-            'username': None,
-            'start_time': str(self.__start_utc),
-            'stop_time': str(self.__stop_utc),
+            'username': self.__username,
+            'start_time': start_utc.strftime(DAQTime.TIME_FORMAT),
+            'stop_time': stop_utc.strftime(DAQTime.TIME_FORMAT),
             'destination_dir': self.__destdir,
             'prefix': None,
             'update_time': TIME_PAT,
@@ -159,21 +206,22 @@ class MockRequestBuilder(object):
                                     prio=1)
 
     @classmethod
-    def add_reporter_request(cls, reporter, msgtype, req_id, start_time,
-                             stop_time, host, hsdir, destdir, success=None,
-                             failed=None):
+    def add_reporter_request(cls, reporter, msgtype, req_id, username,
+                             start_ticks, stop_ticks, host, hsdir, destdir,
+                             success=None, failed=None):
         # initialize message
         rcv_msg = {
             "msgtype": msgtype,
             "request_id": req_id,
-            "username": None,
-            "start_time": start_time,
-            "stop_time": stop_time,
+            "username": username,
+            "start_ticks": start_ticks,
+            "stop_ticks": stop_ticks,
             "copy_dir": hsdir,
             "destination_dir": destdir,
             "prefix": None,
             "extract": None,
             "host": host,
+            "version": HsMessage.DEFAULT_VERSION,
         }
 
         if success is not None:
@@ -186,8 +234,9 @@ class MockRequestBuilder(object):
 
     def add_request(self, reporter, msgtype, success=None, failed=None):
         self.add_reporter_request(reporter, msgtype, self.__req_id,
-                                  self.__start_utc, self.__stop_utc,
-                                  self.__host, self.__hsdir, self.__destdir,
+                                  self.__username, self.__start_ticks,
+                                  self.__stop_ticks, self.__host,
+                                  self.__hsdir, self.__destdir,
                                   success=success, failed=failed)
 
     def check_files(self):
@@ -311,8 +360,11 @@ class HsSenderTest(LoggingTestCase):
         # by default, check all log messages
         self.setLogLevel(0)
 
+        # point the RequestMonitor at a temporary state file for tests
+        set_state_db_path()
+
         # get rid of HsSender's state database
-        dbpath = HsSender.HsSender.get_db_path()
+        dbpath = RequestMonitor.get_db_path()
         if os.path.exists(dbpath):
             os.unlink(dbpath)
 
@@ -351,7 +403,7 @@ class HsSenderTest(LoggingTestCase):
                 self.SENDER = None
 
             # get rid of HsSender's state database
-            dbpath = HsSender.HsSender.get_db_path()
+            dbpath = RequestMonitor.get_db_path()
             if os.path.exists(dbpath):
                 try:
                     os.unlink(dbpath)
@@ -372,16 +424,13 @@ class HsSenderTest(LoggingTestCase):
         numfiles = 3
 
         # create fake directory paths
-        hsdir = MockHitspool.create_copy_files("XXX", "12345678_987654",
+        hsdir = MockHitspool.create_copy_files("BadDir", "12345678_987654",
                                                "ichub01", firstnum, numfiles,
                                                real_stuff=True)
         usrdir = os.path.join(MockHitspool.COPY_DIR, "UserCopy")
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
-
-        # add all expected log messages
-        datadir = os.path.basename(hsdir)
 
         # run it!
         sender.move_to_destination_dir(hsdir, usrdir)
@@ -448,11 +497,11 @@ class HsSenderTest(LoggingTestCase):
         sender.validate()
 
     def test_real_copy_sn_alert(self):
-        sender = MySender()
+        sender = MySender(verbose=False)
         self.SENDER = sender
 
         req = MockRequestBuilder(None, MockRequestBuilder.SNDAQ, None, None,
-                                 "12345678_987654", "ichub01", 11, 3)
+                                 None, "12345678_987654", "ichub01", 11, 3)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -470,16 +519,13 @@ class HsSenderTest(LoggingTestCase):
         self.SENDER = sender
 
         # initialize directory parts
-        category = "XXX"
+        category = "SomeCategory"
         timetag = "12345678_987654"
         host = "ichub01"
 
         # initialize HitSpool file parameters
         firstnum = 11
         numfiles = 3
-
-        req = MockRequestBuilder(None, category, None, None, timetag, host,
-                                 firstnum, numfiles)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -624,7 +670,7 @@ class HsSenderTest(LoggingTestCase):
         sender.validate()
 
     def test_spade_pickup_data(self):
-        sender = MySender()
+        sender = MySender(verbose=False)
         self.SENDER = sender
 
         # initialize directory parts
@@ -707,7 +753,7 @@ class HsSenderTest(LoggingTestCase):
         sender.validate()
 
     def test_main_loop_no_msg(self):
-        sender = MySender()
+        sender = MySender(verbose=False)
         self.SENDER = sender
 
         # initialize message
@@ -720,7 +766,8 @@ class HsSenderTest(LoggingTestCase):
         self.setLogLevel(logging.WARN)
 
         # run it!
-        sender.mainloop()
+        if sender.process_one_message():
+            self.fail("Succeeded after processing no messages")
 
         # wait for message to be processed
         sender.wait_for_idle()
@@ -729,11 +776,10 @@ class HsSenderTest(LoggingTestCase):
         sender.validate()
 
     def test_main_loop_str_msg(self):
-        sender = MySender()
+        sender = MySender(verbose=False)
         self.SENDER = sender
 
         # initialize message
-        msg = "abc"
         snd_msg = json.dumps("abc")
 
         # add all expected JSON messages
@@ -744,12 +790,12 @@ class HsSenderTest(LoggingTestCase):
 
         # run it!
         try:
-            sender.mainloop()
+            if sender.process_one_message():
+                self.fail("'str' message was accepted")
         except HsException, hse:
             hsestr = str(hse)
-            expstr = "Message is not a dictionary: \"\"%s\"\"<%s>" % \
-                     (msg, type(msg))
-            if hsestr.find(expstr) < 0:
+            if hsestr.find("Received ") < 0 or \
+               hsestr.find(", not dictionary") < 0:
                 self.fail("Unexpected exception: " + hsestr)
 
         # wait for message to be processed
@@ -758,12 +804,16 @@ class HsSenderTest(LoggingTestCase):
         # make sure 0MQ communications checked out
         sender.validate()
 
-    def test_main_loop_incomplete_msg(self):
-        sender = MySender()
+    def test_main_loop_no_request_id(self):
+        sender = MySender(verbose=False)
         self.SENDER = sender
 
         # initialize message
-        rcv_msg = {"msgtype": "rsync_sum"}
+        rcv_msg = {
+            "msgtype": "rsync_sum",
+            "start_time": None,
+            "stop_time": None,
+        }
 
         # add all expected JSON messages
         sender.reporter.addIncoming(rcv_msg)
@@ -773,10 +823,39 @@ class HsSenderTest(LoggingTestCase):
 
         # run it!
         try:
-            sender.mainloop()
+            if sender.process_one_message():
+                self.fail("Message with no request ID was accepted")
         except HsException, hse:
             hsestr = str(hse)
-            if hsestr.find("Missing fields ") < 0:
+            if hsestr.find("No request ID found in ") < 0:
+                self.fail("Unexpected exception: " + hsestr)
+
+        # wait for message to be processed
+        sender.wait_for_idle()
+
+        # make sure 0MQ communications checked out
+        sender.validate()
+
+    def test_main_loop_incomplete_msg(self):
+        sender = MySender(verbose=False)
+        self.SENDER = sender
+
+        # initialize message
+        rcv_msg = {"msgtype": "rsync_sum", "request_id": "incomplete"}
+
+        # add all expected JSON messages
+        sender.reporter.addIncoming(rcv_msg)
+
+        # don't check DEBUG/INFO log messages
+        self.setLogLevel(logging.WARN)
+
+        # run it!
+        try:
+            if sender.process_one_message():
+                self.fail("Bad message was accepted")
+        except HsException, hse:
+            hsestr = str(hse)
+            if hsestr.find("Dictionary is missing start_") < 0:
                 self.fail("Unexpected exception: " + hsestr)
 
         # wait for message to be processed
@@ -786,7 +865,7 @@ class HsSenderTest(LoggingTestCase):
         sender.validate()
 
     def test_main_loop_unknown_msg(self):
-        sender = MySender()
+        sender = MySender(verbose=False)
         self.SENDER = sender
 
         # initialize message
@@ -801,6 +880,7 @@ class HsSenderTest(LoggingTestCase):
             "prefix": None,
             "extract": None,
             "host": None,
+            "version": None,
         }
 
         # add all expected JSON messages
@@ -809,13 +889,51 @@ class HsSenderTest(LoggingTestCase):
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
+        # add all expected log messages
+        self.expectLogMessage(re.compile("Received bad message .*"))
+
         # run it!
-        try:
-            sender.mainloop()
-        except HsException, hse:
-            hsestr = str(hse)
-            if hsestr.find("No date/time specified") < 0:
-                self.fail("Unexpected exception: " + hsestr)
+        if sender.process_one_message():
+            self.fail("Bad message was accepted")
+
+        # wait for message to be processed
+        sender.wait_for_idle()
+
+        # make sure 0MQ communications checked out
+        sender.validate()
+
+    def test_main_loop_bad_hubs(self):
+        sender = MySender(verbose=False)
+        self.SENDER = sender
+
+        # initialize message
+        rcv_msg = {
+            "msgtype": HsMessage.INITIAL,
+            "request_id": "BadHubs",
+            "username": "abc",
+            "start_ticks": 0,
+            "stop_ticks": int(1E10),
+            "copy_dir": None,
+            "destination_dir": None,
+            "prefix": None,
+            "extract": None,
+            "host": None,
+            "hubs": "not_a_hub",
+            "version": HsMessage.DEFAULT_VERSION,
+        }
+
+        # add all expected JSON messages
+        sender.reporter.addIncoming(rcv_msg)
+
+        # don't check DEBUG/INFO log messages
+        self.setLogLevel(logging.WARN)
+
+        # add all expected log messages
+        self.expectLogMessage(re.compile(r"Received bad message .*"))
+
+        # run it!
+        if sender.process_one_message():
+            self.fail("Message with bad 'hubs' entry was accepted")
 
         # wait for message to be processed
         sender.wait_for_idle()
@@ -824,26 +942,28 @@ class HsSenderTest(LoggingTestCase):
         sender.validate()
 
     def test_main_loop_no_init_just_success(self):
-        sender = MySender()
+        sender = MySender(verbose=False)
         self.SENDER = sender
 
         # expected start/stop times
         start_ticks = 98765432100000
         stop_ticks = 98899889980000
-        start_utc = get_time(start_ticks)
-        stop_utc = get_time(stop_ticks)
 
-        req = MockRequestBuilder("1234abcd", MockRequestBuilder.SNDAQ,
-                                 start_utc, stop_utc, "12345678_987654",
+        req = MockRequestBuilder("MnLoopNIJS", MockRequestBuilder.SNDAQ, None,
+                                 start_ticks, stop_ticks, "12345678_987654",
                                  "ichub01", 11, 3)
 
-        msgtype = HsMessage.MESSAGE_DONE
+        msgtype = HsMessage.DONE
         req.add_request(sender.reporter, msgtype)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
         # add all expected log messages
+        self.expectLogMessage("Received unexpected %s message from"
+                              " %s for Req#%s (no active request)" %
+                              (msgtype, req.host, req.req_id))
+
         self.expectLogMessage("Request %s was not initialized (received %s"
                               " from %s)" % (req.req_id, msgtype, req.host))
         self.expectLogMessage("Saw %s message for request %s host %s without"
@@ -854,7 +974,8 @@ class HsSenderTest(LoggingTestCase):
                                success="1")
 
         # run it!
-        sender.mainloop()
+        if not sender.process_one_message():
+            self.fail("Message should not have returned error")
 
         # wait for message to be processed
         sender.wait_for_idle()
@@ -866,61 +987,70 @@ class HsSenderTest(LoggingTestCase):
         sender.validate()
 
     def test_main_loop_multi_request(self):
-        sender = MySender()
+        sender = MySender(verbose=False)
         self.SENDER = sender
 
         # expected start/stop times
         start_ticks = 98765432100000
         stop_ticks = 98899889980000
-        start_utc = get_time(start_ticks)
-        stop_utc = get_time(stop_ticks)
 
         # request details
-        req_id = "1234abcd"
+        req_id = "MnLoopMReq"
         req_type = MockRequestBuilder.SNDAQ
+        username = "xxx"
         timetag = "12345678_987654"
 
         # create two requests
-        req1 = MockRequestBuilder(req_id, req_type, start_utc, stop_utc,
-                                  timetag, "ichub01", 11, 3)
-        req2 = MockRequestBuilder(req_id, req_type, start_utc, stop_utc,
-                                  timetag, "ichub86", 11, 3)
+        req01 = MockRequestBuilder(req_id, req_type, username, start_ticks,
+                                   stop_ticks, timetag, "ichub01", 11, 3)
+        req86 = MockRequestBuilder(req_id, req_type, username, start_ticks,
+                                   stop_ticks, timetag, "ichub86", 11, 3)
 
         # add initial message
-        req1.add_request(sender.reporter, HsMessage.MESSAGE_INITIAL)
+        req01.add_request(sender.reporter, HsMessage.INITIAL)
 
         # add initial message for Live
-        req1.add_i3live_message(sender.i3socket, HsUtil.STATUS_QUEUED)
+        req01.add_i3live_message(sender.i3socket, HsUtil.STATUS_QUEUED)
 
         # add start messages
-        msgtype = HsMessage.MESSAGE_STARTED
-        req1.add_request(sender.reporter, msgtype)
-        req2.add_request(sender.reporter, msgtype)
+        req01.add_request(sender.reporter, HsMessage.STARTED)
+        req86.add_request(sender.reporter, HsMessage.STARTED)
 
-        # add in-progress message for Live
-        req1.add_i3live_message(sender.i3socket, HsUtil.STATUS_IN_PROGRESS)
+        # initialize some notification data
+        notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % sender.cluster
+        notify_lines = [
+            'Start: %s' % DAQTime.ticks_to_utc(start_ticks),
+            'Stop: %s' % DAQTime.ticks_to_utc(stop_ticks),
+            '(no possible leapseconds applied)',
+        ]
+        notify_pat = re.compile(r".*" + re.escape("\n".join(notify_lines)),
+                                flags=re.MULTILINE)
 
-        # add done messages
-        msgtype = HsMessage.MESSAGE_DONE
-        req1.add_request(sender.reporter, msgtype)
-        req2.add_request(sender.reporter, msgtype)
+        sender.i3socket.addGenericEMail(HsConstants.ALERT_EMAIL_DEV,
+                                        notify_hdr, notify_pat, prio=1)
+
+        # add hub01 messages
+        req01.add_i3live_message(sender.i3socket, HsUtil.STATUS_IN_PROGRESS)
+        req01.add_request(sender.reporter, HsMessage.DONE)
+
+        # add hub86 messages
+        req86.add_request(sender.reporter, HsMessage.DONE)
+        req86.add_i3live_message(sender.i3socket, HsUtil.STATUS_SUCCESS,
+                                 success="1,86")
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
-        # add final message for Live
-        req2.add_i3live_message(sender.i3socket, HsUtil.STATUS_SUCCESS,
-                                success="1,86")
-
         # run it!
         while sender.reporter.has_input:
-            sender.mainloop()
+            if not sender.process_one_message():
+                self.fail("Unexpected failure")
 
         # wait for message to be processed
         sender.wait_for_idle()
 
-        req1.check_files()
-        req2.check_files()
+        req01.check_files()
+        req86.check_files()
 
         # make sure 0MQ communications checked out
         sender.validate()

@@ -1,27 +1,22 @@
 #!/usr/bin/env python
+#
+# copy files to a remote machine
 
 
 import logging
 import os
 import re
+import select
 import subprocess
+
+import HsMessage
 
 from HsException import HsException
 
 
 class Copier(object):
-    def __init__(self, cmdbase, source_list, rmt_user=None, rmt_host=None,
-                 rmt_dir=None, rmt_subdir=None, make_remote_dir=False,
-                 parse_outstream=True):
-        self.__is_valid = False
-        self.__filename = None
-        self.__size = None
-        self.__received = None
-        self.__bps = None
-        self.__speedup = None
-
-        if source_list is None or len(source_list) == 0:
-            raise HsException("No source specified")
+    def __init__(self, cmd=None, rmt_user=None, rmt_host=None,
+                 rmt_dir=None, rmt_subdir=None, make_remote_dir=False):
         if rmt_host is None or rmt_host == "":
             raise HsException("No remote host specified")
         if rmt_dir is None or rmt_dir == "":
@@ -30,42 +25,81 @@ class Copier(object):
         if make_remote_dir:
             self.make_remote_directory(rmt_user, rmt_host, rmt_dir)
 
-        source_str = " ".join(source_list)
-        target = self.target(rmt_user, rmt_host, rmt_dir, rmt_subdir)
-        full_cmd = "%s %s \"%s\"" % (cmdbase, source_str, target)
+        self.__target = self.build_target(rmt_user, rmt_host, rmt_dir,
+                                          rmt_subdir)
+        self.__cmd = cmd
+
+        self.__size = None
+        self.__unknown_count = 0
+
+    def build_target(self, rmt_user, rmt_host, rmt_dir, rmt_subdir):
+        raise NotImplementedError()
+
+    def copy(self, source_list, request=None, update_status=None):
+        if source_list is None or len(source_list) == 0:
+            raise HsException("No source specified")
+
+        failed = []
+        for src in source_list:
+            rtncode = self.copy_one(src)
+            if rtncode != 0:
+                logging.error("failed to copy %s to \"%s\" (rtn=%d,"
+                              " unknown=%d)", src, self.__target, rtncode,
+                              self.__unknown_count)
+                failed.append(src)
+                self.__unknown_count = 0
+
+            if update_status is not None and request is not None:
+                update_status(request.copy_dir, request.destination_dir,
+                              HsMessage.WORKING)
+
+        result = self.summarize()
+        if result is not None:
+            (filename, size, received, bps, speedup) = result
+            if self.__size is None:
+                self.__size = size
+            else:
+                self.__size += size
+
+        return failed
+
+    def copy_one(self, filename):
+        full_cmd = "%s %s \"%s\"" % (self.__cmd, filename, self.__target)
 
         logging.info("command: %s", full_cmd)
-        #import sys; print >>sys.stderr, "CMD: " + full_cmd
         proc = subprocess.Popen(full_cmd, shell=True, bufsize=256,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE)
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                preexec_fn=os.setsid)
 
-        out_lines = proc.stdout.readlines()
-        err_lines = proc.stderr.readlines()
+        num_err = 0
+        while True:
+            reads = [proc.stdout.fileno(), proc.stderr.fileno()]
+            try:
+                ret = select.select(reads, [], [])
+            except select.error:
+                # ignore a single interrupt
+                if num_err > 0:
+                    break
+                num_err += 1
+                continue
 
-        proc.stdout.flush()
-        proc.stderr.flush()
+            for fd in ret[0]:
+                if fd == proc.stdout.fileno():
+                    self.parse_line(proc.stdout.readline())
+                if fd == proc.stderr.fileno():
+                    self.parse_line(proc.stderr.readline())
 
-        rtncode = proc.wait()
+            if proc.poll() is not None:
+                break
 
-        if parse_outstream:
-            # rsync sends verbose output to stdout
-            out_stream = out_lines
-            err_stream = err_lines
-        else:
-            # scp sends verbose output to stderr
-            out_stream = err_lines
-            err_stream = out_lines
+        proc.stdout.close()
+        proc.stderr.close()
 
-        if rtncode != 0 or len(err_stream) > 0:
-            raise HsException("failed to copy %s to \"%s\" (rtn=%d):\n%s" %
-                              (source_list, target, rtncode, err_lines))
+        return proc.wait()
 
-        result = self.parse_output(out_stream, target=target)
-        if result is not None:
-            self.__is_valid = True
-            (self.__filename, self.__size, self.__received, self.__bps,
-             self.__speedup) = result
+    def log_unknown_line(self, method, line):
+        logging.error("Unknown %s line: %s", method, line.rstrip())
+        self.__unknown_count += 1
 
     @classmethod
     def make_remote_directory(cls, rmt_user, rmt_host, rmt_dir):
@@ -74,21 +108,24 @@ class Copier(object):
         else:
             rstr = "%s@%s" % (rmt_user, rmt_host)
         cmd = ["ssh", rstr, "mkdir", "-p", "\"%s\"" % rmt_dir]
-        #print "CMD: " + str(cmd)
         rtncode = subprocess.call(cmd)
         if rtncode != 0:
             raise HsException("Cannot create %s:%s" % (rstr, rmt_dir))
 
-    def parse_output(self, lines, target=None):
+    def parse_line(self, line):
         raise NotImplementedError()
 
     @property
     def size(self):
         return self.__size
 
-    def target(self, rmt_user, rmt_host, rmt_dir, rmt_subdir,
-               use_daemon=False):
+    def summarize(self):
         raise NotImplementedError()
+
+    @property
+    def target(self):
+        return self.__target
+
 
 class CopyUsingRSync(Copier):
     # regular expression used to get the number of bytes sent by rsync
@@ -99,24 +136,35 @@ class CopyUsingRSync(Copier):
                            r"speedup is (\d[\d,]*(\.\d[\d,]*)?)")
     FIELDS = ('matches', 'hash_hits', 'false_alarms', 'data')
 
-    def __init__(self, source_list, rmt_user, rmt_host, rmt_dir,
-                 rmt_subdir, use_daemon, bwlimit=None, log_format="%i%n%L",
+    def __init__(self, rmt_user, rmt_host, rmt_dir, rmt_subdir,
+                 use_daemon=False, bwlimit=None, log_format="%i%n%L",
                  relative=True):
         self.__use_daemon = use_daemon
 
+        self.__filename = None
+        self.__size = None
+        self.__rcvd = None
+        self.__bps = None
+        self.__speedup = None
+        self.__ssh_error = False
+
+        cmd = self.__build_command(bwlimit, log_format, relative)
+        super(CopyUsingRSync, self).__init__(cmd=cmd, rmt_user=rmt_user,
+                                             rmt_host=rmt_host,
+                                             rmt_dir=rmt_dir,
+                                             rmt_subdir=rmt_subdir)
+
+    def __build_command(self, bwlimit, log_format, relative):
         # assemble arguments
-        bwstr = "" if bwlimit is None else " --bwlimit=%d" % bwlimit
+        bwstr = "" if bwlimit is None or bwlimit <= 0 \
+                else " --bwlimit=%d" % bwlimit
         logstr = "" if log_format is None \
                  else " --log-format=\"%s\"" % log_format
         relstr = "" if relative else " --no-relative"
 
-        # build command
-        cmd = "nice rsync -avv %s%s%s" % (bwstr, logstr, relstr)
+        return "nice rsync -avv %s%s%s" % (bwstr, logstr, relstr)
 
-        super(CopyUsingRSync, self).__init__(cmd, source_list, rmt_user,
-                                             rmt_host, rmt_dir, rmt_subdir)
-
-    def target(self, rmt_user, rmt_host, rmt_dir, rmt_subdir):
+    def build_target(self, rmt_user, rmt_host, rmt_dir, rmt_subdir):
         if self.__use_daemon:
             # rsync daemon maps hitspool/ to /mnt/data/pdaqlocal/HsDataCopy/
             target = '%s@%s::hitspool/%s/' % \
@@ -130,251 +178,274 @@ class CopyUsingRSync(Copier):
             target += "/"
         return target
 
-    @classmethod
-    def parse_output(cls, lines, target=None):
-        srcfile = None
-        filename = None
-        size = None
-        rcvd = None
-        bps = None
-        speedup = None
-        ssh_error = False
+    def parse_line(self, line):
+        if line.endswith("\\n"):
+            line = line[:-2]
 
-        for line in lines:
-            if line.endswith("\\n"):
-                line = line[:-2]
+        if line.startswith("opening tcp connection to 2ndbuild") or \
+           line.startswith("sending incremental file list") or \
+           line.startswith("sending incremental file list") or \
+           line.startswith(".f") or \
+           line.startswith(">f") or \
+           line.startswith("<f") or \
+           line == "":
+            return
 
-            if line.startswith("opening tcp connection to 2ndbuild") or \
-               line.startswith("sending incremental file list") or line == "":
-                continue
+        if line.startswith("delta-transmission disabled for local"):
+            return
 
-            if line.startswith("sending daemon args: "):
-                args = line[21:].split()
-                srcfile = args[-2]
-                filename = args[-1]
+        splitidx = None
+        if line.startswith("sending daemon args: "):
+            splitidx = 21
+        elif line.startswith("opening connection using:"):
+            splitidx = 26
+        if splitidx is not None:
+            args = line[splitidx:].split()
+            src = args[-2]
+            self.__filename = args[-1]
 
-                if srcfile != ".":
-                    logging.error("Unexpected source file \"%s\""
-                                  " for target \"%s\"", srcfile, filename)
+            if src != ".":
+                logging.error("Unexpected source file \"%s\" for"
+                              " target \"%s\"", src, self.__filename)
+            return
 
-                continue
-
-            if line.startswith("opening connection using:"):
-                args = line[26:].split()
-                srcfile = args[-2]
-                filename = args[-1]
-
-                if srcfile != ".":
-                    logging.error("Unexpected source file \"%s\""
-                                  " for target \"%s\"", srcfile, filename)
-
-                continue
-
-            if line.startswith("created directory "):
-                if filename is None:
-                    if target is not None:
-                        filename = target
-                    else:
-                        logging.error("Saw \"created directory\" before"
-                                      " \"sending\"")
-                        continue
-
-                args = line.split()
-                if filename.startswith("hitspool/"):
-                    rmtdir = filename[8:]
-                elif not filename.startswith("/"):
-                    rmtdir = "/" + filename
+        if line.startswith("created directory "):
+            if self.__filename is None:
+                if self.target is not None:
+                    self.__filename = self.target
                 else:
-                    rmtdir = filename
-                if rmtdir.endswith("/"):
-                    rmtdir = rmtdir[:-1]
-                if args[-1] != rmtdir:
-                    logging.error("Unexpected remote directory \"%s\""
-                                  " (should be \"%s\")", args[-1], rmtdir)
-                continue
+                    logging.error("Saw \"created directory\" before"
+                                  " \"sending\"")
+                    return
 
-            if line.startswith("total: "):
-                for pair in line[7:].split():
-                    (name, vstr) = pair.split('=')
-                    if name not in cls.FIELDS:
-                        logging.error("Unknown 'total' field \"%s\"", name)
-                        continue
+            # get the remote directory path
+            if self.__filename.startswith("hitspool/"):
+                rmtdir = self.__filename[8:]
+            elif not self.__filename.startswith("/"):
+                rmtdir = "/" + self.__filename
+            else:
+                rmtdir = self.__filename
+            if rmtdir.endswith("/"):
+                rmtdir = rmtdir[:-1]
 
-                    try:
-                        value = int(vstr)
-                    except:
-                        logging.error("Bad value \"%s\" for 'total'"
-                                      " field \"%s\"", vstr, name)
-                        continue
+            args = line.split()
+            if args[-1] != rmtdir:
+                logging.error("Unexpected remote directory \"%s\""
+                              " (should be \"%s\")", args[-1], rmtdir)
+            return
 
-                    if name != 'data':
-                        if value != 0:
-                            logging.error("Unexpected value %d for 'total'"
-                                          " field \"%s\"", value, name)
-                        continue
-
-                    if value < 0:
-                        logging.error("Illegal size \"%s\" for 'total'"
-                                      " field \"%s\"", vstr, name)
-                        continue
-
-                    size = value
-                    continue
-
-            if line.startswith("sent "):
-                m = cls.SENT_PAT.match(line)
-                if m is None:
-                    logging.error("??? " + line.rstrip())
-                    continue
+        if line.startswith("total: "):
+            for pair in line[7:].split():
+                (name, vstr) = pair.split('=')
+                if name not in self.FIELDS:
+                    logging.error("Unknown 'total' field \"%s\"", name)
+                    return
 
                 try:
-                    ssize = int(m.group(1).replace(",", ""))
-                    rcvd = int(m.group(2).replace(",", ""))
-                    bps = float(m.group(3).replace(",", ""))
+                    value = int(vstr)
                 except:
-                    logging.error("Bad value(s) in " + line.rstrip())
-                    continue
+                    logging.error("Bad value \"%s\" for 'total'"
+                                  " field \"%s\"", vstr, name)
+                    return
 
-                #if ssize != size:
-                #    logging.error("Total size was %d, sent size is %d", size,
-                #                  ssize)
+                if name != 'data':
+                    if value != 0:
+                        logging.error("Unexpected value %d for 'total'"
+                                      " field \"%s\"", value, name)
+                        return
 
+                if value < 0:
+                    logging.error("Illegal size \"%s\" for 'total'"
+                                  " field \"%s\"", vstr, name)
+                    return
+
+                if self.__size is None:
+                    self.__size = value
+                else:
+                    self.__size += value
                 continue
 
-            if line.startswith("total size is "):
-                m = cls.TOTAL_PAT.match(line)
-                if m is None:
-                    logging.error("??? " + line.rstrip())
-                    continue
+            # done processing 'total' line
+            return
 
-                try:
-                    tsize = int(m.group(1).replace(",", ""))
-                    speedup = float(m.group(2).replace(",", ""))
-                except:
-                    logging.error("Bad value(s) in " + line.rstrip())
-                    continue
+        if line.startswith("sent "):
+            m = self.SENT_PAT.match(line)
+            if m is None:
+                logging.error("??? " + line.rstrip())
+                return
 
-                if tsize != size and size != 0:
-                    logging.error("Total size was %d, final size is %d", size,
-                                  tsize)
+            try:
+                # sentsize = int(m.group(1).replace(",", ""))
+                self.__rcvd = int(m.group(2).replace(",", ""))
+                self.__bps = float(m.group(3).replace(",", ""))
+            except:
+                logging.error("Bad value(s) in " + line.rstrip())
 
-                continue
+            return
 
-            if line.startswith("ssh_exchange_identification:"):
-                ssh_error = True
-                continue
+        if line.startswith("total size is "):
+            m = self.TOTAL_PAT.match(line)
+            if m is None:
+                logging.error("??? " + line.rstrip())
+                return
 
-            if ssh_error:
-                if line.startswith("rsync: connection unexpectedly") or \
-                   line.startswith("rsync error: unexplained error"):
-                    continue
+            try:
+                tsize = int(m.group(1).replace(",", ""))
+                self.__speedup = float(m.group(2).replace(",", ""))
+            except:
+                logging.error("Bad value(s) in " + line.rstrip())
+                return
 
-        if filename is None or size is None:
-            if not ssh_error:
-                logging.error("Bad lines %s", lines)
+            if tsize != self.__size and self.__size != 0:
+                logging.error("Total size was %d, final size is %d",
+                              self.__size, tsize)
+                return
+
+        if line.startswith("ssh_exchange_identification:"):
+            self.__ssh_error = True
+            return
+
+        if self.__ssh_error:
+            if line.startswith("rsync: connection unexpectedly") or \
+               line.startswith("rsync error: unexplained error"):
+                return
+
+        if len(line.strip()) > 0:
+            self.log_unknown_line("rsync", line)
+
+    def summarize(self):
+        if self.__filename is None or self.__size is None:
+            if not self.__ssh_error:
+                logging.error("Failed to find filename/size")
             return None
 
-        return (filename, size, rcvd, bps, speedup)
+        return (self.__filename, self.__size, self.__rcvd, self.__bps,
+                self.__speedup)
 
 
 class CopyUsingSCP(Copier):
-    def __init__(self, source_list, rmt_user, rmt_host, rmt_dir, rmt_subdir,
-                 bwlimit=None, cipher=None, log_format="%i%n%L",
-                 make_remote_dir=True, relative=True):
-        bwstr = "" if bwlimit is None else " -l %d" % (bwlimit * 8)
-        cstr = "" if cipher is None else " -c %s" % cipher
+    def __init__(self, rmt_user, rmt_host, rmt_dir, rmt_subdir,
+                 bwlimit=None, cipher=None, log_format=None,
+                 make_remote_dir=True, relative=None):
 
-        cmd = "scp -v -B" + bwstr + cstr
+        self.__filename = None
+        self.__size = None
+        self.__bps = None
+        self.__ssh_error = False
+        self.__sink_size = None
 
-        super(CopyUsingSCP, self).__init__(cmd, source_list, rmt_user=rmt_user,
+        cmd = self.__build_command(bwlimit, cipher)
+        super(CopyUsingSCP, self).__init__(cmd=cmd, rmt_user=rmt_user,
                                            rmt_host=rmt_host, rmt_dir=rmt_dir,
                                            rmt_subdir=rmt_subdir,
-                                           make_remote_dir=make_remote_dir,
-                                           parse_outstream=False)
+                                           make_remote_dir=make_remote_dir)
 
-    def target(self, rmt_user, rmt_host, rmt_dir, rmt_subdir):
+    def __build_command(self, bwlimit, cipher):
+        bwstr = "" if bwlimit is None or bwlimit <= 0 \
+                else " -l %d" % (bwlimit * 8)
+        cstr = "" if cipher is None else " -c %s" % cipher
+
+        return "nice scp -v -B" + bwstr + cstr
+
+    def build_target(self, rmt_user, rmt_host, rmt_dir, rmt_subdir):
         target = '%s@%s:%s' % (rmt_user, rmt_host, rmt_dir)
         if target[-1] != "/.":
             # make sure `scp` knows the target should be a directory
             target += "/."
         return target
 
-    @classmethod
-    def parse_output(cls, lines, target=None):
-        filename = None
-        size = None
-        bps = None
-        ssh_error = False
+    def parse_line(self, line):
+        if line.endswith("\\n"):
+            line = line[:-2]
 
-        sink_size = None
-        for line in lines:
-            if line.endswith("\\n"):
-                line = line[:-2]
+        if line.find("Sending command: scp ") >= 0:
+            flds = line.split()
+            self.__filename = flds[-1]
+            if self.__filename.endswith("/."):
+                self.__filename = self.__filename[:-2]
+            return
 
-            #print "::%s:: %s" % (sink_size, line.rstrip())
-            if line.find("Sending command: scp ") >= 0:
-                flds = line.split()
-                filename = flds[-1]
-                if filename.endswith("/."):
-                    filename = filename[:-2]
-                continue
+        if line.startswith("scp: "):
+            logging.error("SCP error: " + line[5:].rstrip())
+            return
 
-            if line.startswith("scp: "):
-                logging.error("SCP error: " + line[5:].rstrip())
-                break
+        if line.find("Sink: ") >= 0:
+            flds = line.split()
+            if len(flds) < 4:
+                logging.error("Malformed SCP line: " + line.rstrip())
+                return
 
-            if sink_size is not None:
-                if line.find("rtype exit-status reply ") > 0:
-                    if size is None:
-                        size = sink_size
-                    else:
-                        size += sink_size
+            try:
+                tmp_size = int(flds[2])
+            except:
+                logging.error("Bad size \"%s\" in SCP line: %s", flds[2],
+                              line.rstrip())
+                return
 
-                    sink_size = None
-                continue
+            if self.__sink_size is None:
+                self.__sink_size = tmp_size
+            else:
+                self.__sink_size += tmp_size
+            return
 
-            if line.find("Sink: ") >= 0:
-                flds = line.split()
-                sink_size = int(flds[2])
-                sink_name = flds[3]
-
-                continue
-
-            if line.find("Bytes per second: ") >= 0:
-                flds = line.split()
-                if not flds[4].endswith(","):
-                    logging.error("Bad BPS line: " + line.rstrip())
+        if self.__sink_size is not None:
+            if line.find("rtype exit-status reply ") > 0:
+                if self.__size is None:
+                    self.__size = self.__sink_size
                 else:
-                    bps = float(flds[4][:-1])
-                continue
+                    self.__size += self.__sink_size
 
-            # handle local copies (mostly for unit tests?)
-            if line.find("Executing: cp ") >= 0:
-                flds = line.split()
-                filename = flds[-1]
-                if filename.endswith("/."):
-                    filename = filename[:-2]
+                self.__sink_size = None
+            return
+
+        if line.find("Bytes per second: ") >= 0:
+            flds = line.split()
+            if not flds[4].endswith(","):
+                logging.error("Bad BPS line: " + line.rstrip())
+            else:
+                self.__bps = float(flds[4][:-1])
+            return
+
+        if line.find("Executing: ") >= 0:
+            flds = line.split()
+            if flds[1] == "cp":
+                # handle local copies (mostly for unit tests?)
+                self.__filename = flds[-1]
+                if self.__filename.endswith("/."):
+                    self.__filename = self.__filename[:-2]
 
                 fsize = os.path.getsize(flds[-2])
-                if size is None:
-                    size = fsize
+                if self.__size is None:
+                    self.__size = fsize
                 else:
-                    size += fsize
+                    self.__size += fsize
 
-                continue
+            return
 
-            if line.startswith("ssh_exchange_identification:"):
-                ssh_error = True
-                continue
+        if line.startswith("ssh_exchange_identification:"):
+            self.__ssh_error = True
+            return
 
-            if ssh_error:
-                if line.startswith("rsync: connection unexpectedly") or \
-                   line.startswith("rsync error: unexplained error"):
-                    continue
+        if self.__ssh_error:
+            if line.startswith("rsync: connection unexpectedly") or \
+               line.startswith("rsync error: unexplained error"):
+                return
 
-        if filename is None or size is None:
-            if not ssh_error and filename is None:
-                logging.error("Bad lines %s" % lines)
+        if line.startswith("OpenSSH_") or \
+           line.startswith("debug1: ") or \
+           line.startswith("Authenticated to ") or \
+           line.startswith("Sending file modes: ") or \
+           line.startswith("Credentials cache file") or \
+           line.startswith("Transferred: "):
+            return
+
+        if len(line.strip()) > 0:
+            self.log_unknown_line("scp", line)
+
+    def summarize(self):
+        if self.__filename is None or self.__size is None:
+            if not self.__ssh_error and self.__filename is None:
+                logging.error("Failed to find filename/size")
             return None
 
-        return (filename, size, None, bps, None)
+        return (self.__filename, self.__size, None, self.__bps, None)

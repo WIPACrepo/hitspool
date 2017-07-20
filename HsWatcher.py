@@ -17,8 +17,6 @@ import sys
 import time
 import zmq
 
-from datetime import datetime
-
 import HsConstants
 import HsUtil
 
@@ -162,10 +160,10 @@ class Watchee(Daemon):
         pids = []
         for pid, name, args in self.list_processes():
             # screen out things like 'vi SomeProgram.py'
-            if (self.basename not in name and
-                ("ython" not in name or
-                 (args is not None and self.basename not in args[0]))):
-                continue
+            if self.basename not in name:
+                if "ython" not in name or \
+                   (args is not None and self.basename not in args[0]):
+                    continue
 
             pids.append(pid)
 
@@ -190,7 +188,7 @@ class Watchee(Daemon):
                     errstr = str(err)
                     if errstr.find("No such process") == 0:
                         logging.error("Cannot kill %s at PID %d: %s",
-                                      (self.basename, pid, errstr))
+                                      self.basename, pid, errstr)
                         return None
 
             # give processes a chance to die
@@ -246,7 +244,7 @@ class HsWatcher(HsBase):
         description = "HsInterface service error notice"
 
         json = HsUtil.assemble_email_dict(HsConstants.ALERT_EMAIL_DEV, header,
-                                          description, message)
+                                          message, description=description)
 
         self.__i3socket.send_json(json)
 
@@ -265,8 +263,8 @@ class HsWatcher(HsBase):
                   "Last seen running before %s" % \
                   (program, self.shorthost, halted_time)
 
-        json = HsUtil.assemble_email_dict(HsConstants.ALERT_EMAIL_DEV,
-                                          header, description, message)
+        json = HsUtil.assemble_email_dict(HsConstants.ALERT_EMAIL_DEV, header,
+                                          message, description=description)
 
         self.__i3socket.send_json(json)
 
@@ -288,8 +286,8 @@ class HsWatcher(HsBase):
         mlines += logmsgs
 
         json = HsUtil.assemble_email_dict(HsConstants.ALERT_EMAIL_DEV,
-                                          header, description,
-                                          "\n".join(mlines))
+                                          header, "\n".join(mlines),
+                                          description=description)
 
         self.__i3socket.send_json(json)
 
@@ -303,7 +301,8 @@ class HsWatcher(HsBase):
         message = "%s@%s is STOPPED" % (program, self.shorthost)
 
         json = HsUtil.assemble_email_dict(HsConstants.ALERT_EMAIL_DEV,
-                                          header, description, message)
+                                          header, message,
+                                          description=description)
 
         self.__i3socket.send_json(json)
 

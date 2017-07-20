@@ -1,6 +1,6 @@
 #!/bin/sh
 
-source testbed/create_test_env.sh &&
+. testbed/create_test_env.sh &&
 if [ -z "$COPYDIR" ]; then COPYDIR=HsDataCopy; fi &&
 if [ ! -d "$ROOTDIR/$COPYDIR" ]; then mkdir "$ROOTDIR/$COPYDIR"; fi &&
 python ./HsGrabber.py \
