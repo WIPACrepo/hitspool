@@ -108,9 +108,14 @@ class Copier(object):
         else:
             rstr = "%s@%s" % (rmt_user, rmt_host)
         cmd = ["ssh", rstr, "mkdir", "-p", "\"%s\"" % rmt_dir]
-        rtncode = subprocess.call(cmd)
-        if rtncode != 0:
-            raise HsException("Cannot create %s:%s" % (rstr, rmt_dir))
+        for i in range(3):
+            # this fails occasionally for unknown reasons; retry a couple
+            #  of times before giving up
+            rtncode = subprocess.call(cmd)
+            if rtncode == 0:
+                return
+        raise HsException("Cannot create %s:%s (rtncode=%d)" %
+                          (rstr, rmt_dir, rtncode))
 
     def parse_line(self, line):
         raise NotImplementedError()
