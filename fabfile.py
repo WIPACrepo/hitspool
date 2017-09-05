@@ -52,8 +52,8 @@ with settings(hide('running')):
 # Set the environment variables according to the cluster:
 if SYSTEM_NAME == "SPTS":
 
-    SVN_PATH = "http://code.icecube.wisc.edu/daq/projects/hitspool/%s" % \
-        HsConstants.RELEASE
+    SVN_PATH = "http://code.icecube.wisc.edu/daq/projects/hitspool/" \
+        " releases/%s" % HsConstants.RELEASE
     CHECKOUT_PATH = HsConstants.SANDBOX_SPTS
     HSIFACE_PATH = "/mnt/data/pdaqlocal/HsInterface/current"
     DEPLOY_TARGET = ["2ndbuild", "ichub21", "scube", "expcont"]
@@ -70,8 +70,8 @@ if SYSTEM_NAME == "SPTS":
 
 elif SYSTEM_NAME == "SPS":
 
-    SVN_PATH = "http://code.icecube.wisc.edu/daq/projects/hitspool/%s" % \
-        HsConstants.RELEASE
+    SVN_PATH = "http://code.icecube.wisc.edu/daq/projects/hitspool/" \
+        " releases/%s" % HsConstants.RELEASE
     CHECKOUT_PATH = HsConstants.SANDBOX_SPS
     HSIFACE_PATH = "/mnt/data/pdaqlocal/HsInterface/current"
     DEPLOY_TARGET = ["ichub%0.2d" % i for i in range(1, 87)] + \
