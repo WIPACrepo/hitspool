@@ -4,6 +4,13 @@
 RELEASE = "trunk"
 
 
+# DAQ ticks per second (i.e. number of tenths of nanoseconds in a second)
+TICKS_PER_SECOND = 10000000000
+# number of seconds of data in a HitSpool file
+HSFILE_SECONDS = 15
+# number of ticks of data in a HitSpool file
+INTERVAL = HSFILE_SECONDS * TICKS_PER_SECOND
+
 # Email address which received email for the hitspool developer(s)
 ALERT_EMAIL_DEV = [
     "dglo+hsdev@icecube.wisc.edu",
