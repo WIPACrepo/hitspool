@@ -257,12 +257,25 @@ class RequestMonitor(threading.Thread):
                               str(msg))
                 return
 
+            # make a copy of the 'extract' field, may need to change it below
+            extract = msg.extract
+
+            duration = stop_ticks - start_ticks
+            if duration <= 0:
+                logging.error("Start time is after stop time in request %s",
+                              str(msg))
+                return
+            if extract and duration > HsConstants.INTERVAL * 2:
+                # don't extract large requests to a new file,
+                #  it can overload the hubs and lose data
+                extract = False
+
             # add new request to DB
             self.__update_db(msg.request_id, self.INITIAL_REQUEST,
                              self.DBPHASE_QUEUED)
             self.__insert_detail(msg.request_id, msg.username, msg.prefix,
                                  start_ticks, stop_ticks,
-                                 msg.destination_dir, msg.hubs, msg.extract,
+                                 msg.destination_dir, msg.hubs, extract,
                                  self.DBPHASE_QUEUED)
 
         # tell LIVE that we've received the request
