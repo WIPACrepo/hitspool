@@ -748,6 +748,98 @@ class RequestMonitorTest(LoggingTestCase):
         self.assertTrue(result is None,
                         "Did not expect in_progress/error/done list")
 
+    def test_delete_bad_request_id(self):
+        sender = MockSender()
+        rmon = self.__create_monitor(sender)
+
+        req_id1 = "ReqOne"
+        mdict1 = self.__create_message(request_id=req_id1)
+
+        # expect success message when trying to delete queued request
+        self.expectLogMessage("Request %s was not found (for DELETE)" %
+                              req_id1)
+
+        # try to delete a nonexistent request
+        self.__send_message(rmon, mdict1, msgtype=HsMessage.DELETE)
+
+    def test_delete_request(self):
+        sender = MockSender()
+        rmon = self.__create_monitor(sender)
+
+        req_id1 = "ReqOne"
+        mdict1 = self.__create_message(request_id=req_id1)
+
+        test_msg1 = mdict1.copy()
+
+        # workers receive the first request
+        sender.workers.addExpected(test_msg1)
+
+        # sender notifies Live of first request
+        self.__expect_live_status(sender, mdict1, status=HsUtil.STATUS_QUEUED)
+
+        # add first request notification email
+        notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % sender.cluster
+        notify_msg = re.compile(r'Start: .*\nStop: .*\n' +
+                                r'\(no possible leapseconds applied\)',
+                                flags=re.MULTILINE)
+        sender.i3socket.addGenericEMail(HsConstants.ALERT_EMAIL_DEV,
+                                        notify_hdr, notify_msg, prio=1)
+
+        # send first request to RequestMonitor
+        self.__send_message(rmon, test_msg1)
+
+        req_id2 = "ReqTwo"
+        mdict2 = self.__create_message(request_id=req_id2,
+                                       start_ticks=int(12E10),
+                                       stop_ticks=int(13E10))
+
+        test_msg2 = mdict2.copy()
+
+        # workers receive the second request
+        sender.workers.addExpected(test_msg2)
+
+        # sender notifies Live of second request
+        self.__expect_live_status(sender, mdict2, status=HsUtil.STATUS_QUEUED)
+
+        # add second request notification email
+        notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % sender.cluster
+        notify_msg = re.compile(r'Start: .*\nStop: .*\n' +
+                                r'\(no possible leapseconds applied\)',
+                                flags=re.MULTILINE)
+        sender.i3socket.addGenericEMail(HsConstants.ALERT_EMAIL_DEV,
+                                        notify_hdr, notify_msg, prio=1)
+
+        # send second request to RequestMonitor
+        self.__send_message(rmon, test_msg2)
+
+        # sender notifies Live that first request is being processed
+        self.__expect_live_status(sender, mdict1,
+                                  status=HsUtil.STATUS_IN_PROGRESS)
+
+        # send hub STARTED messages to RequestMonitor
+        self.__send_message(rmon, mdict1, msgtype=HsMessage.STARTED,
+                            host="ichub11")
+        self.__send_message(rmon, mdict1, msgtype=HsMessage.STARTED,
+                            host="scube", wait_for_receipt=False)
+
+        # add first ichub11 WORKING messages to RequestMonitor
+        self.__send_message(rmon, mdict1, msgtype=HsMessage.WORKING,
+                            host="ichub11")
+
+        self.__check_reqmon_state(rmon, req_id1, (11, 99), None, None)
+
+        # expect error message when trying to delete active request
+        self.expectLogMessage("Request %s is already active" % req_id1)
+
+        # try to delete the active request
+        self.__send_message(rmon, mdict1, msgtype=HsMessage.DELETE)
+
+        # expect success message when trying to delete queued request
+        self.expectLogMessage("Deleted request %s" % req_id2)
+
+        # try to delete the queued request
+        self.__send_message(rmon, mdict2, msgtype=HsMessage.DELETE)
+
 
 if __name__ == '__main__':
     unittest.main()

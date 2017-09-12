@@ -229,6 +229,8 @@ class RequestMonitor(threading.Thread):
             return self.__handle_req_started(msg)
         elif msg.msgtype == HsMessage.WORKING:
             return self.__handle_req_working(msg)
+        elif msg.msgtype == HsMessage.DELETE:
+            return self.__handle_req_delete(msg)
         elif (msg.msgtype == HsMessage.IGNORED or
               msg.msgtype == HsMessage.DONE or
               msg.msgtype == HsMessage.FAILED):
@@ -283,6 +285,21 @@ class RequestMonitor(threading.Thread):
                                 msg.username, msg.prefix, start_ticks,
                                 stop_ticks, msg.destination_dir,
                                 HsUtil.STATUS_QUEUED)
+
+    def __handle_req_delete(self, msg):
+        with self.__reqlock:
+            if msg.request_id not in self.__requests:
+                logging.error("Request %s was not found (for DELETE)",
+                              msg.request_id)
+                return
+
+            if len(self.__requests[msg.request_id]) > 1:
+                logging.error("Request %s is already active", msg.request_id)
+                return
+
+            # remove request from database
+            self.__delete_request(msg.request_id)
+            logging.info("Deleted request %s", msg.request_id)
 
     def __handle_req_started(self, msg):
         with self.__reqlock:
@@ -550,9 +567,12 @@ class RequestMonitor(threading.Thread):
             if phase == self.DBPHASE_QUEUED:
                 if self.__active is None:
                     self.__active = req_id
-                else:
-                    logging.error("Found multiple active requests (%s and %s)",
-                                  self.__active, req_id)
+                elif len(requests[req_id]) > 1:
+                    if len(requests[self.__active]) == 1:
+                        self.__active = req_id
+                    else:
+                        logging.error("Found multiple active requests"
+                                      " (%s and %s)", self.__active, req_id)
 
         return requests
 
@@ -740,7 +760,8 @@ class RequestMonitor(threading.Thread):
         # validate message type
         if msg.msgtype not in (HsMessage.INITIAL, HsMessage.STARTED,
                                HsMessage.WORKING, HsMessage.IGNORED,
-                               HsMessage.DONE, HsMessage.FAILED):
+                               HsMessage.DONE, HsMessage.FAILED,
+                               HsMessage.DELETE):
             raise ValueError("Unknown message type \"%s\" in \"%s\"" %
                              (msg.msgtype, msg))
 
@@ -759,6 +780,7 @@ class RequestMonitor(threading.Thread):
 
     @classmethod
     def get_db_path(cls):
+        "Return the path to the hitspool state database"
         if cls.STATE_DB_PATH is None:
             cls.STATE_DB_PATH = os.path.join(os.environ["HOME"],
                                              ".hitspool_state.db")

@@ -22,6 +22,7 @@ WORKING = "WORKING"  # hub is sending data (can be sent many times)
 DONE = "DONE"        # hub has finished sending data
 FAILED = "FAILED"    # hub failed to fill request
 IGNORED = "IGNORED"  # hub is not part of the request
+DELETE = "DELETE"    # delete a request
 
 # mandatory message fields
 __MANDATORY_FIELDS = ("username", "prefix", "destination_dir", "host",
