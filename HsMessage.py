@@ -13,7 +13,7 @@ from HsUtil import dict_to_object
 
 
 # version number for current message format
-DEFAULT_VERSION = 2
+CURRENT_VERSION = 2
 
 # message types
 INITIAL = "REQUEST"
@@ -123,7 +123,7 @@ def send(sock, msgtype, req_id, user, start_ticks, stop_ticks, destdir,
         prefix = HsPrefix.guess_from_dir(destdir)
     extract = extract is not None and extract
     if version is None:
-        version = DEFAULT_VERSION
+        version = CURRENT_VERSION
 
     msg = {
         "msgtype": msgtype,
@@ -160,7 +160,7 @@ def send_initial(sock, req_id, start_ticks, stop_ticks, destdir, prefix=None,
     return send(sock, INITIAL, req_id, username, start_ticks,
                 stop_ticks, destdir, prefix=prefix, copydir=None,
                 extract=extract_hits, hubs=hubs, host=host,
-                version=DEFAULT_VERSION)
+                version=CURRENT_VERSION)
 
 
 def send_worker_status(sock, req, host, copydir, destdir, msgtype):

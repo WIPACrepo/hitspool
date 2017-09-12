@@ -410,7 +410,7 @@ class HsPublisherTest(LoggingTestCase):
             "extract": False,
             "host": rcvr.shorthost,
             "hubs": None,
-            "version": HsMessage.DEFAULT_VERSION,
+            "version": HsMessage.CURRENT_VERSION,
         }
 
         # add expected sender message
@@ -460,7 +460,7 @@ class HsPublisherTest(LoggingTestCase):
             "extract": False,
             "host": rcvr.shorthost,
             "hubs": None,
-            "version": HsMessage.DEFAULT_VERSION,
+            "version": HsMessage.CURRENT_VERSION,
         }
 
         # add expected sender message
@@ -512,7 +512,7 @@ class HsPublisherTest(LoggingTestCase):
             "extract": False,
             "host": rcvr.shorthost,
             "hubs": None,
-            "version": HsMessage.DEFAULT_VERSION,
+            "version": HsMessage.CURRENT_VERSION,
         }
 
         # add expected sender message
@@ -564,7 +564,7 @@ class HsPublisherTest(LoggingTestCase):
             "extract": False,
             "host": rcvr.shorthost,
             "hubs": None,
-            "version": HsMessage.DEFAULT_VERSION,
+            "version": HsMessage.CURRENT_VERSION,
         }
 
         # add expected sender message
@@ -618,7 +618,7 @@ class HsPublisherTest(LoggingTestCase):
             "extract": False,
             "host": rcvr.shorthost,
             "hubs": None,
-            "version": HsMessage.DEFAULT_VERSION,
+            "version": HsMessage.CURRENT_VERSION,
         }
 
         # add expected sender message
@@ -672,7 +672,7 @@ class HsPublisherTest(LoggingTestCase):
             "extract": False,
             "host": rcvr.shorthost,
             "hubs": None,
-            "version": HsMessage.DEFAULT_VERSION,
+            "version": HsMessage.CURRENT_VERSION,
         }
 
         # add expected sender message

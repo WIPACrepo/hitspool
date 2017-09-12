@@ -221,7 +221,7 @@ class MockRequestBuilder(object):
             "prefix": None,
             "extract": None,
             "host": host,
-            "version": HsMessage.DEFAULT_VERSION,
+            "version": HsMessage.CURRENT_VERSION,
         }
 
         if success is not None:
@@ -919,7 +919,7 @@ class HsSenderTest(LoggingTestCase):
             "extract": None,
             "host": None,
             "hubs": "not_a_hub",
-            "version": HsMessage.DEFAULT_VERSION,
+            "version": HsMessage.CURRENT_VERSION,
         }
 
         # add all expected JSON messages

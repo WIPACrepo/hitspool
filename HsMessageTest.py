@@ -82,7 +82,7 @@ class HsMessageTest(unittest.TestCase):
         self.__check_request(req, HsMessage.INITIAL, req.request_id,
                              username, start_ticks, stop_ticks,
                              dest_dir, HsPrefix.ANON, None, False, None, None,
-                             HsMessage.DEFAULT_VERSION)
+                             HsMessage.CURRENT_VERSION)
 
         new_host = "xyz"
         new_copydir = "/copy/dir"

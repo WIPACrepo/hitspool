@@ -656,7 +656,7 @@ class IntegrationTest(LoggingTestCase):
             "extract": False,
             "host": "mypublisher",
             "hubs": None,
-            "version": HsMessage.DEFAULT_VERSION,
+            "version": HsMessage.CURRENT_VERSION,
             "copy_dir": None,
         }
         sender.reporter.addExpected(msg_initial)
@@ -694,7 +694,7 @@ class IntegrationTest(LoggingTestCase):
             "extract": False,
             "host": worker.shorthost,
             "hubs": None,
-            "version": HsMessage.DEFAULT_VERSION,
+            "version": HsMessage.CURRENT_VERSION,
             "copy_dir": None,
         }
         worker.sender.addExpected(msg_started)
