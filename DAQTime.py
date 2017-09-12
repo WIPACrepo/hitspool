@@ -77,6 +77,9 @@ def string_to_ticks(timestr, is_ns=False):
 
         return utc_to_ticks(utc)
 
+    raise HsException("Cannot convert %s(%s) to ticks" %
+                      (type(timestr).__name__, timestr))
+
 
 def utc_to_ticks(utc):
     """
