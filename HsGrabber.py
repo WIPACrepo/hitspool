@@ -218,7 +218,7 @@ class HsGrabber(HsBase):
                      secrange, start_ticks, stop_ticks)
 
         try:
-            if not HsMessage.send_initial(self.__sender, None,
+            if not HsMessage.send_initial(self.__sender, request_id,
                                           start_ticks, stop_ticks,
                                           destdir, prefix=prefix,
                                           extract_hits=extract_hits,
