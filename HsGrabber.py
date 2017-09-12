@@ -435,7 +435,7 @@ if __name__ == "__main__":
         now_ticks = DAQTime.utc_to_ticks(datetime.datetime.now())
 
         p = argparse.ArgumentParser(epilog="HsGrabber submits a request to"
-                                    "the HitSpool system", add_help=False)
+                                    " the HitSpool system", add_help=False)
         p.add_argument("-?", "--help", action="help",
                        help="show this help message and exit")
 
