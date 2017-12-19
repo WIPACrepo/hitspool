@@ -141,6 +141,8 @@ class HsPublisherTest(LoggingTestCase):
         # add all expected log messages
         self.expectLogMessage("received request:\n%s" % req_str)
         self.expectLogMessage("Bad start time \"%s\"" % start_utc)
+        self.expectLogMessage(re.compile(r"Could not find start/stop time"
+                                         r" in request:\n.*"))
         self.expectLogMessage("Sent response back to requester: ERROR")
 
         # initialize I3Live socket and add all expected I3Live messages
@@ -185,6 +187,8 @@ class HsPublisherTest(LoggingTestCase):
         # add all expected log messages
         self.expectLogMessage("received request:\n%s" % req_str)
         self.expectLogMessage("Bad stop time \"%s\"" % stop_utc)
+        self.expectLogMessage(re.compile(r"Could not find start/stop time"
+                                         r" in request:\n.*"))
         self.expectLogMessage("Sent response back to requester: ERROR")
 
         # initialize I3Live socket and add all expected I3Live messages

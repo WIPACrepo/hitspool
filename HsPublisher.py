@@ -66,7 +66,6 @@ class Receiver(HsBase):
                 = self.__parse_version_and_times(alertdict)
 
         bad_request = not is_valid
-
         try:
             destdir, bad_flag = self.__parse_destination_dir(alertdict)
             bad_request |= bad_flag
@@ -257,6 +256,11 @@ class Receiver(HsBase):
                 else:
                     logging.error("Ignoring unknown time type \"%s\"",
                                   timetype)
+
+        if start_ticks is None or stop_ticks is None:
+            logging.error("Could not find start/stop time in request:\n%s" %
+                          (alertdict, ))
+            is_valid = False
 
         return (version, start_ticks, stop_ticks, is_valid)
 
