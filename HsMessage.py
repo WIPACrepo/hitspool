@@ -44,16 +44,6 @@ class ID(object):
 
 
 def dict_to_message(mdict, allow_old_format=False):
-    for prefix in ("start", "stop"):
-        found = False
-        for suffix in ("ticks", "time"):
-            if prefix + "_" + suffix in mdict:
-                found = True
-                break
-        if not found:
-            raise HsException("Dictionary is missing %s_time or %s_ticks" %
-                              (prefix, prefix))
-
     return dict_to_object(fix_message_dict(mdict,
                                            allow_old_format=allow_old_format),
                           __MANDATORY_FIELDS, "Message")
@@ -66,6 +56,16 @@ def fix_message_dict(mdict, allow_old_format=False):
     if not isinstance(mdict, dict):
         raise HsException("Message is not a dictionary: \"%s\"<%s>" %
                           (mdict, type(mdict)))
+
+    for prefix in ("start", "stop"):
+        found = False
+        for suffix in ("ticks", "time"):
+            if prefix + "_" + suffix in mdict:
+                found = True
+                break
+        if not found:
+            raise HsException("Dictionary is missing %s_time or %s_ticks" %
+                              (prefix, prefix))
 
     # check for mandatory fields
     if "msgtype" not in mdict:
