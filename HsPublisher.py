@@ -57,7 +57,7 @@ class Receiver(HsBase):
             sec_bldr = "localhost"
 
         self.__context = zmq.Context()
-        self.__socket = self.create_alert_socket()
+        self.__alert_socket = self.create_alert_socket()
         self.__i3socket = self.create_i3socket(expcont)
         self.__sender = self.create_sender_socket(sec_bldr)
 
@@ -266,10 +266,10 @@ class Receiver(HsBase):
 
     @property
     def alert_socket(self):
-        return self.__socket
+        return self.__alert_socket
 
     def close_all(self):
-        self.__socket.close()
+        self.__alert_socket.close()
         self.__i3socket.close()
         self.__sender.close()
         self.__context.term()
@@ -331,7 +331,7 @@ class Receiver(HsBase):
 
     def reply_request(self):
         # Wait for next request from client
-        alert = str(self.__socket.recv())
+        alert = str(self.__alert_socket.recv())
         logging.info("received request:\n%s", alert)
 
         # SnDAQ alerts are NOT real JSON so try to eval first
@@ -361,7 +361,7 @@ class Receiver(HsBase):
 
         # reply to requester:
         #  added \0 to fit C/C++ zmq message termination
-        answer = self.__socket.send(rtnmsg + "\0")
+        answer = self.__alert_socket.send(rtnmsg + "\0")
         if answer is None:
             logging.info("Sent response back to requester: %s", rtnmsg)
         else:
