@@ -119,14 +119,13 @@ class HsBase(object):
     def init_logging(cls, logfile=None, basename=None, basehost=None,
                      level=logging.INFO, both=False):
         if logfile is None:
-            if basename is None or basehost is None:
-                if basename is not None or basehost is not None:
-                    print >>sys.stderr, \
-                        "Not logging to file (basehost=%s, basename=%s)" % \
-                        (basehost, basename)
-            else:
+            if basename is not None and basehost is not None:
                 logfile = os.path.join(HsBase.DEFAULT_LOG_PATH,
                                        "%s_%s.log" % (basename, basehost))
+            elif basename is not None or basehost is not None:
+                print >>sys.stderr, \
+                    "Not logging to file (basehost=%s, basename=%s)" % \
+                    (basehost, basename)
 
         if logfile is not None:
             logdir = os.path.dirname(logfile)
