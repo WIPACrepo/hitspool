@@ -367,6 +367,10 @@ class Mock0MQPoller(object):
 
         self.__socks[sock] = event
 
+    def unregister(self, sock):
+        if sock in self.__socks:
+            del self.__socks[sock]
+
     def validate(self):
         if len(self.__pollresult) > 0:
             verb = " was" if len(self.__pollresult) == 1 else "s were"

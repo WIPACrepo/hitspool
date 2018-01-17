@@ -134,8 +134,8 @@ class HsGrabber(HsBase):
         self.__poller = self.create_poller((self.__publisher, self.__sender))
 
     def close_all(self):
-        if self.__poller is not None:
-            self.__poller.close()
+        self.__poller.unregister(self.__publisher)
+        self.__poller.unregister(self.__sender)
         if self.__publisher is not None:
             self.__publisher.close()
         if self.__sender is not None:
