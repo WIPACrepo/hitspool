@@ -420,6 +420,7 @@ class HsRSyncFiles(HsBase):
 
         # Socket to send message to
         sock = self.__context.socket(zmq.PUSH)
+        sock.identity = (self.fullhost + ">OUT").encode("ascii")
         sock.connect("tcp://%s:%d" % (host, SENDER_PORT))
         return sock
 
@@ -429,7 +430,7 @@ class HsRSyncFiles(HsBase):
 
         # Socket to receive message on:
         sock = self.__context.socket(zmq.SUB)
-        sock.setsockopt(zmq.IDENTITY, self.fullhost)
+        sock.identity = (self.fullhost + "<IN").encode("ascii")
         sock.setsockopt(zmq.SUBSCRIBE, "")
         sock.connect("tcp://%s:%d" % (host, PUBLISHER_PORT))
         return sock
