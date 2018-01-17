@@ -164,14 +164,15 @@ class HsSender(HsBase):
     def process_one_message(self, force_spade=False):
         found = False
         for sock, event in self.__poller.poll():
-            if event != zmq.POLLIN:
-                logging.error("Unknown event \"%s\"<%s> for %s<%s>", event,
-                              type(event).__name__, sock, type(sock).__name__)
-                continue
-
             if sock != self.__reporter and sock != self.__alert_socket:
                 logging.error("Ignoring unknown incoming socket %s<%s>",
-                              sock, type(sock).__name__)
+                              sock.identity, type(sock).__name__)
+                continue
+
+            if event != zmq.POLLIN:
+                logging.error("Unknown event \"%s\"<%s> for %s<%s>", event,
+                              type(event).__name__, sock.identity,
+                              type(sock).__name__)
                 continue
 
             error = True
@@ -389,8 +390,9 @@ if __name__ == "__main__":
             except KeyboardInterrupt:
                 logging.warning("Interruption received, shutting down...")
                 raise SystemExit(0)
-            except zmq.ZMQError:
-                logging.exception("ZMQ error received, shutting down...")
+            except zmq.ZMQError, zex:
+                if str(zex).find("Socket operation on non-socket") < 0:
+                    logging.exception("ZMQ error received, shutting down...")
                 raise SystemExit(1)
             except:
                 logging.exception("Caught exception, continuing")
