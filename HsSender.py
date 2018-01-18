@@ -515,6 +515,7 @@ if __name__ == "__main__":
     import argparse
 
     def main():
+        "Main method"
         parser = argparse.ArgumentParser()
 
         add_arguments(parser)
@@ -542,7 +543,7 @@ if __name__ == "__main__":
         signal.signal(signal.SIGTERM, sender.handler)
 
         while True:
-            logging.info("HsSender waits for new reports from HsWorkers...")
+            logging.debug("HsSender waits for new messages")
             try:
                 sender.mainloop(force_spade=args.force_spade)
             except SystemExit:
