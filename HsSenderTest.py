@@ -43,7 +43,7 @@ class MySender(HsSender.HsSender):
 
         if verbose:
             self.__i3_sock.set_verbose()
-            self.__rptr.set_verbose()
+            self.__rptr_sock.set_verbose()
 
     def create_i3socket(self, host):
         if self.__i3_sock is not None:
@@ -766,7 +766,7 @@ class HsSenderTest(LoggingTestCase):
         self.setLogLevel(logging.WARN)
 
         # run it!
-        if sender.process_one_message():
+        if sender.mainloop():
             self.fail("Succeeded after processing no messages")
 
         # wait for message to be processed
@@ -790,7 +790,7 @@ class HsSenderTest(LoggingTestCase):
 
         # run it!
         try:
-            if sender.process_one_message():
+            if sender.mainloop():
                 self.fail("'str' message was accepted")
         except HsException, hse:
             hsestr = str(hse)
@@ -823,7 +823,7 @@ class HsSenderTest(LoggingTestCase):
 
         # run it!
         try:
-            if sender.process_one_message():
+            if sender.mainloop():
                 self.fail("Message with no request ID was accepted")
         except HsException, hse:
             hsestr = str(hse)
@@ -851,7 +851,7 @@ class HsSenderTest(LoggingTestCase):
 
         # run it!
         try:
-            if sender.process_one_message():
+            if sender.mainloop():
                 self.fail("Bad message was accepted")
         except HsException, hse:
             hsestr = str(hse)
@@ -893,7 +893,7 @@ class HsSenderTest(LoggingTestCase):
         self.expectLogMessage(re.compile("Received bad message .*"))
 
         # run it!
-        if sender.process_one_message():
+        if sender.mainloop():
             self.fail("Bad message was accepted")
 
         # wait for message to be processed
@@ -932,7 +932,7 @@ class HsSenderTest(LoggingTestCase):
         self.expectLogMessage(re.compile(r"Received bad message .*"))
 
         # run it!
-        if sender.process_one_message():
+        if sender.mainloop():
             self.fail("Message with bad 'hubs' entry was accepted")
 
         # wait for message to be processed
@@ -974,7 +974,7 @@ class HsSenderTest(LoggingTestCase):
                                success="1")
 
         # run it!
-        if not sender.process_one_message():
+        if not sender.mainloop():
             self.fail("Message should not have returned error")
 
         # wait for message to be processed
@@ -1043,7 +1043,7 @@ class HsSenderTest(LoggingTestCase):
 
         # run it!
         while sender.reporter.has_input:
-            if not sender.process_one_message():
+            if not sender.mainloop():
                 self.fail("Unexpected failure")
 
         # wait for message to be processed

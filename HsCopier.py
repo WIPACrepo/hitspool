@@ -1,6 +1,7 @@
 #!/usr/bin/env python
-#
-# copy files to a remote machine
+"""
+Copy files to a remote machine
+"""
 
 
 import logging
@@ -83,10 +84,10 @@ class Copier(object):
                 num_err += 1
                 continue
 
-            for fd in ret[0]:
-                if fd == proc.stdout.fileno():
+            for fin in ret[0]:
+                if fin == proc.stdout.fileno():
                     self.parse_line(proc.stdout.readline())
-                if fd == proc.stderr.fileno():
+                if fin == proc.stderr.fileno():
                     self.parse_line(proc.stderr.readline())
 
             if proc.poll() is not None:
@@ -108,7 +109,7 @@ class Copier(object):
         else:
             rstr = "%s@%s" % (rmt_user, rmt_host)
         cmd = ["ssh", rstr, "mkdir", "-p", "\"%s\"" % rmt_dir]
-        for i in range(3):
+        for _ in range(3):
             # this fails occasionally for unknown reasons; retry a couple
             #  of times before giving up
             rtncode = subprocess.call(cmd)
@@ -159,7 +160,8 @@ class CopyUsingRSync(Copier):
                                              rmt_dir=rmt_dir,
                                              rmt_subdir=rmt_subdir)
 
-    def __build_command(self, bwlimit, log_format, relative):
+    @classmethod
+    def __build_command(cls, bwlimit, log_format, relative):
         # assemble arguments
         bwstr = "" if bwlimit is None or bwlimit <= 0 \
                 else " --bwlimit=%d" % bwlimit
@@ -274,29 +276,29 @@ class CopyUsingRSync(Copier):
             return
 
         if line.startswith("sent "):
-            m = self.SENT_PAT.match(line)
-            if m is None:
+            mtch = self.SENT_PAT.match(line)
+            if mtch is None:
                 logging.error("??? " + line.rstrip())
                 return
 
             try:
                 # sentsize = int(m.group(1).replace(",", ""))
-                self.__rcvd = int(m.group(2).replace(",", ""))
-                self.__bps = float(m.group(3).replace(",", ""))
+                self.__rcvd = int(mtch.group(2).replace(",", ""))
+                self.__bps = float(mtch.group(3).replace(",", ""))
             except:
                 logging.error("Bad value(s) in " + line.rstrip())
 
             return
 
         if line.startswith("total size is "):
-            m = self.TOTAL_PAT.match(line)
-            if m is None:
+            mtch = self.TOTAL_PAT.match(line)
+            if mtch is None:
                 logging.error("??? " + line.rstrip())
                 return
 
             try:
-                tsize = int(m.group(1).replace(",", ""))
-                self.__speedup = float(m.group(2).replace(",", ""))
+                tsize = int(mtch.group(1).replace(",", ""))
+                self.__speedup = float(mtch.group(2).replace(",", ""))
             except:
                 logging.error("Bad value(s) in " + line.rstrip())
                 return
@@ -341,11 +343,12 @@ class CopyUsingSCP(Copier):
 
         cmd = self.__build_command(bwlimit, cipher)
         super(CopyUsingSCP, self).__init__(cmd=cmd, rmt_user=rmt_user,
-                                           rmt_host=rmt_host, rmt_dir=rmt_dir,
+                                           rmt_host=rmt_host,
+                                           rmt_dir=rmt_dir,
                                            rmt_subdir=rmt_subdir,
                                            make_remote_dir=make_remote_dir)
-
-    def __build_command(self, bwlimit, cipher):
+    @classmethod
+    def __build_command(cls, bwlimit, cipher):
         bwstr = "" if bwlimit is None or bwlimit <= 0 \
                 else " -l %d" % (bwlimit * 8)
         cstr = "" if cipher is None else " -c %s" % cipher

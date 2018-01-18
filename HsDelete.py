@@ -1,25 +1,19 @@
 #!/usr/bin/env python
-#
-# Hit Spool Request Deletion
+"""
+Hit Spool Request Deletion
+"""
 
-
-import datetime
 import getpass
-import json
 import logging
 import os
-import re
 import sys
 import traceback  # used by LogToConsole
 import zmq
 
-import DAQTime
 import HsMessage
 
 from HsBase import HsBase
 from HsConstants import ALERT_PORT
-from HsException import HsException
-from HsPrefix import HsPrefix
 
 
 # requests longer than this will provoke a warning message
@@ -28,6 +22,8 @@ WARN_SECONDS = 95
 
 
 def add_arguments(parser):
+    "Add all command line arguments to the argument parser"
+
     example_log_path = os.path.join(HsBase.DEFAULT_LOG_PATH, "hsdelete.log")
 
     parser.add_argument("-i", "--request-id", dest="request_id",
@@ -42,46 +38,29 @@ def add_arguments(parser):
                         help="Name of user making the requests")
 
 
-def getDurationFromString(s):
-    """
-    Return duration in seconds based on string <s>
-    """
-    m = re.search(r'^(\d+)$', s)
-    if m:
-        return int(m.group(1))
-    m = re.search(r'^(\d+)s(?:ec(?:s)?)?$', s)
-    if m:
-        return int(m.group(1))
-    m = re.search(r'^(\d+)m(?:in(?:s)?)?$', s)
-    if m:
-        return int(m.group(1)) * 60
-    m = re.search(r'^(\d+)h(?:r(?:s)?)?$', s)
-    if m:
-        return int(m.group(1)) * 3600
-    m = re.search(r'^(\d+)d(?:ay(?:s)?)?$', s)
-    if m:
-        return int(m.group(1)) * 86400
-    raise ValueError('String "%s" is not a known duration format.  Try'
-                     '30sec, 10min, 2days etc.' % s)
-
-
 class LogToConsole(object):  # pragma: no cover
+    "Simulate a logger"
+
     @staticmethod
     def info(msg, *args):
+        "Print INFO message to stdout"
         print msg % args
 
     @staticmethod
-    def warn(msg, *args):
-        print >>sys.stderr, msg % args
-
-    @staticmethod
     def error(msg, *args):
+        "Print ERROR message to stderr"
         print >>sys.stderr, msg % args
 
     @staticmethod
     def exception(msg, *args):
+        "Print ERROR message and exception stacktrace to stderr"
         print >>sys.stderr, msg % args
         traceback.print_exc()
+
+    @staticmethod
+    def warn(msg, *args):
+        "Print WARN message to stderr"
+        print >>sys.stderr, msg % args
 
 
 class HsDelete(HsBase):
@@ -90,13 +69,12 @@ class HsDelete(HsBase):
     '''
 
     def __init__(self, is_test=False):
+        "Create a request deletion object"
         super(HsDelete, self).__init__(is_test=is_test)
 
         if self.is_cluster_sps or self.is_cluster_spts:
-            expcont = "expcont"
             sec_bldr = "2ndbuild"
         else:
-            expcont = "localhost"
             sec_bldr = "localhost"
 
         self.__context = zmq.Context()
@@ -104,21 +82,21 @@ class HsDelete(HsBase):
         self.__poller = self.create_poller((self.__sender, ))
 
     def close_all(self):
-        if self.__poller is not None:
-            self.__poller.close()
+        "Close all sockets"
         if self.__sender is not None:
             self.__sender.close()
         self.__context.term()
 
     def create_sender(self, host):  # pragma: no cover
-        # Socket to send alert message to HsSender
+        "Socket used to send alert message to HsSender"
         sock = self.__context.socket(zmq.REQ)
         sock.identity = "Sender".encode("ascii")
         sock.connect("tcp://%s:%d" % (host, ALERT_PORT))
         return sock
 
-    def create_poller(self, sockets):  # pragma: no cover
-        # needed for handling timeout if server doesnt answer
+    @classmethod
+    def create_poller(cls, sockets):  # pragma: no cover
+        "Create ZMQ poller to watch ZMQ sockets"
         poller = zmq.Poller()
         for sock in sockets:
             poller.register(sock, zmq.POLLIN)
@@ -126,10 +104,12 @@ class HsDelete(HsBase):
 
     @property
     def poller(self):
+        "Return ZMQ socket poller"
         return self.__poller
 
     @property
     def sender(self):
+        "Return ZMQ sender socket"
         return self.__sender
 
     def send_alert(self, request_id=None, username=None,
@@ -173,9 +153,9 @@ class HsDelete(HsBase):
 
             for sock, event in self.__poller.poll(timeout * 100):
                 if event != zmq.POLLIN:
-                    logging.error("Unknown event \"%s\"<%s> for %s<%s>", event,
-                                  type(event).__name__, sock,
-                                  type(sock).__name__)
+                    logging.error("Unknown event \"%s\"<%s> for %s<%s>",
+                                  event, type(event).__name__,
+                                  sock, type(sock).__name__)
                     continue
 
                 if sock != self.__sender:
@@ -218,14 +198,14 @@ if __name__ == "__main__":
 
     def main():
         ''''Process arguments'''
-        p = argparse.ArgumentParser(epilog="HsDelete deletes a request from "
-                                    "the HitSpool system", add_help=False)
-        p.add_argument("-?", "--help", action="help",
-                       help="show this help message and exit")
+        epilog = "HsDelete deletes a request from the HitSpool system"
+        parser = argparse.ArgumentParser(epilog=epilog, add_help=False)
+        parser.add_argument("-?", "--help", action="help",
+                            help="show this help message and exit")
 
-        add_arguments(p)
+        add_arguments(parser)
 
-        args = p.parse_args()
+        args = parser.parse_args()
 
         hsd = HsDelete(is_test=args.is_test)
 

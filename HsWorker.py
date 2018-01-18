@@ -1,21 +1,20 @@
 #!/usr/bin/env python
-
-
 """
 #Hit Spool Worker to be run on hubs
 #author: dheereman i3.hsinterface@gmail.com
 #check out the icecube wiki page for instructions:
 https://wiki.icecube.wisc.edu/index.php/HitSpool_Interface_Operation_Manual
 """
+
+import datetime
 import functools
 import logging
 import numbers
 import os
 import signal
+import threading
 import time
 import zmq
-
-from zmq import ZMQError
 
 import DAQTime
 import HsMessage
@@ -24,6 +23,7 @@ import HsUtil
 from HsBase import HsBase
 from HsException import HsException
 from HsRSyncFiles import HsRSyncFiles
+from HsSender import PingManager
 
 
 def add_arguments(parser):
@@ -49,15 +49,65 @@ def add_arguments(parser):
                         help="Ignore SPS/SPTS status for tests")
 
 
+class PingWatcher(object):
+    PING_SLEEP_SECONDS = PingManager.PING_SLEEP_SECONDS
+    PING_TIMEOUT_DEAD = PingManager.PING_TIMEOUT_DEAD
+
+    def __init__(self, host, sock):
+        self.__host = host
+        self.__sock = sock
+
+        self.__last_ping = datetime.datetime.now()
+        self.__running = False
+
+        while self.__running:
+            time.sleep(self.PING_SLEEP_SECONDS)
+
+            if self.__last_ping is not None:
+                pdiff = datetime.datetime.now() - self.__last_ping
+                if pdiff.days > 0 or pdiff.seconds > self.PING_TIMEOUT_DEAD:
+                    logging.error("No ping received in %d -- dying", pdiff)
+                    raise SystemExit
+
+
+    def __thread_loop(self):
+        self.__running = True
+        while self.__running:
+            try:
+                time.sleep(self.PING_SLEEP_SECONDS)
+
+                pdiff = datetime.datetime.now() - self.__last_ping
+                if pdiff.days > 0 or pdiff.seconds >= self.PING_TIMEOUT_DEAD:
+                    logging.error("No ping from sender in %s -- dying", pdiff)
+
+                    # SIGUSR1 is sent to the main process to kill this program
+                    os.kill(os.getpid(), signal.SIGUSR1)
+            except:
+                logging.exception("PingWatcher problem!")
+
+    def start_thread(self):
+        thrd = threading.Thread(name="PingWatcher[%s]" % self.__host,
+                                target=self.__thread_loop)
+        thrd.setDaemon(True)
+        thrd.start()
+        return thrd
+
+    def stop_thread(self):
+        self.__running = False
+
+    def update(self):
+        self.__last_ping = datetime.datetime.now()
+
+
 class Worker(HsRSyncFiles):
     """
-    "sndaq/HsGrabber"  "HsPublisher"      "HsWorker"           "HsSender"
-    -----------        -----------
-    | sni3daq |        | access  |         -----------        --------------
-    | REQ     | <----->| REP     |         | IcHub n |        | 2ndbuild    |
-    -----------        | PUB     | ------> | SUB   n |        | PUSH(13live)|
-                       ----------          | PUSH    | ---->  | PULL        |
-                                            ---------         --------------
+     Requester           HsSender            HsWorker
+    -----------       ---------------       -----------
+    | sni3daq |       | 2ndbuild    |       | icHub n |
+    | REQ     |<----->| PUSH(13live)|<----->| SUB   n |
+    -----------       | PULL        |       | PUSH    |
+                      ---------------       -----------
+
     HsWorker.py of the HitSpool Interface.
     This class
     1. analyzes the alert message
@@ -72,6 +122,9 @@ class Worker(HsRSyncFiles):
         self.__service = "HSiface"
         self.__varname = "%s@%s" % (progname, self.shorthost)
 
+        self.__ping_watcher = PingWatcher(self.fullhost, self.subscriber)
+        self.__ping_watcher.start_thread()
+
     def __in_hub_list(self, hublist):
         if hublist is None:
             return True
@@ -82,7 +135,8 @@ class Worker(HsRSyncFiles):
 
         return False
 
-    def alert_parser(self, req, logfile, update_status=None, delay_rsync=True):
+    def alert_parser(self, req, logfile, update_status=None,
+                     delay_rsync=True):
         """
         Parse the Alert message for starttime, stoptime, sn-alert-time-stamp
         and directory where-to the data has to be copied.
@@ -98,7 +152,7 @@ class Worker(HsRSyncFiles):
         try:
             hs_ssh_access, hs_copydir \
                 = HsUtil.split_rsync_host_and_path(req.destination_dir)
-        except Exception, err:
+        except Exception:
             self.send_alert("ERROR: destination parsing failed for"
                             " \"%s\". Abort request." % req.destination_dir)
             logging.error("Destination parsing failed for \"%s\":\n"
@@ -134,17 +188,26 @@ class Worker(HsRSyncFiles):
 
         return rsyncdir
 
-    # --- Clean exit when program is terminated from outside (via pkill) ---#
+    def close_all(self):
+        self.__ping_watcher.stop_thread()
+
+        super(Worker, self).close_all()
+
     def handler(self, signum, _):
+        """
+        Handle Unix signals
+        """
         logging.warning("Signal Handler called with signal %s", signum)
         logging.warning("Shutting down...\n")
 
         if self.i3socket is not None:
-            i3live_dict = {}
-            i3live_dict["service"] = "HSiface"
-            i3live_dict["varname"] = "HsWorker@%s" % self.shorthost
-            i3live_dict["value"] = "INFO: SHUT DOWN called by external signal."
-            self.i3socket.send_json(i3live_dict)
+            if signum != signal.SIGUSR1:
+                i3live_dict = {}
+                i3live_dict["service"] = "HSiface"
+                i3live_dict["varname"] = "HsWorker@%s" % self.shorthost
+                i3live_dict["value"] = "INFO: SHUT DOWN due to signal %s" % \
+                                       (signum, )
+                self.i3socket.send_json(i3live_dict)
 
             i3live_dict = {}
             i3live_dict["service"] = "HSiface"
@@ -166,10 +229,13 @@ class Worker(HsRSyncFiles):
             req = self.receive_request(self.subscriber)
         except KeyboardInterrupt:
             raise
-        except ZMQError:
+        except zmq.ZMQError:
             raise
         except:
             logging.exception("Cannot read request")
+            return
+
+        if req is None:
             return
 
         logging.info("HsWorker received request:\n"
@@ -216,9 +282,17 @@ class Worker(HsRSyncFiles):
 
     def receive_request(self, sock):
         req_dict = sock.recv_json()
+        if req_dict is None:
+            return None
+
         if not isinstance(req_dict, dict):
             raise HsException("JSON message should be a dict: \"%s\"<%s>" %
                               (req_dict, type(req_dict)))
+
+        if "ping" in req_dict:
+            self.__ping_watcher.update()
+            self.sender.send_json({"pingback": self.fullhost})
+            return
 
         # ensure 'start_time' and 'stop_time' are present and numbers
         for tkey in ("start_ticks", "stop_ticks"):
@@ -243,11 +317,11 @@ if __name__ == '__main__':
     import sys
 
     def main():
-        p = argparse.ArgumentParser()
+        parser = argparse.ArgumentParser()
 
-        add_arguments(p)
+        add_arguments(parser)
 
-        args = p.parse_args()
+        args = parser.parse_args()
 
         usage = False
         if not usage:
@@ -268,8 +342,9 @@ if __name__ == '__main__':
         if args.hubroot is not None:
             worker.TEST_HUB_DIR = args.hubroot
 
-        # handler is called when SIGTERM is called (via pkill)
+        # shut down cleanly when a signal is received (via pkill)
         signal.signal(signal.SIGTERM, worker.handler)
+        signal.signal(signal.SIGUSR1, worker.handler)
 
         logfile = worker.init_logging(args.logfile, basename="hsworker",
                                       basehost=worker.shorthost)

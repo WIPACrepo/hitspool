@@ -1,6 +1,8 @@
 #!/usr/bin/env python
+"""
+Test HsDelete
+"""
 
-import getpass
 import logging
 import re
 import unittest
@@ -9,13 +11,14 @@ import HsDelete
 import HsMessage
 import HsTestUtil
 
-from HsBase import HsBase
 from HsPrefix import HsPrefix
 
 from LoggingTestCase import LoggingTestCase
 
 
 class MyDelete(HsDelete.HsDelete):
+    "Test wrapper around HsDelete"
+
     def __init__(self):
         self.__poller = None
         self.__sender = None
@@ -23,6 +26,7 @@ class MyDelete(HsDelete.HsDelete):
         super(MyDelete, self).__init__()
 
     def create_poller(self, sockets):
+        "Create mock poller"
         if self.__poller is not None:
             raise Exception("Cannot create multiple poller sockets")
 
@@ -30,6 +34,7 @@ class MyDelete(HsDelete.HsDelete):
         return self.__poller
 
     def create_sender(self, host):
+        "Create mock sender"
         if self.__sender is not None:
             raise Exception("Cannot create multiple sender sockets")
 
@@ -37,6 +42,7 @@ class MyDelete(HsDelete.HsDelete):
         return self.__sender
 
     def validate(self):
+        "Validate all mock sockets"
         self.close_all()
 
         for sock in (self.__sender, self.__poller):
@@ -45,20 +51,18 @@ class MyDelete(HsDelete.HsDelete):
 
 
 class HsDeleteTest(LoggingTestCase):
+    "Test HsDelete"
+
     MATCH_ANY = re.compile(r"^.*$")
 
     def setUp(self):
+        "Set log level to see all log messages"
         super(HsDeleteTest, self).setUp()
         # by default, check all log messages
         self.setLogLevel(0)
 
-    def tearDown(self):
-        try:
-            super(HsDeleteTest, self).tearDown()
-        finally:
-            pass
-
     def test_timeout(self):
+        "Test timeout"
         # create the grabber object
         hsg = MyDelete()
 
@@ -81,6 +85,7 @@ class HsDeleteTest(LoggingTestCase):
         hsg.validate()
 
     def test_working(self):
+        "Test deletion"
         req_id = "123456789abcdef"
         username = "WOPR"
 

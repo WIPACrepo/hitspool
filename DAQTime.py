@@ -14,6 +14,7 @@ JAN1 = {}
 # format string used to parse dates
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
 
+
 def jan1_by_year(daq_time=None):
     """
     Return the datetime value for January 1 of the specified year.
@@ -42,7 +43,7 @@ def ticks_to_utc(ticks):
 def string_to_ticks(timestr, is_ns=False):
     if timestr is None:
         raise HsException("Found null value for start/stop time in %s" %
-                          (msg, ))
+                          (timestr, ))
 
     multiplier = 10 if is_ns else 1
     if isinstance(timestr, numbers.Number):

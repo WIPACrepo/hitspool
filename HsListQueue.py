@@ -233,8 +233,8 @@ class ListQueue(object):
                     phase_hosts[phase].append((host, update_time))
                     continue
 
-                (username, prefix, start_ticks, stop_ticks, dest_dir, hubs,
-                 extract, phase) = values
+                (username, prefix, start_ticks, stop_ticks, _, _, _,
+                 phase) = values
                 dstr = self.__duration_string(start_ticks, stop_ticks)
                 if isinstance(start_ticks, datetime.datetime):
                     tstr = str(start_ticks)

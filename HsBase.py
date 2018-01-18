@@ -4,9 +4,7 @@ import datetime
 import getpass
 import logging
 import logging.handlers
-import numbers
 import os
-import re
 import shutil
 import socket
 import sys
@@ -91,10 +89,12 @@ class HsBase(object):
             else:
                 node.text = str(val)
 
-    def __delta_to_seconds(self, delta):
+    @classmethod
+    def __delta_to_seconds(cls, delta):
         return float(delta.seconds) + (float(delta.microseconds) / 1000000.0)
 
-    def __fmt_time(self, name, secs):
+    @classmethod
+    def __fmt_time(cls, name, secs):
         if secs is None:
             return ""
         return " %s=%.2fs" % (name, secs)
@@ -175,7 +175,8 @@ class HsBase(object):
     def is_cluster_spts(self):
         return self.__cluster == self.SPTS
 
-    def move_file(self, src, dst):
+    @classmethod
+    def move_file(cls, src, dst):
         if not os.path.exists(dst):
             raise HsException("Directory \"%s\" does not exist,"
                               " cannot move \"%s\"" % (dst, src))
@@ -227,7 +228,8 @@ class HsBase(object):
 
         return (tarname, semname)
 
-    def remove_tree(self, path):
+    @classmethod
+    def remove_tree(cls, path):
         try:
             shutil.rmtree(path)
         except:
@@ -245,7 +247,8 @@ class HsBase(object):
     def shorthost(self):
         return self.__src_mchn_short
 
-    def touch_file(self, name, times=None):
+    @classmethod
+    def touch_file(cls, name, times=None):
         try:
             with open(name, "a"):
                 os.utime(name, times)

@@ -95,7 +95,8 @@ class MyWatcher(HsWatcher.HsWatcher):
 
 
 class HsWatcherTest(LoggingTestCase):
-    def __add_alert(self, watcher, program, alert_type, desc, alertmsg):
+    @classmethod
+    def __add_alert(cls, watcher, program, alert_type, desc, alertmsg):
         notify_hdr = '%s HsInterface Alert: %s@%s' % \
             (alert_type, program, watcher.shorthost)
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-
+import datetime
 import logging
 import numbers
 import os
@@ -11,8 +11,6 @@ import sqlite3
 import tempfile
 import time
 import zmq
-
-from datetime import datetime, timedelta
 
 import DAQTime
 import HsUtil
@@ -95,11 +93,11 @@ class HsRSyncFiles(HsBase):
     def __compute_dataload(self, lines):
         total = None
         for line in lines:
-            m = self.RSYNC_TOTAL_PAT.search(line)
-            if m is not None:
+            mtch = self.RSYNC_TOTAL_PAT.search(line)
+            if mtch is not None:
                 if total is None:
                     total = 0.0
-                total += float(m.group(0))
+                total += float(mtch.group(0))
 
         if total is None:
             return "TBD"
@@ -435,8 +433,8 @@ class HsRSyncFiles(HsBase):
         sock.connect("tcp://%s:%d" % (host, PUBLISHER_PORT))
         return sock
 
-    def get_timetag_tuple(self, prefix, ticks):
-
+    @classmethod
+    def get_timetag_tuple(cls, prefix, ticks):
         if prefix == HsPrefix.SNALERT:
             # this is a SNDAQ request -> SNALERT tag
             # time window around trigger is [-30,+60], so add 30 seconds
@@ -444,7 +442,8 @@ class HsRSyncFiles(HsBase):
 
         return DAQTime.ticks_to_utc(ticks).strftime("%Y%m%d_%H%M%S")
 
-    def hardlink(self, filename, targetdir):
+    @classmethod
+    def hardlink(cls, filename, targetdir):
         path = os.path.join(targetdir, os.path.basename(filename))
         if os.path.exists(path):
             raise HsException("File \"%s\" already exists" % path)
@@ -462,12 +461,13 @@ class HsRSyncFiles(HsBase):
     @classmethod
     def jan1(cls):
         if cls.JAN1 is None:
-            utc_now = datetime.utcnow()
-            cls.JAN1 = datetime(utc_now.year, 1, 1)
+            utc_now = datetime.datetime.utcnow()
+            cls.JAN1 = datetime.datetime(utc_now.year, 1, 1)
 
         return cls.JAN1
 
-    def mkdir(self, _, path):
+    @classmethod
+    def mkdir(cls, _, path):
         os.makedirs(path)
 
     def request_parser(self, req, start_ticks, stop_ticks, hs_copydir,

@@ -63,7 +63,8 @@ class LoggingTestCase(TestCasePlus):
 
     # pylint: disable=invalid-name
     # match other test methods
-    def setLogLevel(self, level):
+    @classmethod
+    def setLogLevel(cls, level):
         mylog = logging.getLogger()
         mylog.setLevel(level)
 

@@ -62,7 +62,7 @@ class Receiver(HsBase):
         self.__sender = self.create_sender_socket(sec_bldr)
 
     def __handle_request(self, alertdict):
-        version, start_ticks, stop_ticks, is_valid \
+        _, start_ticks, stop_ticks, is_valid \
                 = self.__parse_version_and_times(alertdict)
 
         bad_request = not is_valid
@@ -185,7 +185,8 @@ class Receiver(HsBase):
 
         return hs_ssh_dir, False
 
-    def __parse_version_and_times(self, alertdict):
+    @classmethod
+    def __parse_version_and_times(cls, alertdict):
         if "version" in alertdict and "start_ticks" in alertdict and \
            "stop_ticks" in alertdict:
             version = int(alertdict["version"])
@@ -258,8 +259,8 @@ class Receiver(HsBase):
                                   timetype)
 
         if start_ticks is None or stop_ticks is None:
-            logging.error("Could not find start/stop time in request:\n%s" %
-                          (alertdict, ))
+            logging.error("Could not find start/stop time in request:\n%s",
+                          alertdict)
             is_valid = False
 
         return (version, start_ticks, stop_ticks, is_valid)
@@ -376,11 +377,11 @@ if __name__ == '__main__':
     import argparse
 
     def main():
-        p = argparse.ArgumentParser()
+        parser = argparse.ArgumentParser()
 
-        add_arguments(p)
+        add_arguments(parser)
 
-        args = p.parse_args()
+        args = parser.parse_args()
 
         receiver = Receiver(is_test=args.is_test)
 

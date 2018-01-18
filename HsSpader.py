@@ -96,15 +96,16 @@ if __name__ == "__main__":
     import argparse
 
     def main():
-        p = argparse.ArgumentParser()
+        parser = argparse.ArgumentParser()
 
-        add_arguments(p)
+        add_arguments(parser)
 
-        args = p.parse_args()
+        args = parser.parse_args()
 
         hsp = HsSpader()
 
-        hsp.init_logging(args.logfile, basename="hsspader", basehost="access")
+        hsp.init_logging(args.logfile, basename="hsspader",
+                         basehost="access")
 
         hsp.spade_pickup_data(args.indir, args.pattern, args.spadedir)
 

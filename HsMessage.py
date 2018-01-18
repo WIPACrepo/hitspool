@@ -38,15 +38,14 @@ class ID(object):
         with cls.__seed_lock:
             val = cls.__seed
             cls.__seed = (cls.__seed + 1) % 0xFFFFFF
-        x = struct.pack('>i', int(time.time()))
-        x += struct.pack('>i', val)[1:4]
-        return x.encode('hex')
+        packed = struct.pack('>i', int(time.time()))
+        packed += struct.pack('>i', val)[1:4]
+        return packed.encode('hex')
 
 
 def dict_to_message(mdict, allow_old_format=False):
-    return dict_to_object(fix_message_dict(mdict,
-                                           allow_old_format=allow_old_format),
-                          __MANDATORY_FIELDS, "Message")
+    fixed = fix_message_dict(mdict, allow_old_format=allow_old_format)
+    return dict_to_object(fixed, __MANDATORY_FIELDS, "Message")
 
 
 def fix_message_dict(mdict, allow_old_format=False):
@@ -84,14 +83,10 @@ def fix_message_dict(mdict, allow_old_format=False):
     return mdict
 
 
-def receive(sock, allow_old_format=False):
-    mdict = sock.recv_json()
-    if mdict is None:
-        return None
-    elif not isinstance(mdict, dict):
-        raise HsException("Received %s(%s), not dictionary" %
-                          (mdict, type(mdict).__name__))
-
+def from_dict(mdict, allow_old_format=False):
+    """
+    Convert a dictionary to an HsMessage object
+    """
     return dict_to_message(mdict, allow_old_format=allow_old_format)
 
 

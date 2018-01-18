@@ -204,13 +204,7 @@ class HsWorkerTest(LoggingTestCase):
         sock.add_input(alert)
 
         # test input method
-        try:
-            hsr.receive_request(sock)
-            self.fail("This method should fail")
-        except HsException, hse:
-            hsestr = str(hse)
-            if hsestr.find("JSON message should be a dict") < 0:
-                self.fail("Unexpected exception: " + hsestr)
+        hsr.receive_request(sock)
 
     def test_receive_str(self):
         # create the worker object

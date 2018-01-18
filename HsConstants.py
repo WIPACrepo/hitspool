@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+HitSpool constant definitions
+"""
 
 # path for SVN release ("trunk" for development, "releases/Name" for releases)
 RELEASE = "trunk"
