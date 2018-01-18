@@ -223,7 +223,7 @@ class Worker(HsRSyncFiles):
         if self.subscriber is None:
             raise Exception("Subscriber has not been initialized")
 
-        logging.info("ready for new alert...")
+        logging.debug("ready for new alert...")
 
         try:
             req = self.receive_request(self.subscriber)
