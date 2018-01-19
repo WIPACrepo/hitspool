@@ -1,9 +1,7 @@
 #!/usr/bin/env python
-#
-#
-# Hit Spool Grabber to be run on access
-# author: dheereman
-#
+"""
+Hit Spool Request Submitter
+"""
 
 import datetime
 import getpass
@@ -30,6 +28,7 @@ WARN_SECONDS = 95
 
 
 def add_arguments(parser):
+    "Add all command line arguments to the argument parser"
     copy_dflt = "%s@%s:%s" % (HsBase.DEFAULT_RSYNC_USER,
                               HsBase.DEFAULT_RSYNC_HOST,
                               HsBase.DEFAULT_COPY_PATH)
@@ -66,46 +65,69 @@ def add_arguments(parser):
                         " a new file")
 
 
-def getDurationFromString(s):
+# adapted from live/misc/util.py
+def get_duration_from_string(durstr):
     """
-    Return duration in seconds based on string <s>
+    Return duration in seconds based on string <durstr>
+
+    >>> gdfs = getDurationFromString
+    >>> gdfs("1day")
+    86400
+    >>> gdfs("60mins")
+    3600
+    >>> gdfs("1day")
+    86400
+    >>> gdfs("5s")
+    5
+    >>> gdfs("13d")
+    1123200
+    >>> gdfs("123")
+    Traceback (most recent call last):
+    ValueError: String "123" is not a known duration format.  Try 30sec, 10min, 2days etc.
     """
-    m = re.search(r'^(\d+)$', s)
-    if m:
-        return int(m.group(1))
-    m = re.search(r'^(\d+)s(?:ec(?:s)?)?$', s)
-    if m:
-        return int(m.group(1))
-    m = re.search(r'^(\d+)m(?:in(?:s)?)?$', s)
-    if m:
-        return int(m.group(1)) * 60
-    m = re.search(r'^(\d+)h(?:r(?:s)?)?$', s)
-    if m:
-        return int(m.group(1)) * 3600
-    m = re.search(r'^(\d+)d(?:ay(?:s)?)?$', s)
-    if m:
-        return int(m.group(1)) * 86400
-    raise ValueError('String "%s" is not a known duration format.  Try'
-                     '30sec, 10min, 2days etc.' % s)
+    mtch = re.search(r"^(\d+)([smhd])(?:[eira][cny]?s?)?$", durstr)
+    if mtch is None:
+        raise ValueError("String \"%s\" is not a known duration format.  Try"
+                         " 30sec, 10min, 2days etc." % (durstr, ))
+
+    if mtch.group(2) == "s":
+        scale = 1
+    elif mtch.group(2) == "m":
+        scale = 60
+    elif mtch.group(2) == "h":
+        scale = 60 * 60
+    elif mtch.group(2) == "d":
+        scale = 60 * 60 * 24
+    else:
+        raise ValueError("Unknown duration suffix \"%s\" in \"%s\"" %
+                         (mtch.group(2), durstr))
+
+    return int(mtch.group(1)) * scale
 
 
 class LogToConsole(object):  # pragma: no cover
+    "Simulate a logger"
+
     @staticmethod
     def info(msg, *args):
+        "Print INFO message to stdout"
         print msg % args
 
     @staticmethod
-    def warn(msg, *args):
-        print >>sys.stderr, msg % args
-
-    @staticmethod
     def error(msg, *args):
+        "Print ERROR message to stderr"
         print >>sys.stderr, msg % args
 
     @staticmethod
     def exception(msg, *args):
+        "Print ERROR message and exception stacktrace to stderr"
         print >>sys.stderr, msg % args
         traceback.print_exc()
+
+    @staticmethod
+    def warn(msg, *args):
+        "Print WARN message to stderr"
+        print >>sys.stderr, msg % args
 
 
 class HsGrabber(HsBase):
@@ -119,6 +141,7 @@ class HsGrabber(HsBase):
     COPY_PATH_PAT = re.compile("((.*)@)?(([^:]+):)?(/.*)$")
 
     def __init__(self, is_test=False):
+        "Create a request submitter object"
         super(HsGrabber, self).__init__(is_test=is_test)
 
         if self.is_cluster_sps or self.is_cluster_spts:
@@ -134,8 +157,9 @@ class HsGrabber(HsBase):
         self.__poller = self.create_poller((self.__publisher, self.__sender))
 
     def close_all(self):
-        if self.__poller is not None:
-            self.__poller.close()
+        "Close all sockets"
+        self.__poller.unregister(self.__publisher)
+        self.__poller.unregister(self.__sender)
         if self.__publisher is not None:
             self.__publisher.close()
         if self.__sender is not None:
@@ -143,21 +167,22 @@ class HsGrabber(HsBase):
         self.__context.term()
 
     def create_sender(self, host):  # pragma: no cover
-        # Socket to send alert message to HsSender
+        "Socket used to send alert messages to HsSender"
         sock = self.__context.socket(zmq.REQ)
         sock.identity = "Sender".encode("ascii")
         sock.connect("tcp://%s:%d" % (host, ALERT_PORT))
         return sock
 
     def create_publisher(self, host):  # pragma: no cover
-        # Socket to send alert message to HsSender
+        "Socket used to send old-style alert messages to HsSender"
         sock = self.__context.socket(zmq.REQ)
         sock.identity = "Publisher".encode("ascii")
         sock.connect("tcp://%s:%d" % (host, OLDALERT_PORT))
         return sock
 
-    def create_poller(self, sockets):  # pragma: no cover
-        # needed for handling timeout if Publisher doesnt answer
+    @classmethod
+    def create_poller(cls, sockets):  # pragma: no cover
+        "Create ZMQ poller to watch ZMQ sockets"
         poller = zmq.Poller()
         for sock in sockets:
             poller.register(sock, zmq.POLLIN)
@@ -165,14 +190,17 @@ class HsGrabber(HsBase):
 
     @property
     def poller(self):
+        "Return ZMQ socket poller"
         return self.__poller
 
     @property
     def publisher(self):
+        "Return ZMQ publisher socket"
         return self.__publisher
 
     @property
     def sender(self):
+        "Return ZMQ sender socket"
         return self.__sender
 
     def send_alert(self, start_ticks, stop_ticks, destdir, request_id=None,
@@ -218,7 +246,7 @@ class HsGrabber(HsBase):
                      secrange, start_ticks, stop_ticks)
 
         try:
-            if not HsMessage.send_initial(self.__sender, None,
+            if not HsMessage.send_initial(self.__sender, request_id,
                                           start_ticks, stop_ticks,
                                           destdir, prefix=prefix,
                                           extract_hits=extract_hits,
@@ -329,13 +357,13 @@ class HsGrabber(HsBase):
             host = None
             path = self.DEFAULT_COPY_PATH
         else:
-            m = self.COPY_PATH_PAT.match(rsync_path)
-            if m is None:
+            mtch = self.COPY_PATH_PAT.match(rsync_path)
+            if mtch is None:
                 raise HsException("Bad copy path \"%s\"" % rsync_path)
 
-            user = m.group(2)
-            host = m.group(4)
-            path = m.group(5)
+            user = mtch.group(2)
+            host = mtch.group(4)
+            path = mtch.group(5)
 
         if user is None:
             user = self.rsync_user
@@ -427,21 +455,20 @@ if __name__ == "__main__":
 
         return DAQTime.string_to_ticks(rawval)
 
-
     def main():
         ''''Process arguments'''
         start_ticks = None
         stop_ticks = None
         now_ticks = DAQTime.utc_to_ticks(datetime.datetime.now())
 
-        p = argparse.ArgumentParser(epilog="HsGrabber submits a request to"
-                                    "the HitSpool system", add_help=False)
-        p.add_argument("-?", "--help", action="help",
-                       help="show this help message and exit")
+        epilog = "HsGrabber submits a request to the HitSpool system"
+        parser = argparse.ArgumentParser(epilog=epilog, add_help=False)
+        parser.add_argument("-?", "--help", action="help",
+                            help="show this help message and exit")
 
-        add_arguments(p)
+        add_arguments(parser)
 
-        args = p.parse_args()
+        args = parser.parse_args()
 
         usage = False
         if not usage:
@@ -469,7 +496,7 @@ if __name__ == "__main__":
                     stop_ticks = tmptime
             elif args.duration is not None:
                 try:
-                    dur = getDurationFromString(args.duration)
+                    dur = get_duration_from_string(args.duration)
                     stop_ticks = start_ticks + int(dur * 1E10)
                 except ValueError:
                     print >>sys.stderr, "Invalid duration \"%s\"" % \
@@ -481,7 +508,7 @@ if __name__ == "__main__":
                 usage = True
 
         if usage:
-            p.print_help()
+            parser.print_help()
             sys.exit(1)
 
         hsg = HsGrabber(is_test=args.is_test)

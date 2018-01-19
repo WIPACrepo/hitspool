@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+Test HsCopier
+"""
 
 import getpass
 import os
@@ -9,10 +12,13 @@ from HsCopier import CopyUsingRSync, CopyUsingSCP
 
 
 class HsCopierTest(unittest.TestCase):
+    "Test HsCopier"
+
     SOURCE_DIR = "/tmp/testsrc"
     TARGET_DIR = "/tmp/testtgt"
 
-    def __create_files(self, num, topdir=None):
+    @classmethod
+    def __create_files(cls, num, topdir=None):
         if topdir is None:
             raise Exception("Top directory has not been set")
 
@@ -33,7 +39,8 @@ class HsCopierTest(unittest.TestCase):
 
         return created
 
-    def __file_size(self, files):
+    @classmethod
+    def __file_size(cls, files):
         return sum([os.path.getsize(x) for x in files])
 
     def tearDown(self):
@@ -42,7 +49,8 @@ class HsCopierTest(unittest.TestCase):
         if os.path.exists(self.TARGET_DIR):
             shutil.rmtree(self.TARGET_DIR)
 
-    def testRSync(self):
+    def test_rsync(self):
+        "Test 'rsync' copy"
         source_list = self.__create_files(3, topdir=self.SOURCE_DIR)
         source_size = self.__file_size(source_list)
 
@@ -54,7 +62,8 @@ class HsCopierTest(unittest.TestCase):
                           "Expected size %s, not %s" %
                           (source_size, copier.size))
 
-    def testSCP(self):
+    def test_scp(self):
+        "Test 'scp' copy"
         source_list = self.__create_files(3, topdir=self.SOURCE_DIR)
         source_size = self.__file_size(source_list)
 

@@ -13,7 +13,7 @@ from HsUtil import dict_to_object
 
 
 # version number for current message format
-DEFAULT_VERSION = 2
+CURRENT_VERSION = 2
 
 # message types
 INITIAL = "REQUEST"
@@ -22,6 +22,7 @@ WORKING = "WORKING"  # hub is sending data (can be sent many times)
 DONE = "DONE"        # hub has finished sending data
 FAILED = "FAILED"    # hub failed to fill request
 IGNORED = "IGNORED"  # hub is not part of the request
+DELETE = "DELETE"    # delete a request
 
 # mandatory message fields
 __MANDATORY_FIELDS = ("username", "prefix", "destination_dir", "host",
@@ -37,25 +38,14 @@ class ID(object):
         with cls.__seed_lock:
             val = cls.__seed
             cls.__seed = (cls.__seed + 1) % 0xFFFFFF
-        x = struct.pack('>i', int(time.time()))
-        x += struct.pack('>i', val)[1:4]
-        return x.encode('hex')
+        packed = struct.pack('>i', int(time.time()))
+        packed += struct.pack('>i', val)[1:4]
+        return packed.encode('hex')
 
 
 def dict_to_message(mdict, allow_old_format=False):
-    for prefix in ("start", "stop"):
-        found = False
-        for suffix in ("ticks", "time"):
-            if prefix + "_" + suffix in mdict:
-                found = True
-                break
-        if not found:
-            raise HsException("Dictionary is missing %s_time or %s_ticks" %
-                              (prefix, prefix))
-
-    return dict_to_object(fix_message_dict(mdict,
-                                           allow_old_format=allow_old_format),
-                          __MANDATORY_FIELDS, "Message")
+    fixed = fix_message_dict(mdict, allow_old_format=allow_old_format)
+    return dict_to_object(fixed, __MANDATORY_FIELDS, "Message")
 
 
 def fix_message_dict(mdict, allow_old_format=False):
@@ -65,6 +55,16 @@ def fix_message_dict(mdict, allow_old_format=False):
     if not isinstance(mdict, dict):
         raise HsException("Message is not a dictionary: \"%s\"<%s>" %
                           (mdict, type(mdict)))
+
+    for prefix in ("start", "stop"):
+        found = False
+        for suffix in ("ticks", "time"):
+            if prefix + "_" + suffix in mdict:
+                found = True
+                break
+        if not found:
+            raise HsException("Dictionary is missing %s_time or %s_ticks" %
+                              (prefix, prefix))
 
     # check for mandatory fields
     if "msgtype" not in mdict:
@@ -83,14 +83,10 @@ def fix_message_dict(mdict, allow_old_format=False):
     return mdict
 
 
-def receive(sock, allow_old_format=False):
-    mdict = sock.recv_json()
-    if mdict is None:
-        return None
-    elif not isinstance(mdict, dict):
-        raise HsException("Received %s(%s), not dictionary" %
-                          (mdict, type(mdict).__name__))
-
+def from_dict(mdict, allow_old_format=False):
+    """
+    Convert a dictionary to an HsMessage object
+    """
     return dict_to_message(mdict, allow_old_format=allow_old_format)
 
 
@@ -123,7 +119,7 @@ def send(sock, msgtype, req_id, user, start_ticks, stop_ticks, destdir,
         prefix = HsPrefix.guess_from_dir(destdir)
     extract = extract is not None and extract
     if version is None:
-        version = DEFAULT_VERSION
+        version = CURRENT_VERSION
 
     msg = {
         "msgtype": msgtype,
@@ -160,7 +156,7 @@ def send_initial(sock, req_id, start_ticks, stop_ticks, destdir, prefix=None,
     return send(sock, INITIAL, req_id, username, start_ticks,
                 stop_ticks, destdir, prefix=prefix, copydir=None,
                 extract=extract_hits, hubs=hubs, host=host,
-                version=DEFAULT_VERSION)
+                version=CURRENT_VERSION)
 
 
 def send_worker_status(sock, req, host, copydir, destdir, msgtype):

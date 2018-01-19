@@ -4,8 +4,7 @@
 HsWatcher.py
 David Heereman
 
-Watching the HitSpool interface services.
-Restarts the watched process in case.
+Watch a HitSpool process, restart it if it's stopped or dies
 """
 import getpass
 import logging
@@ -25,6 +24,8 @@ from HsException import HsException
 
 
 def add_arguments(parser):
+    "Add all command line arguments to the argument parser"
+
     example_log_path = os.path.join(HsBase.DEFAULT_LOG_PATH, "hswatcher.log")
 
     parser.add_argument("-H", "--host", dest="host",
@@ -37,6 +38,8 @@ def add_arguments(parser):
 
 
 class Daemon(object):
+    "Start a program as a free-running Unix daemon"
+
     def __init__(self, basename, executable):
         self.check_executable(basename, executable)
 
@@ -48,9 +51,12 @@ class Daemon(object):
 
     @property
     def basename(self):
+        "Return the name of this process"
         return self.__basename
 
-    def check_executable(self, basename, executable):
+    @classmethod
+    def check_executable(cls, basename, executable):
+        "Exit if the executable does not exist"
         if not os.path.exists(executable):
             raise SystemError("Cannot find %s; giving up", basename)
 
@@ -68,9 +74,9 @@ class Daemon(object):
             if pid > 0:
                 # return so parent can finish its work
                 return None
-        except OSError, e:
+        except OSError, oserr:
             raise SystemExit("fork #1 failed: %d (%s)\n" %
-                             (e.errno, e.strerror))
+                             (oserr.errno, oserr.strerror))
 
         # decouple from parent environment
         os.chdir("/")
@@ -83,19 +89,19 @@ class Daemon(object):
             if pid > 0:
                 # exit from second parent
                 raise SystemExit(0)
-        except OSError, e:
+        except OSError, oserr:
             raise SystemExit("fork #2 failed: %d (%s)\n" %
-                             (e.errno, e.strerror))
+                             (oserr.errno, oserr.strerror))
 
         # redirect standard file descriptors
         sys.stdout.flush()
         sys.stderr.flush()
-        si = file(stdin if stdin is not None else "/dev/null", 'r')
-        so = file(stdout if stdout is not None else "/dev/null", 'a+')
-        se = file(stderr if stderr is not None else "/dev/null", 'a+')
-        os.dup2(si.fileno(), sys.stdin.fileno())
-        os.dup2(so.fileno(), sys.stdout.fileno())
-        os.dup2(se.fileno(), sys.stderr.fileno())
+        sin = file(stdin if stdin is not None else "/dev/null", 'r')
+        sout = file(stdout if stdout is not None else "/dev/null", 'a+')
+        serr = file(stderr if stderr is not None else "/dev/null", 'a+')
+        os.dup2(sin.fileno(), sys.stdin.fileno())
+        os.dup2(sout.fileno(), sys.stdout.fileno())
+        os.dup2(serr.fileno(), sys.stderr.fileno())
 
         # start the new process
         os.execv(sys.executable, (sys.executable, self.__executable))
@@ -135,22 +141,27 @@ class Daemon(object):
             proc.wait()
 
     def run(self):
+        "(Re)start the process"
         subprocess.call((sys.executable, self.__executable, ))
 
 
 class Watchee(Daemon):
+    "Watched process"
+
     def __init__(self, basename):
         try:
             path = self.__find_executable_path()
         except:
             path = HsConstants.SANDBOX_INSTALLED
-            logging.exception("Cannot find %s path; using %s", basename, path)
+            logging.exception("Cannot find %s path; using %s", basename,
+                              path)
 
         executable = os.path.join(path, basename + ".py")
 
         super(Watchee, self).__init__(basename, executable)
 
-    def __find_executable_path(self):
+    @classmethod
+    def __find_executable_path(cls):
         return os.path.dirname(os.path.realpath(__file__))
 
     def get_pids(self):
@@ -198,6 +209,10 @@ class Watchee(Daemon):
 
 
 class HsWatcher(HsBase):
+    """
+    Watch a running program, restart it if it's stopped or died
+    """
+
     STATUS_PREFIX = "Status: "
     STATUS_STOPPED = "STOPPED"
     STATUS_STARTED = "STARTED"
@@ -230,9 +245,9 @@ class HsWatcher(HsBase):
 
         if lastline is not None:
             time_pattern = r'^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}).*'
-            m = re.search(time_pattern, lastline)
-            if m is not None:
-                return m.group(1)
+            mtch = re.search(time_pattern, lastline)
+            if mtch is not None:
+                return mtch.group(1)
 
         return "???"
 
@@ -307,6 +322,8 @@ class HsWatcher(HsBase):
         self.__i3socket.send_json(json)
 
     def check(self, logpath, sleep_secs=5.0):
+        "Check that the watched program is still running"
+
         watchee = self.get_watchee()
 
         pids = watchee.get_pids()
@@ -347,18 +364,21 @@ class HsWatcher(HsBase):
                 self.__send_stopped(watchee.basename)
 
     def close_all(self):
+        "Close all sockets"
         self.__i3socket.close()
         self.__context.term()
 
     def create_i3socket(self, host):
-        # Socket for I3Live on expcont
+        "Create socket to send messages to I3Live"
         sock = self.__context.socket(zmq.PUSH)
         sock.connect("tcp://%s:%d" % (host, HsConstants.I3LIVE_PORT))
         logging.info("connect PUSH socket to i3live on %s port %d", host,
                      HsConstants.I3LIVE_PORT)
         return sock
 
-    def create_watchee(self, basename):
+    @classmethod
+    def create_watchee(cls, basename):
+        "Return watched object"
         return Watchee(basename)
 
     def get_watchee(self):
@@ -382,25 +402,24 @@ class HsWatcher(HsBase):
 
     @property
     def i3socket(self):
+        "Return ZMQ I3Live socket"
         return self.__i3socket
 
-    def load_logfile(self, logpath):
-        return open(logpath).readlines()
-
-    def tail(self, path, lines=20, search_string="\n"):
+    @classmethod
+    def tail(cls, path, lines=20, search_string="\n"):
         """
         Get the last lines of a file as efficiently as possible.
         Code adapted from a StackOverflow post
         """
         blocks = []
 
-        f = open(path, "rb")
+        fin = open(path, "rb")
         try:
             total_lines_wanted = lines
 
             BLOCK_SIZE = 1024
-            f.seek(0, 2)
-            block_end_byte = f.tell()
+            fin.seek(0, 2)
+            block_end_byte = fin.tell()
             lines_to_go = total_lines_wanted
             block_number = -1
 
@@ -409,19 +428,19 @@ class HsWatcher(HsBase):
             while lines_to_go > 0 and block_end_byte > 0:
                 if block_end_byte - BLOCK_SIZE > 0:
                     # read the last block we haven't yet read
-                    f.seek(block_number*BLOCK_SIZE, 2)
-                    blocks.append(f.read(BLOCK_SIZE))
+                    fin.seek(block_number*BLOCK_SIZE, 2)
+                    blocks.append(fin.read(BLOCK_SIZE))
                 else:
                     # file too small, start from begining
-                    f.seek(0, 0)
+                    fin.seek(0, 0)
                     # only read what was not read
-                    blocks.append(f.read(block_end_byte))
+                    blocks.append(fin.read(block_end_byte))
                 lines_found = blocks[-1].count(search_string)
                 lines_to_go -= lines_found
                 block_end_byte -= BLOCK_SIZE
                 block_number -= 1
         finally:
-            f.close()
+            fin.close()
 
         all_read_text = ''.join(reversed(blocks))
         return [line for line in all_read_text.splitlines()
@@ -432,11 +451,12 @@ if __name__ == "__main__":
     import argparse
 
     def main():
-        p = argparse.ArgumentParser()
+        "Main method"
+        parser = argparse.ArgumentParser()
 
-        add_arguments(p)
+        add_arguments(parser)
 
-        args = p.parse_args()
+        args = parser.parse_args()
 
         watcher = HsWatcher(host=args.host)
 

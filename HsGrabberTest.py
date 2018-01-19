@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+Test HsGrabber code
+"""
 
 import getpass
 import logging
@@ -16,6 +19,8 @@ from LoggingTestCase import LoggingTestCase
 
 
 class MyGrabber(HsGrabber.HsGrabber):
+    "Test wrapper around HsGrabber"
+
     def __init__(self):
         self.__poller = None
         self.__publisher = None
@@ -24,6 +29,7 @@ class MyGrabber(HsGrabber.HsGrabber):
         super(MyGrabber, self).__init__()
 
     def create_poller(self, sockets):
+        "Create mock poller"
         if self.__poller is not None:
             raise Exception("Cannot create multiple poller sockets")
 
@@ -31,6 +37,7 @@ class MyGrabber(HsGrabber.HsGrabber):
         return self.__poller
 
     def create_publisher(self, host):
+        "Create mock publisher"
         if self.__publisher is not None:
             raise Exception("Cannot create multiple publisher sockets")
 
@@ -38,6 +45,7 @@ class MyGrabber(HsGrabber.HsGrabber):
         return self.__publisher
 
     def create_sender(self, host):
+        "Create mock sender"
         if self.__sender is not None:
             raise Exception("Cannot create multiple sender sockets")
 
@@ -45,6 +53,7 @@ class MyGrabber(HsGrabber.HsGrabber):
         return self.__sender
 
     def validate(self):
+        "Validate all mock sockets"
         self.close_all()
 
         for sock in (self.__publisher, self.__sender, self.__poller):
@@ -53,20 +62,19 @@ class MyGrabber(HsGrabber.HsGrabber):
 
 
 class HsGrabberTest(LoggingTestCase):
+    "Test HsGrabber code"
+
     MATCH_ANY = re.compile(r"^.*$")
 
     def setUp(self):
+        "Set log level to see all log messages"
         super(HsGrabberTest, self).setUp()
         # by default, check all log messages
         self.setLogLevel(0)
 
-    def tearDown(self):
-        try:
-            super(HsGrabberTest, self).tearDown()
-        finally:
-            pass
-
     def test_negative_time(self):
+        "Test request with negative time window"
+
         start_ticks = 15789006796024620
         stop_ticks = start_ticks - 1000000000
         copydir = None
@@ -84,11 +92,14 @@ class HsGrabberTest(LoggingTestCase):
         self.expectLogMessage(msg)
 
         # run it!
-        hsg.send_alert(start_ticks, stop_ticks, copydir, print_to_console=False)
+        hsg.send_alert(start_ticks, stop_ticks, copydir,
+                       print_to_console=False)
 
         hsg.validate()
 
     def test_nonstandard_time(self):
+        "Test request with large time window"
+
         start_ticks = 15789006796024620
         stop_ticks = start_ticks + int(1E10 * (HsGrabber.WARN_SECONDS + 1))
         copydir = "/not/valid/path"
@@ -106,7 +117,7 @@ class HsGrabberTest(LoggingTestCase):
             "prefix": HsPrefix.ANON,
             "request_id": self.MATCH_ANY,
             "msgtype": HsMessage.INITIAL,
-            "version": HsMessage.DEFAULT_VERSION,
+            "version": HsMessage.CURRENT_VERSION,
             "username": getpass.getuser(),
             "host": self.MATCH_ANY,
             "extract": False,
@@ -125,7 +136,8 @@ class HsGrabberTest(LoggingTestCase):
         self.expectLogMessage(msg)
 
         # run it!
-        hsg.send_alert(start_ticks, stop_ticks, copydir, print_to_console=False)
+        hsg.send_alert(start_ticks, stop_ticks, copydir,
+                       print_to_console=False)
 
         hsg.validate()
 
@@ -139,6 +151,8 @@ class HsGrabberTest(LoggingTestCase):
         hsg.wait_for_response(timeout=timeout, print_to_console=False)
 
     def test_huge_time(self):
+        "Test request with huge time window"
+
         start_ticks = 15789006796024620
         stop_ticks = start_ticks + \
                      int(1E10 * (HsBase.MAX_REQUEST_SECONDS + 1))
@@ -160,11 +174,14 @@ class HsGrabberTest(LoggingTestCase):
         self.expectLogMessage(msg)
 
         # run it!
-        hsg.send_alert(start_ticks, stop_ticks, copydir, print_to_console=False)
+        hsg.send_alert(start_ticks, stop_ticks, copydir,
+                       print_to_console=False)
 
         hsg.validate()
 
     def test_timeout(self):
+        "Test publisher timeout"
+
         # create the grabber object
         hsg = MyGrabber()
 
@@ -179,7 +196,8 @@ class HsGrabberTest(LoggingTestCase):
 
         # add all expected log messages
         self.expectLogMessage("No response from expcont's HsPublisher"
-                              " within %s seconds.\nAbort request." % timeout)
+                              " within %s seconds.\nAbort request." %
+                              (timeout, ))
 
         # run it!
         hsg.wait_for_response(timeout=timeout, print_to_console=False)
@@ -187,8 +205,9 @@ class HsGrabberTest(LoggingTestCase):
         hsg.validate()
 
     def test_working(self):
+        "Test that everything works"
         start_ticks = 15789006796024620
-        stop_ticks =  15789066796024620
+        stop_ticks = 15789066796024620
         copydir = "/somewhere/else"
 
         # create the grabber object
@@ -202,7 +221,7 @@ class HsGrabberTest(LoggingTestCase):
             "prefix": HsPrefix.ANON,
             "request_id": self.MATCH_ANY,
             "msgtype": HsMessage.INITIAL,
-            "version": HsMessage.DEFAULT_VERSION,
+            "version": HsMessage.CURRENT_VERSION,
             "username": getpass.getuser(),
             "host": self.MATCH_ANY,
             "extract": False,

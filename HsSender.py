@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
-
+import datetime
 import logging
 import os
 import re
 import shutil
 import signal
+import threading
 import time
 import zmq
 
@@ -35,6 +36,137 @@ def add_arguments(parser):
     parser.add_argument("-T", "--is-test", dest="is_test",
                         action="store_true", default=False,
                         help="Ignore SPS/SPTS status for tests")
+
+
+class PingClient(object):
+    """
+    Track state of all clients
+    """
+    def __init__(self, host, last_time):
+        self.__host = host
+        self.__last_time = last_time
+        self.__dead = False
+
+    def __str__(self):
+        return "%s[%s]" % \
+            (self.__host, "DEAD" if self.__dead else self.__last_time)
+
+    @property
+    def is_dead(self):
+        return self.__dead
+
+    def set_dead(self):
+        self.__dead = True
+
+    def set_time(self, new_time):
+        self.__last_time = new_time
+        self.__dead = False
+
+    @property
+    def time(self):
+        return self.__last_time
+
+
+class PingManager(object):
+    """
+    Track pings to clients and the clients' responses
+    """
+
+    PING_MAX_FAILURES = 3
+    PING_SLEEP_SECONDS = 600
+    PING_TIMEOUT_MISSING = PING_SLEEP_SECONDS * 2
+    PING_TIMEOUT_DEAD = PING_TIMEOUT_MISSING * PING_MAX_FAILURES
+
+    def __init__(self, sock, i3sock):
+        self.__sock = sock
+        self.__i3socket = i3sock
+
+        self.__lock = threading.RLock()
+        self.__running = False
+
+        self.__ping_client = {}
+
+    def __check_ping_clients(self):
+        missing = {}
+        now = datetime.datetime.now()
+        for host, pingobj in self.__ping_client.items():
+            pdiff = now - pingobj.time
+            if pdiff.days > 0 or pdiff.seconds > self.PING_TIMEOUT_DEAD:
+                if not self.__ping_client[host].is_dead:
+                    self.__report_dead_host(host, pdiff)
+                    self.__ping_client[host].set_dead()
+            elif pdiff.seconds > self.PING_TIMEOUT_MISSING:
+                missing[host] = pdiff
+
+        if len(missing) > 0:
+            self.__report_missing_pings(missing)
+
+    def __report_dead_host(self, host, ping_delta):
+        header = "HsSender Alert: %s Worker has died" % (host, )
+        description = "HsSender alert"
+        mlines = ["Worker on %s has not returned a PING in %s" %
+                  (host, ping_delta), ]
+
+        json = HsUtil.assemble_email_dict(HsConstants.ALERT_EMAIL_DEV,
+                                          header, "\n".join(mlines),
+                                          description=description)
+
+        self.__i3socket.send_json(json)
+
+    @classmethod
+    def __report_missing_pings(cls, missing):
+        num = len(missing)
+        msg = "Missing %d ping%s:" % (num, "" if num == 1 else "s")
+        for host, misstime in missing.items():
+            msg += " %s(%s)" % (host, misstime)
+        logging.error(msg)
+
+    def __report_resurrected_host(self, host):
+        header = "HsSender Notice: %s Worker has returned" % (host, )
+        description = "HsSender notice"
+        mlines = ["Worker on %s is once again returning PINGs" % (host, ), ]
+
+        json = HsUtil.assemble_email_dict(HsConstants.ALERT_EMAIL_DEV,
+                                          header, "\n".join(mlines),
+                                          description=description)
+
+        self.__i3socket.send_json(json)
+
+    def __run_thread(self):
+        self.__running = True
+        while self.__running:
+            try:
+                time.sleep(self.PING_SLEEP_SECONDS)
+
+                self.__check_ping_clients()
+
+                with self.__lock:
+                    self.__sock.send_json({"ping": "SENDER"})
+            except:
+                logging.exception("PingManager problem!")
+
+    def add_reply(self, host):
+        now = datetime.datetime.now()
+        if host not in self.__ping_client:
+            self.__ping_client[host] = PingClient(host, now)
+        else:
+            pdiff = now - self.__ping_client[host].time
+            if pdiff.days > 0 or pdiff.seconds > self.PING_TIMEOUT_DEAD:
+                self.__report_resurrected_host(host)
+            self.__ping_client[host].set_time(now)
+
+    @property
+    def lock(self):
+        return self.__lock
+
+    def start_thread(self):
+        thrd = threading.Thread(name="PingMgr", target=self.__run_thread)
+        thrd.setDaemon(True)
+        thrd.start()
+        return thrd
+
+    def stop_thread(self):
+        self.__running = False
 
 
 class HsSender(HsBase):
@@ -75,7 +207,11 @@ class HsSender(HsBase):
         self.__monitor = RequestMonitor(self)
         self.__monitor.start()
 
-    def __validate_destination_dir(self, dirname, prefix):
+        self.__ping_manager = PingManager(self.__workers, self.__i3socket)
+        self.__ping_manager.start_thread()
+
+    @classmethod
+    def __validate_destination_dir(cls, dirname, prefix):
         if prefix is None:
             match = re.match(r'(\S+)_[0-9]{8}_[0-9]{6}', dirname)
             if match is None:
@@ -92,6 +228,8 @@ class HsSender(HsBase):
         return True
 
     def close_all(self):
+        self.__ping_manager.stop_thread()
+
         self.__reporter.close()
         self.__workers.close()
         self.__i3socket.close()
@@ -115,7 +253,8 @@ class HsSender(HsBase):
         sock.connect("tcp://%s:%d" % (host, HsConstants.I3LIVE_PORT))
         return sock
 
-    def create_poller(self):
+    @classmethod
+    def create_poller(cls):
         return zmq.Poller()
 
     def create_reporter(self):
@@ -161,57 +300,78 @@ class HsSender(HsBase):
     def i3socket(self):
         return self.__i3socket
 
-    def process_one_message(self, force_spade=False):
-        found = False
+    def mainloop(self, force_spade=False):
+        rtnval = True
         for sock, event in self.__poller.poll():
-            if event != zmq.POLLIN:
-                logging.error("Unknown event \"%s\"<%s> for %s<%s>", event,
-                              type(event).__name__, sock, type(sock).__name__)
-                continue
-
             if sock != self.__reporter and sock != self.__alert_socket:
                 logging.error("Ignoring unknown incoming socket %s<%s>",
-                              sock, type(sock).__name__)
+                              sock.identity, type(sock).__name__)
                 continue
 
-            error = True
+            if event != zmq.POLLIN:
+                logging.error("Unknown event \"%s\"<%s> for %s<%s>",
+                              event, type(event).__name__,
+                              sock.identity, type(sock).__name__)
+                continue
+
+            # lock the ping manager so it doesn't try to use our sockets
+            #  while we're doing "real" work
+            with self.__ping_manager.lock:
+                rtnval &= self.process_one_message(sock,
+                                                   force_spade=force_spade)
+
+        return rtnval
+
+    def process_one_message(self, sock, force_spade=False):
+        mdict = sock.recv_json()
+        if mdict is None:
+            return False
+
+        if not isinstance(mdict, dict):
+            raise HsException("Received %s(%s), not dictionary" %
+                              (mdict, type(mdict).__name__))
+
+        if sock == self.__reporter and "pingback" in mdict:
+            self.__ping_manager.add_reply(mdict["pingback"])
+            return True
+
+        error = True
+        try:
+            msg = HsMessage.from_dict(mdict, allow_old_format=True)
+            if msg is None:
+                return
+            error = False
+        except HsException:
+            raise
+        except:
+            logging.exception("Cannot receive message from %s",
+                              sock.identity)
+
+        found = False
+        if not error:
             try:
-                msg = HsMessage.receive(sock, allow_old_format=True)
-                if msg is None:
-                    continue
-                error = False
-            except HsException:
-                raise
+                self.__monitor.add_message(msg, force_spade)
+                found = True
             except:
-                logging.exception("Cannot receive message from %s",
-                                  sock.identity)
+                logging.exception("Received bad message %s", str(msg))
+                error = True
 
-            if not error:
-                try:
-                    self.__monitor.add_message(msg, force_spade)
-                    found = True
-                except:
-                    logging.exception("Received bad message %s", str(msg))
-                    error = True
+        if sock == self.__alert_socket:
+            if error:
+                rtnmsg = "ERROR"
+            else:
+                rtnmsg = "DONE"
 
-            if sock == self.__alert_socket:
-                if error:
-                    rtnmsg = "ERROR"
-                else:
-                    rtnmsg = "DONE"
-
-                # reply to requester:
-                #  added \0 to fit C/C++ zmq message termination
-                try:
-                    answer = sock.send(rtnmsg + "\0")
-                except zmq.ZMQError:
-                    logging.exception("Cannot return \"%s\" to %s", rtnmsg,
-                                      sock.identity)
-                    continue
-
+            # reply to requester:
+            #  added \0 to fit C/C++ zmq message termination
+            try:
+                answer = sock.send(rtnmsg + "\0")
                 if answer is not None:
-                    logging.error("Failed sending %s to requester: %s", rtnmsg,
-                                  answer)
+                    logging.error("Failed sending %s to requester: %s",
+                                  rtnmsg, answer)
+            except zmq.ZMQError:
+                logging.exception("Cannot return \"%s\" to %s", rtnmsg,
+                                  sock.identity)
 
         return found
 
@@ -273,7 +433,8 @@ class HsSender(HsBase):
 
         return hs_basedir, no_spade
 
-    def movefiles(self, copydir, targetdir):
+    @classmethod
+    def movefiles(cls, copydir, targetdir):
         """move data to user required directory"""
         if not os.path.exists(targetdir):
             try:
@@ -354,11 +515,12 @@ if __name__ == "__main__":
     import argparse
 
     def main():
-        p = argparse.ArgumentParser()
+        "Main method"
+        parser = argparse.ArgumentParser()
 
-        add_arguments(p)
+        add_arguments(parser)
 
-        args = p.parse_args()
+        args = parser.parse_args()
 
         HsBase.init_logging(args.logfile, basename="hssender",
                             basehost="2ndbuild")
@@ -381,16 +543,17 @@ if __name__ == "__main__":
         signal.signal(signal.SIGTERM, sender.handler)
 
         while True:
-            logging.info("HsSender waits for new reports from HsWorkers...")
+            logging.debug("HsSender waits for new messages")
             try:
-                sender.process_one_message(force_spade=args.force_spade)
+                sender.mainloop(force_spade=args.force_spade)
             except SystemExit:
                 raise
             except KeyboardInterrupt:
                 logging.warning("Interruption received, shutting down...")
                 raise SystemExit(0)
-            except zmq.ZMQError:
-                logging.exception("ZMQ error received, shutting down...")
+            except zmq.ZMQError, zex:
+                if str(zex).find("Socket operation on non-socket") < 0:
+                    logging.exception("ZMQ error received, shutting down...")
                 raise SystemExit(1)
             except:
                 logging.exception("Caught exception, continuing")

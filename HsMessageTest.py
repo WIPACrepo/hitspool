@@ -5,6 +5,7 @@ import unittest
 
 import HsMessage
 
+from HsException import HsException
 from HsPrefix import HsPrefix
 
 
@@ -26,8 +27,8 @@ class MockSocket(object):
 
 class HsMessageTest(unittest.TestCase):
     def __check_request(self, req, msgtype, req_id, username, start_ticks,
-                        stop_ticks, dest_dir, prefix, copy_dir, extract, hubs,
-                        host, version):
+                        stop_ticks, dest_dir, prefix, copy_dir, extract,
+                        hubs, host, version):
 
         self.assertEquals(req.start_ticks, start_ticks,
                           "Expected start ticks %s<%s>, not %s<%s>" %
@@ -64,6 +65,18 @@ class HsMessageTest(unittest.TestCase):
                           "Expected hubs %s, not %s" %
                           (hubs, req.hubs))
 
+    @classmethod
+    def __receive(cls, sock):
+        mdict = sock.recv_json()
+        if mdict is None:
+            return None
+
+        if not isinstance(mdict, dict):
+            raise HsException("Received %s(%s), not dictionary" %
+                              (mdict, type(mdict).__name__))
+
+        return HsMessage.from_dict(mdict)
+
     def test_send_recv(self):
         sock = MockSocket()
 
@@ -75,14 +88,14 @@ class HsMessageTest(unittest.TestCase):
 
         HsMessage.send_initial(sock, None, start_ticks, stop_ticks, dest_dir)
 
-        req = HsMessage.receive(sock)
+        req = self.__receive(sock)
 
         self.assertTrue(req.request_id is not None,
                         "Request ID should not be None")
         self.__check_request(req, HsMessage.INITIAL, req.request_id,
                              username, start_ticks, stop_ticks,
                              dest_dir, HsPrefix.ANON, None, False, None, None,
-                             HsMessage.DEFAULT_VERSION)
+                             HsMessage.CURRENT_VERSION)
 
         new_host = "xyz"
         new_copydir = "/copy/dir"
@@ -92,7 +105,7 @@ class HsMessageTest(unittest.TestCase):
         HsMessage.send_worker_status(sock, req, new_host, new_copydir,
                                      new_destdir, new_msgtype)
 
-        nreq = HsMessage.receive(sock)
+        nreq = self.__receive(sock)
 
         self.__check_request(nreq, new_msgtype, req.request_id,
                              req.username, req.start_ticks, req.stop_ticks,
