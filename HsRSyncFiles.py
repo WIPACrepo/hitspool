@@ -562,8 +562,16 @@ class HsRSyncFiles(HsBase):
         logging.info("successful copy of HS data from %s to %s at %s",
                      self.fullhost, timetag_dir, rsync_host)
 
-        logging.info("dataload of %s in [MB]:\t%s", timetag_dir,
-                     int(float(copier.size) / self.BYTES_PER_MB))
+        if copier.size is None:
+            dataload = "(No size found)"
+        else:
+            try:
+                dataload = "%.1f" % (float(copier.size) / self.BYTES_PER_MB)
+            except TypeError:
+                dataload = "(Bad size \"%s\" type <%s>)" % \
+                           (copier.size, type(copier.size).__name__)
+
+        logging.info("dataload of %s in [MB]:\t%s", timetag_dir, dataload)
 
         if self.__i3socket is not None:
             self.send_alert(" %s [MB] HS data transferred to %s " %
