@@ -82,10 +82,10 @@ def find_pdaq_trunk():
     raise DirectoryNotFoundException("Cannot find pDAQ trunk (PDAQ_HOME)")
 
 
-def set_pdaq_config_dir(config_dir):
+def set_pdaq_config_dir(config_dir, override=False):
     "set location of pDAQ's run configuration directory"
     global CONFIGDIR
-    if CONFIGDIR is not None and CONFIGDIR != config_dir:
+    if CONFIGDIR is not None and CONFIGDIR != config_dir and not override:
         raise DirectoryAlreadySetException("Cannot set pDAQ config directory"
                                            " to '%s'; already set to '%s'" %
                                            (config_dir, CONFIGDIR))

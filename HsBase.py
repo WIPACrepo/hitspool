@@ -232,6 +232,8 @@ class HsBase(object):
     def remove_tree(cls, path):
         try:
             shutil.rmtree(path)
+            if os.path.isdir(path):
+                logging.error("%s exists after rmtree()!!!", path)
         except:
             logging.exception("Cannot remove %s", path)
 
