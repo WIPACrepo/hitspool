@@ -63,6 +63,10 @@ def add_arguments(parser):
                         action="store_true", default=False,
                         help="Don't copy files directory, extract hits into"
                         " a new file")
+    parser.add_argument("-y", "--always-proceed", dest="proceed_no_prompt",
+                        action="store_true", default=False,
+                        help="Don't ask for confirmation,"
+                        " just send the request")
 
 
 # adapted from live/misc/util.py
@@ -205,7 +209,7 @@ class HsGrabber(HsBase):
 
     def send_alert(self, start_ticks, stop_ticks, destdir, request_id=None,
                    username=None, prefix=None, extract_hits=False, hubs=None,
-                   print_to_console=False):
+                   print_to_console=False, proceed_no_prompt=False):
         '''
         Send request to Sender and wait for response
         '''
@@ -237,7 +241,7 @@ class HsGrabber(HsBase):
                             " data\nNormal requests are %d seconds or less",
                             secrange, WARN_SECONDS)
 
-        if print_to_console:
+        if print_to_console and not proceed_no_prompt:
             answer = raw_input("Do you want to proceed? [y/n] : ")
             if not answer.lower().startswith("y"):
                 return False
@@ -538,7 +542,8 @@ if __name__ == "__main__":
                               request_id=args.request_id,
                               username=args.username, prefix=args.prefix,
                               extract_hits=args.extract, hubs=hubs,
-                              print_to_console=True):
+                              print_to_console=True,
+                              proceed_no_prompt=args.proceed_no_prompt):
             raise SystemExit(1)
 
         hsg.wait_for_response()

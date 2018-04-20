@@ -27,15 +27,28 @@ def find_pdaq_config():
             CONFIGDIR = path
             return CONFIGDIR
 
-    path = os.path.join(os.environ["HOME"], "config")
+    path = os.path.expanduser("~/config")
     if os.path.exists(path):
         CONFIGDIR = path
         return CONFIGDIR
 
-    path = os.path.join(find_pdaq_trunk(), "config")
+    path = os.path.expanduser("~pdaq/config")
     if os.path.exists(path):
         CONFIGDIR = path
         return CONFIGDIR
+
+    # this could be an ancient pDAQ distribution with 'config' embedded in
+    #  the source directory
+    try:
+        trunk = find_pdaq_trunk()
+    except:
+        trunk = None
+
+    if trunk is not None:
+        path = os.path.join(trunk, "config")
+        if os.path.exists(path):
+            CONFIGDIR = path
+            return CONFIGDIR
 
     raise DirectoryNotFoundException("Cannot find DAQ configuration directory"
                                      " (PDAQ_CONFIG)")
