@@ -49,10 +49,8 @@ class HsRSyncFiles(HsBase):
     # minimum delay before starting remote copy
     MIN_DELAY = 7.0
 
-    # location of rsync copy directory
-    REAL_COPY_DIR = "/mnt/data/pdaqlocal/HsDataCopy"
     # location of copy directory used for testing HsInterface
-    TEST_COPY_DIR = "/home/david/data/HitSpool/copytest"
+    TEST_COPY_PATH = "/home/david/data/HitSpool/copytest"
 
     def __init__(self, host=None, is_test=False):
         super(HsRSyncFiles, self).__init__(host=host, is_test=is_test)
@@ -248,9 +246,9 @@ class HsRSyncFiles(HsBase):
 
     def __get_rsync_directory(self, hs_copydir, timetag_dir):
         if self.is_cluster_sps or self.is_cluster_spts:
-            copydir_dflt = self.REAL_COPY_DIR
+            copydir_dflt = self.DEFAULT_COPY_PATH
         else:
-            copydir_dflt = self.TEST_COPY_DIR
+            copydir_dflt = self.TEST_COPY_PATH
 
         if copydir_dflt != hs_copydir:
             logging.warning("Requested HS data copy destination differs"

@@ -29,16 +29,12 @@ WARN_SECONDS = 95
 
 def add_arguments(parser):
     "Add all command line arguments to the argument parser"
-    copy_dflt = "%s@%s:%s" % (HsBase.DEFAULT_RSYNC_USER,
-                              HsBase.DEFAULT_RSYNC_HOST,
-                              HsBase.DEFAULT_COPY_PATH)
-
     example_log_path = os.path.join(HsBase.DEFAULT_LOG_PATH, "hsgrabber.log")
 
     parser.add_argument("-b", "--begin", dest="begin_time", required=True,
                         help="Beginning UTC time (YYYY-mm-dd HH:MM:SS[.us])"
                         " or SnDAQ timestamp (ns from start of year)")
-    parser.add_argument("-c", "--copydir", dest="copydir", default=copy_dflt,
+    parser.add_argument("-c", "--copydir", dest="copydir", default=None,
                         help="rsync destination directory for hitspool files")
     parser.add_argument("-d", "--duration", dest="duration", default=None,
                         help="Duration of request (1s, 12m, etc.)")
@@ -526,18 +522,30 @@ if __name__ == "__main__":
         else:
             hubs = ",".join(args.hub)
 
+        # make sure rsync destination is fully specified
+        if args.copydir is not None:
+            (user, host, path) = hsg.split_rsync_path(args.copydir)
+        else:
+            user = HsBase.DEFAULT_RSYNC_USER
+            host = HsBase.DEFAULT_RSYNC_HOST
+            if args.prefix == HsPrefix.LIVE:
+                path = "/mnt/data/HitSpool/satellite"
+            elif args.prefix == HsPrefix.HESE:
+                path = "/mnt/data/hese_hs"
+            else:
+                path = HsBase.DEFAULT_COPY_PATH
+
+        destdir = "%s@%s:%s" % (user, host, path)
+
         logging.info("This HsGrabber runs on: %s", hsg.fullhost)
 
         print "Request start: %s (%d ns)" % \
             (DAQTime.ticks_to_utc(start_ticks), start_ticks / 10)
         print "Request end: %s (%d ns)" % \
             (DAQTime.ticks_to_utc(stop_ticks), stop_ticks / 10)
+        print "Destination: %s" % (destdir, )
         if hubs is not None:
             print "Hubs: %s" % (hubs, )
-
-        # make sure rsync destination is fully specified
-        (user, host, path) = hsg.split_rsync_path(args.copydir)
-        destdir = "%s@%s:%s" % (user, host, path)
 
         if not hsg.send_alert(start_ticks, stop_ticks, destdir,
                               request_id=args.request_id,
