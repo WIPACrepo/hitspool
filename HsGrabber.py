@@ -56,7 +56,8 @@ def add_arguments(parser):
                         help="Subsystem prefix (SNALERT, HESE, etc.)")
     parser.add_argument("-T", "--is-test", dest="is_test",
                         action="store_true", default=False,
-                        help="Ignore SPS/SPTS status for tests")
+                        help="Ignore SPS/SPTS status for unit tests."
+                        "  Do not use this option for real requests!")
     parser.add_argument("-u", "--username", dest="username",
                         help="Name of user making the requests")
     parser.add_argument("-x", "--extract", dest="extract",
