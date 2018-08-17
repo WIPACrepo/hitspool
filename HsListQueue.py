@@ -11,10 +11,17 @@ import DAQTime
 import HsConstants
 import HsUtil
 
+from RequestMonitor import RequestMonitor
+
 
 class ListQueue(object):
-    # path to the SQLite database which acts as a disk cache
+    # path to the SQLite database which tracks hitspool requests
     STATE_DB_PATH = None
+
+    # directory containing hitspool data files
+    HITSPOOL_DIR = "/mnt/data/pdaqlocal/hitspool"
+    # path to the SQLite database which tracks hitspool file details
+    HITSPOOL_DB_PATH = None
 
     # key used to indicate an entry contains the request details
     DETAIL_KEY = "@detail@"
@@ -29,16 +36,10 @@ class ListQueue(object):
     DBPHASE_ERROR = 99
 
     def __init__(self):
-        self.__sqlconn = None
         self.__active = None
 
     def __close_database(self):
-        if self.__sqlconn is not None:
-            try:
-                self.__sqlconn.close()
-            except:
-                logging.exception("Problem closing database")
-            self.__sqlconn = None
+        pass
 
     @classmethod
     def __duration_string(cls, start_val, stop_val):
@@ -100,30 +101,27 @@ class ListQueue(object):
         total = float(seconds) + float(microseconds) / 1000000.
         return "%.2fs" % (total, )
 
-    def __load_state_db(self):
-        if self.__sqlconn is None:
-            self.__sqlconn = self.__open_database()
-        with self.__sqlconn:  # automatically commits the active cursor
-            cursor = self.__sqlconn.cursor()
+    def __load_state_db(self, conn):
+        cursor = conn.cursor()
 
-            # make sure the tables exist
-            cursor.execute("create table if not exists requests("
-                           " id text not null,"
-                           " host text not null,"
-                           " phase integer not null,"
-                           " update_time timestamp not null,"
-                           " primary key (id, host))")
-            cursor.execute("create table if not exists request_details("
-                           " id text not null,"
-                           " username text,"
-                           " prefix text,"
-                           " start_time timestamp not null,"
-                           " stop_time timestamp not null,"
-                           " destination text not null,"
-                           " hubs text not null,"
-                           " extract integer not null,"
-                           " phase integer not null,"
-                           " primary key (id))")
+        # make sure the tables exist
+        cursor.execute("create table if not exists requests("
+                       " id text not null,"
+                       " host text not null,"
+                       " phase integer not null,"
+                       " update_time timestamp not null,"
+                       " primary key (id, host))")
+        cursor.execute("create table if not exists request_details("
+                       " id text not null,"
+                       " username text,"
+                       " prefix text,"
+                       " start_time timestamp not null,"
+                       " stop_time timestamp not null,"
+                       " destination text not null,"
+                       " hubs text not null,"
+                       " extract integer not null,"
+                       " phase integer not null,"
+                       " primary key (id))")
 
         # load requests from DB
         requests = {}
@@ -188,8 +186,21 @@ class ListQueue(object):
 
         return requests
 
-    def __open_database(self):
-        dbpath = self.get_db_path()
+    def __open_hitspool_database(self):
+        dbpath = self.get_hitspool_db_path()
+        if not os.path.exists(dbpath):
+            logging.error("Cannot find DB file \"%s\"", dbpath)
+            return None
+
+        conn = sqlite3.connect(dbpath)
+        return conn
+
+    def __open_state_database(self):
+        dbpath = self.get_state_db_path()
+        if not os.path.exists(dbpath):
+            logging.error("Cannot find DB file \"%s\"", dbpath)
+            return None
+
         conn = sqlite3.connect(dbpath)
         return conn
 
@@ -210,19 +221,89 @@ class ListQueue(object):
         return "??#%s??" % (phase, )
 
     @classmethod
-    def get_db_path(cls):
+    def get_hitspool_db_path(cls):
+        "Return the path to the hitspool state database"
+        if cls.HITSPOOL_DB_PATH is None:
+            cls.HITSPOOL_DB_PATH = os.path.join(cls.HITSPOOL_DIR,
+                                                "hitspool.db")
+        return cls.HITSPOOL_DB_PATH
+
+    @classmethod
+    def get_state_db_path(cls):
         "Return the path to the hitspool state database"
         if cls.STATE_DB_PATH is None:
             cls.STATE_DB_PATH = os.path.join(os.environ["HOME"],
                                              ".hitspool_state.db")
         return cls.STATE_DB_PATH
 
+    def list_hitspool(self):
+        one_second = 10000000000
+
+        listed = False
+
+        conn = self.__open_hitspool_database()
+        try:
+            cursor = conn.cursor()
+
+            range_count = 0
+            range_start = None
+
+            prev_stop = None
+            for row in cursor.execute("select filename, start_tick, stop_tick"
+                                      " from hitspool"
+                                      " order by start_tick"):
+                filename = row[0]
+                start_ticks = row[1]
+                stop_ticks = row[2]
+
+                if prev_stop is None:
+                    range_start = start_ticks
+                else:
+                    gap = start_ticks - prev_stop
+                    if gap > one_second:
+                        self.__print_data_range(range_start, prev_stop,
+                                                range_count,
+                                                print_header=not listed)
+                        listed = True
+                        range_start = start_ticks
+                        range_count = 0
+
+                range_count += 1
+                prev_stop = stop_ticks
+
+            self.__print_data_range(range_start, prev_stop, range_count,
+                                    print_header=not listed)
+            listed = True
+        finally:
+            conn.commit()
+            conn.close()
+
+        if not listed:
+            print "No hitspool files!"
+
+    def __print_data_range(self, start_tick, stop_tick, file_count,
+                           print_header=False):
+        if print_header:
+            print "Hitspool files\n=============="
+
+        tstr = str(DAQTime.ticks_to_utc(start_tick))
+        print "%d file%s :: [%d-%d] %s" % \
+            (file_count, "" if file_count == 1 else "s", start_tick, stop_tick,
+             tstr)
+
     def list_requests(self):
         "List all requests"
-        requests = self.__load_state_db()
+        conn = self.__open_state_database()
+        try:
+            requests = self.__load_state_db(conn)
+        finally:
+            conn.commit()
+            conn.close()
 
+        count = 0
         for rid, rdict in sorted(requests.items(), key=lambda x: x[0]):
             print "Req#%s" % (rid, )
+            count += 1
 
             phase_hosts = {}
             for host, values in sorted(rdict.items(), key=lambda x: x[0]):
@@ -253,6 +334,43 @@ class ListQueue(object):
                 print "\t\t%s: %s" % (self.__phase_name(phase),
                                       HsUtil.hubs_to_string(hosts), )
 
+        if count == 0:
+            print "No active requests"
+
+
+def add_arguments(parser):
+    parser.add_argument("-D", "--state-db", dest="state_db",
+                        help="Path to HitSpool state database"
+                        " (used for testing)")
+    parser.add_argument("-H", "--hitspool-db", dest="hitspool_db",
+                        help="Path to HitSpool file database"
+                        " (used for testing)")
+    parser.add_argument("-l", "--list-spool", dest="list_spool",
+                        action="store_true", default=False,
+                        help="List the time ranges of files in the"
+                        " hitspool cache")
+
 
 if __name__ == "__main__":
-    ListQueue().list_requests()
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    add_arguments(parser)
+    args = parser.parse_args()
+
+    if args.hitspool_db is not None:
+        if ListQueue.HITSPOOL_DB_PATH is not None:
+            raise SystemExit("HitSpool database path has already been set")
+        ListQueue.HITSPOOL_DB_PATH = args.hitspool_db
+
+    if args.state_db is not None:
+        if ListQueue.STATE_DB_PATH is not None:
+            raise SystemExit("HitSpool state database path has"
+                             " already been set")
+        ListQueue.STATE_DB_PATH = args.state_db
+
+    lsq = ListQueue()
+    if args.list_spool:
+        lsq.list_hitspool()
+        print
+    lsq.list_requests()
