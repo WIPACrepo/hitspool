@@ -28,7 +28,7 @@ class HsRSyncFiles(HsBase):
     TEST_HUB_DIR = "/home/david/TESTCLUSTER/testhub"
     # default name of hitspool subdirectory
     DEFAULT_SPOOL_NAME = "hitspool"
-    # default name of hitspool subdirectory
+    # default name of hitspool file database
     DEFAULT_SPOOL_DB = "hitspool.db"
     # number of bytes in a megabyte
     BYTES_PER_MB = 1024.0 * 1024.0
