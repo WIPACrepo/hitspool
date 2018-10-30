@@ -543,7 +543,7 @@ class IntegrationTest(LoggingTestCase):
                                           stop_ticks + self.TICKS_PER_SECOND,
                                           self.INTERVAL, create_files=True)
         for i in range(1, len(workers)):
-            workers[i].TEST_COPY_DIR = HsTestUtil.MockHitspool.COPY_DIR
+            workers[i].TEST_COPY_PATH = HsTestUtil.MockHitspool.COPY_DIR
             workers[i].TEST_HUB_DIR = HsTestUtil.MockHitspool.HUB_DIR
 
     @classmethod
@@ -779,7 +779,7 @@ class IntegrationTest(LoggingTestCase):
         req_id = "FAKE_ID"
         username = "test_pdaq"
         prefix = HsPrefix.SNALERT
-        destdir = workers[0].TEST_COPY_DIR
+        destdir = workers[0].TEST_COPY_PATH
 
         # initialize HS services
         self.__init_publisher(publisher, req_id, username, start_ticks,

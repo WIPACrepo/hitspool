@@ -481,7 +481,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
+                              hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
@@ -533,7 +533,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
+                              hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
@@ -627,7 +627,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
+                              hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 576, 4, i3socket=hsr.i3socket,
@@ -726,7 +726,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
+                              hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 576, 4, i3socket=hsr.i3socket,
@@ -774,7 +774,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
+                              hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
@@ -822,7 +822,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
+                              hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
@@ -1009,7 +1009,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
+                              hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
@@ -1152,7 +1152,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
+                              hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 575, 1, i3socket=hsr.i3socket,
@@ -1200,7 +1200,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
+                              hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
@@ -1248,7 +1248,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
+                              hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
@@ -1296,7 +1296,7 @@ class HsWorkerTest(LoggingTestCase):
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
+                              hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,

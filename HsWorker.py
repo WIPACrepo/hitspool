@@ -338,7 +338,7 @@ if __name__ == '__main__':
 
         # override some defaults (generally only used for debugging)
         if args.copydir is not None:
-            worker.TEST_COPY_DIR = args.copydir
+            worker.TEST_COPY_PATH = args.copydir
         if args.hubroot is not None:
             worker.TEST_HUB_DIR = args.hubroot
 
