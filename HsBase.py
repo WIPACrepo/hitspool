@@ -50,28 +50,11 @@ class HsBase(object):
     META_SUFFIX = ".meta.xml"
 
     def __init__(self, host=None, is_test=False):
-        # allow caller to override the host name
-        if host is not None:
-            self.__src_mchn = host
-        else:
-            self.__src_mchn = socket.gethostname()
+        fullname, shortname, domainname = self.get_host_domain(host=host)
+        self.__src_mchn = fullname
+        self.__src_mchn_short = shortname
 
-        # short host is the machine name without the domain
-        hdnm = self.__src_mchn.split('.', 1)
-        if len(hdnm) == 2:
-            self.__src_mchn_short, domainname = hdnm
-        else:
-            self.__src_mchn_short, domainname = (self.__src_mchn, "")
-
-        # determine cluster based on host/domain name
-        if is_test:
-            self.__cluster = self.TEST
-        elif domainname.endswith("usap.gov"):
-            self.__cluster = self.SPS
-        elif "spts" in domainname:
-            self.__cluster = self.SPTS
-        else:
-            self.__cluster = self.LOCALHOST
+        self.__cluster = self.get_cluster(domainname, is_test=is_test)
 
         if self.is_cluster_sps or self.is_cluster_spts:
             self.__rsync_host = self.DEFAULT_RSYNC_HOST
@@ -114,6 +97,38 @@ class HsBase(object):
     @property
     def fullhost(self):
         return self.__src_mchn
+
+    @classmethod
+    def get_cluster(cls, domainname, is_test=False):
+        "determine cluster based on host/domain name"
+        if is_test:
+            return cls.TEST
+        if domainname.endswith("usap.gov"):
+            return cls.SPS
+        if "spts" in domainname:
+            return cls.SPTS
+        return cls.LOCALHOST
+
+    @classmethod
+    def get_host_domain(cls, host=None):
+        """
+        Return fully qualified host name, short host name, and domain name
+        """
+        # allow caller to override the host name
+        if host is not None:
+            fullname = host
+        else:
+            fullname = socket.gethostname()
+
+        # short host is the machine name without the domain
+        hdnm = fullname.split('.', 1)
+        if len(hdnm) == 2:
+            shortname, domainname = hdnm
+        else:
+            shortname = fullname
+            domainname = ""
+
+        return fullname, shortname, domainname
 
     @classmethod
     def init_logging(cls, logfile=None, basename=None, basehost=None,
