@@ -60,16 +60,6 @@ class PingWatcher(object):
         self.__last_ping = datetime.datetime.now()
         self.__running = False
 
-        while self.__running:
-            time.sleep(self.PING_SLEEP_SECONDS)
-
-            if self.__last_ping is not None:
-                pdiff = datetime.datetime.now() - self.__last_ping
-                if pdiff.days > 0 or pdiff.seconds > self.PING_TIMEOUT_DEAD:
-                    logging.error("No ping received in %d -- dying", pdiff)
-                    raise SystemExit
-
-
     def __thread_loop(self):
         self.__running = True
         while self.__running:
