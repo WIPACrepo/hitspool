@@ -437,7 +437,8 @@ class MyWorker(HsWorker.Worker):
 
         self.__link_paths = []
 
-        super(MyWorker, self).__init__(self.name, host=host, is_test=True)
+        super(MyWorker, self).__init__(self.name, host=host, fail_sleep=0.001,
+                                       is_test=True)
 
         # don't sleep during unit tests
         self.MIN_DELAY = 0.0
@@ -514,8 +515,17 @@ class MyWorker(HsWorker.Worker):
         if self.__sub_sock is None:
             raise Exception("Subscriber socket does not exist")
         while True:
-            self.mainloop(fail_sleep=0.001)
-            if not self.__sub_sock.has_input:
+            self.mainloop()
+
+            # wait for more input or for this request to be processed
+            for _ in range(30):
+                time.sleep(0.1)
+                if self.__sub_sock.has_input or not self.has_requests:
+                    break
+
+            # wait a bit more in case processing thread needs time to finish
+            time.sleep(0.1)
+            if not self.__sub_sock.has_input and not self.has_requests:
                 break
         self.close_all()
 

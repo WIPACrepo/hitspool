@@ -50,6 +50,11 @@ def add_arguments(parser):
 
 
 class PingWatcher(object):
+    """
+    Kill worker if we haven't received a ping for a while
+    (This works around a mysterious bug where 0MQ sockets seem to just stop
+    working after a while)
+    """
     PING_SLEEP_SECONDS = PingManager.PING_SLEEP_SECONDS
     PING_TIMEOUT_DEAD = PingManager.PING_TIMEOUT_DEAD
 
@@ -61,11 +66,13 @@ class PingWatcher(object):
         self.__running = False
 
     def __thread_loop(self):
+        "Main thread loop"
         self.__running = True
         while self.__running:
             try:
                 time.sleep(self.PING_SLEEP_SECONDS)
 
+                # commit suicide if we haven't received a ping recently
                 pdiff = datetime.datetime.now() - self.__last_ping
                 if pdiff.days > 0 or pdiff.seconds >= self.PING_TIMEOUT_DEAD:
                     logging.error("No ping from sender in %s -- dying", pdiff)
@@ -86,7 +93,129 @@ class PingWatcher(object):
         self.__running = False
 
     def update(self):
+        "Remember that we've seen a ping"
         self.__last_ping = datetime.datetime.now()
+
+
+class RequestProcessor(threading.Thread):
+    "Process requests"
+    def __init__(self, worker, fail_sleep=None):
+        self.__worker = worker
+        if fail_sleep is not None:
+            self.__fail_sleep = fail_sleep
+        else:
+            # delay for 1.5 seconds before sending failure message
+            self.__fail_sleep = 1.5
+
+        self.__requests = []
+        self.__lock = threading.Condition()
+        self.__running = False
+        self.__processing = False
+
+    def __in_hub_list(self, hublist):
+        "Is this hub in the list?"
+        if hublist is None:
+            return True
+
+        for hub in hublist.split(","):
+            if hub == self.__worker.shorthost:
+                return True
+
+        return False
+
+    def __process_request(self, req):
+        "Process a single request"
+        update_status = functools.partial(HsMessage.send_worker_status,
+                                          self.__worker.sender, req,
+                                          self.__worker.shorthost)
+
+        update_status(req.copy_dir, req.destination_dir,
+                      HsMessage.STARTED)
+
+        if not self.__in_hub_list(req.hubs):
+            update_status(req.copy_dir, req.destination_dir,
+                          HsMessage.IGNORED)
+            return
+
+        # extract actual directory from rsync path
+        try:
+            _, destdir = HsUtil.split_rsync_host_and_path(req.destination_dir)
+        except:
+            logging.exception("Illegal destination directory \"%s\"<%s>",
+                              req.destination_dir, type(req.destination_dir))
+
+            # give other hubs time to start before sending failure message
+            time.sleep(self.__fail_sleep)
+
+            update_status(req.copy_dir, req.destination_dir,
+                          HsMessage.FAILED)
+            return
+
+        try:
+            rsyncdir = self.__worker.alert_parser(req,
+                                                  update_status=update_status)
+        except:
+            logging.exception("Cannot process request \"%s\"", req)
+            rsyncdir = None
+
+        if rsyncdir is not None:
+            msgtype = HsMessage.DONE
+        else:
+            msgtype = HsMessage.FAILED
+
+        update_status(rsyncdir, destdir, msgtype)
+
+    def __thread_loop(self):
+        "Main thread loop"
+        self.__running = True
+        while self.__running:
+            req = None
+            with self.__lock:
+                # get the next request (or wait for one to be pushed)
+                while True:
+                    if len(self.__requests) > 0:
+                        req = self.__requests.pop(0)
+                        break
+                    self.__lock.wait()
+
+            # process the request outside the lock so new requests can be added
+            try:
+                self.__processing = True
+                self.__process_request(req)
+            finally:
+                self.__processing = False
+
+        # clear out lingering requests after thread has been stopped
+        with self.__lock:
+            if len(self.__requests) > 0:
+                logging.error("Exiting thread without processing %d requests" %
+                              len(self.__requests))
+                del self.__requests
+
+    @property
+    def has_requests(self):
+        "Are there any requests being processed?"
+        with self.__lock:
+            return len(self.__requests) > 0 or self.__processing
+
+    def push(self, req):
+        "Push a new request onto the queue"
+        with self.__lock:
+            self.__requests.append(req)
+            self.__lock.notifyAll()
+
+    def start_thread(self):
+        thread_name = "RequestProcessor[%s]" % (self.__worker.fullhost, )
+
+        thrd = threading.Thread(name=thread_name, target=self.__thread_loop)
+        thrd.setDaemon(True)
+        thrd.start()
+        return thrd
+
+    def stop_thread(self):
+        self.__running = False
+        with self.__lock:
+            self.__lock.notifyAll()
 
 
 class Worker(HsRSyncFiles):
@@ -106,24 +235,17 @@ class Worker(HsRSyncFiles):
     4. writes a short report about was has been done.
     """
 
-    def __init__(self, progname, host=None, is_test=False):
+    def __init__(self, progname, host=None, fail_sleep=None, is_test=False):
         super(Worker, self).__init__(host=host, is_test=is_test)
 
         self.__service = "HSiface"
         self.__varname = "%s@%s" % (progname, self.shorthost)
 
+        self.__req_thread = RequestProcessor(self, fail_sleep=fail_sleep)
+        self.__req_thread.start_thread()
+
         self.__ping_watcher = PingWatcher(self.fullhost, self.subscriber)
         self.__ping_watcher.start_thread()
-
-    def __in_hub_list(self, hublist):
-        if hublist is None:
-            return True
-
-        for hub in hublist.split(","):
-            if hub == self.shorthost:
-                return True
-
-        return False
 
     def alert_parser(self, req, update_status=None, delay_rsync=True):
         """
@@ -179,6 +301,7 @@ class Worker(HsRSyncFiles):
 
     def close_all(self):
         self.__ping_watcher.stop_thread()
+        self.__req_thread.stop_thread()
 
         super(Worker, self).close_all()
 
@@ -208,7 +331,12 @@ class Worker(HsRSyncFiles):
 
         raise SystemExit(0)
 
-    def mainloop(self, fail_sleep=1.5):
+    @property
+    def has_requests(self):
+        return self.__req_thread.has_requests
+
+    def mainloop(self):
+        "Read the next request and pass it to the processing thread"
         if self.subscriber is None:
             raise Exception("Subscriber has not been initialized")
 
@@ -222,62 +350,22 @@ class Worker(HsRSyncFiles):
             raise
         except:
             logging.exception("Cannot read request")
-            return
-
-        if req is None:
-            return
-
-        logging.info("HsWorker received request:\n"
-                     "%s\nfrom Publisher", str(req))
-
-        update_status = functools.partial(HsMessage.send_worker_status,
-                                          self.sender, req, self.shorthost)
-
-        update_status(req.copy_dir, req.destination_dir,
-                      HsMessage.STARTED)
-
-        if not self.__in_hub_list(req.hubs):
-            update_status(req.copy_dir, req.destination_dir,
-                          HsMessage.IGNORED)
-            return
-
-        # extract actual directory from rsync path
-        try:
-            _, destdir = HsUtil.split_rsync_host_and_path(req.destination_dir)
-        except:
-            logging.exception("Illegal destination directory \"%s\"<%s>",
-                              req.destination_dir, type(req.destination_dir))
-
-            # give other hubs time to start before sending failure message
-            time.sleep(fail_sleep)
-
-            update_status(req.copy_dir, req.destination_dir,
-                          HsMessage.FAILED)
-            return
-
-        try:
-            rsyncdir = self.alert_parser(req, update_status=update_status)
-        except:
-            logging.exception("Cannot process request \"%s\"", req)
-            rsyncdir = None
-
-        if rsyncdir is not None:
-            msgtype = HsMessage.DONE
-        else:
-            msgtype = HsMessage.FAILED
-
-        update_status(rsyncdir, destdir, msgtype)
 
     def receive_request(self, sock):
+        """
+        Receive the next request, validate it,
+        then push it to the processor thread
+        """
         req_dict = sock.recv_json()
         if req_dict is None:
-            return None
+            return
 
         if not isinstance(req_dict, dict):
             raise HsException("JSON message should be a dict: \"%s\"<%s>" %
                               (req_dict, type(req_dict)))
 
         if "ping" in req_dict:
+            # reply to ping from sender
             self.__ping_watcher.update()
             self.sender.send_json({"pingback": self.fullhost})
             return
@@ -297,7 +385,12 @@ class Worker(HsRSyncFiles):
         alert_flds = ("request_id", "username", "start_ticks", "stop_ticks",
                       "destination_dir", "prefix", "extract")
 
-        return HsUtil.dict_to_object(req_dict, alert_flds, 'WorkerRequest')
+        req = HsUtil.dict_to_object(req_dict, alert_flds, 'WorkerRequest')
+
+        logging.info("HsWorker queued request:\n"
+                     "%s\nfrom Publisher", str(req))
+
+        self.__req_thread.push(req)
 
 
 if __name__ == '__main__':
