@@ -125,8 +125,7 @@ class Worker(HsRSyncFiles):
 
         return False
 
-    def alert_parser(self, req, logfile, update_status=None,
-                     delay_rsync=True):
+    def alert_parser(self, req, update_status=None, delay_rsync=True):
         """
         Parse the Alert message for starttime, stoptime, sn-alert-time-stamp
         and directory where-to the data has to be copied.
@@ -209,7 +208,7 @@ class Worker(HsRSyncFiles):
 
         raise SystemExit(0)
 
-    def mainloop(self, logfile, fail_sleep=1.5):
+    def mainloop(self, fail_sleep=1.5):
         if self.subscriber is None:
             raise Exception("Subscriber has not been initialized")
 
@@ -257,8 +256,7 @@ class Worker(HsRSyncFiles):
             return
 
         try:
-            rsyncdir = self.alert_parser(req, logfile,
-                                         update_status=update_status)
+            rsyncdir = self.alert_parser(req, update_status=update_status)
         except:
             logging.exception("Cannot process request \"%s\"", req)
             rsyncdir = None
@@ -336,14 +334,14 @@ if __name__ == '__main__':
         signal.signal(signal.SIGTERM, worker.handler)
         signal.signal(signal.SIGUSR1, worker.handler)
 
-        logfile = worker.init_logging(args.logfile, basename="hsworker",
-                                      basehost=worker.shorthost)
+        worker.init_logging(args.logfile, basename="hsworker",
+                            basehost=worker.shorthost)
 
         logging.info("this Worker runs on: %s", worker.shorthost)
 
         while True:
             try:
-                worker.mainloop(logfile)
+                worker.mainloop()
             except SystemExit:
                 raise
             except KeyboardInterrupt:

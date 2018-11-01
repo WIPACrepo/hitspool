@@ -514,11 +514,7 @@ class MyWorker(HsWorker.Worker):
         if self.__sub_sock is None:
             raise Exception("Subscriber socket does not exist")
         while True:
-            # create logfile
-            logfile = "/tmp/%s.log" % self.shorthost
-            open(logfile, "w").close()
-
-            self.mainloop(logfile, fail_sleep=0.001)
+            self.mainloop(fail_sleep=0.001)
             if not self.__sub_sock.has_input:
                 break
         self.close_all()
