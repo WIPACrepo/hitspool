@@ -241,6 +241,7 @@ class HsGrabber(HsBase):
         if print_to_console and not proceed_no_prompt:
             answer = raw_input("Do you want to proceed? [y/n] : ")
             if not answer.lower().startswith("y"):
+                print_log.error("Request was not sent")
                 return False
 
         logging.info("Requesting %.2f seconds of HS data [%d-%d]",
