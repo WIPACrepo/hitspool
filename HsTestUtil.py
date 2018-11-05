@@ -548,8 +548,8 @@ class MockHitspool(object):
                 # create temporary copy directory and set in HsWorker
                 cls.COPY_DIR = tempfile.mkdtemp(suffix=suffix)
                 if hsr is not None:
-                    # set HsRSyncFiles.TEST_COPY_DIR
-                    hsr.TEST_COPY_DIR = cls.COPY_DIR
+                    # set HsRSyncFiles.TEST_COPY_PATH
+                    hsr.TEST_COPY_PATH = cls.COPY_DIR
 
     @classmethod
     def create_copy_files(cls, prefix, timetag, host, startnum, numfiles,

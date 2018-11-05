@@ -96,3 +96,20 @@ def utc_to_ticks(utc):
 
     return int(((delta.days * 24 * 3600 + delta.seconds + extrasecs) *
                 1000000 + delta.microseconds) * 10000)
+
+
+if __name__ == "__main__":
+    import sys
+
+    is_ns = False
+    for arg in sys.argv[1:]:
+        if arg == "-n":
+            is_ns = True
+            continue
+
+        ticks = string_to_ticks(arg, is_ns=is_ns)
+        utc = ticks_to_utc(ticks)
+        tick2 = utc_to_ticks(utc)
+
+        print "Arg \"%s\"\n\t-> ticks %s\n\t->utc \"%s\"\n\t-> ticks %s" % \
+            (arg, ticks, utc, tick2)

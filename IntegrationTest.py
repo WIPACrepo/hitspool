@@ -437,7 +437,8 @@ class MyWorker(HsWorker.Worker):
 
         self.__link_paths = []
 
-        super(MyWorker, self).__init__(self.name, host=host, is_test=True)
+        super(MyWorker, self).__init__(self.name, host=host, fail_sleep=0.001,
+                                       is_test=True)
 
         # don't sleep during unit tests
         self.MIN_DELAY = 0.0
@@ -514,12 +515,17 @@ class MyWorker(HsWorker.Worker):
         if self.__sub_sock is None:
             raise Exception("Subscriber socket does not exist")
         while True:
-            # create logfile
-            logfile = "/tmp/%s.log" % self.shorthost
-            open(logfile, "w").close()
+            self.mainloop()
 
-            self.mainloop(logfile, fail_sleep=0.001)
-            if not self.__sub_sock.has_input:
+            # wait for more input or for this request to be processed
+            for _ in range(30):
+                time.sleep(0.1)
+                if self.__sub_sock.has_input or not self.has_requests:
+                    break
+
+            # wait a bit more in case processing thread needs time to finish
+            time.sleep(0.1)
+            if not self.__sub_sock.has_input and not self.has_requests:
                 break
         self.close_all()
 
@@ -543,7 +549,7 @@ class IntegrationTest(LoggingTestCase):
                                           stop_ticks + self.TICKS_PER_SECOND,
                                           self.INTERVAL, create_files=True)
         for i in range(1, len(workers)):
-            workers[i].TEST_COPY_DIR = HsTestUtil.MockHitspool.COPY_DIR
+            workers[i].TEST_COPY_PATH = HsTestUtil.MockHitspool.COPY_DIR
             workers[i].TEST_HUB_DIR = HsTestUtil.MockHitspool.HUB_DIR
 
     @classmethod
@@ -779,7 +785,7 @@ class IntegrationTest(LoggingTestCase):
         req_id = "FAKE_ID"
         username = "test_pdaq"
         prefix = HsPrefix.SNALERT
-        destdir = workers[0].TEST_COPY_DIR
+        destdir = workers[0].TEST_COPY_PATH
 
         # initialize HS services
         self.__init_publisher(publisher, req_id, username, start_ticks,

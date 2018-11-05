@@ -102,7 +102,7 @@ class HsRSyncTestCase(LoggingTestCase):
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
+                              hsr.TEST_COPY_PATH)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -176,7 +176,7 @@ class HsRSyncTestCase(LoggingTestCase):
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
+                              hsr.TEST_COPY_PATH)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -264,7 +264,7 @@ class HsRSyncTestCase(LoggingTestCase):
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
+                              hsr.TEST_COPY_PATH)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -308,7 +308,7 @@ class HsRSyncTestCase(LoggingTestCase):
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
+                              hsr.TEST_COPY_PATH)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -352,7 +352,7 @@ class HsRSyncTestCase(LoggingTestCase):
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
+                              hsr.TEST_COPY_PATH)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -490,7 +490,7 @@ class HsRSyncTestCase(LoggingTestCase):
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
+                              hsr.TEST_COPY_PATH)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -629,7 +629,7 @@ class HsRSyncTestCase(LoggingTestCase):
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
+                              hsr.TEST_COPY_PATH)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -673,7 +673,7 @@ class HsRSyncTestCase(LoggingTestCase):
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
+                              hsr.TEST_COPY_PATH)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -722,7 +722,7 @@ class HsRSyncTestCase(LoggingTestCase):
         self.expectLogMessage("Requested HS data copy destination differs"
                               " from default!")
         self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_DIR)
+                              hsr.TEST_COPY_PATH)
 
         tstrun.run(start_ticks, stop_ticks, extract_hits=True)
 
