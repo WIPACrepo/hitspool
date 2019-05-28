@@ -31,6 +31,11 @@ SANDBOX_SPS = "/home/pdaq/HsInterface/current"
 # Location of release on other sps machines
 SANDBOX_INSTALLED = "/mnt/data/pdaqlocal/HsInterface/current"
 
+# Location of I3Live's dropboxes
+I3LIVE_DROPBOXES = [
+    "/mnt/data/HitSpool/archive",
+    "/mnt/data/HitSpool/satellite",
+]
 
 # Common 0MQ ports
 ALERT_PORT = 55558

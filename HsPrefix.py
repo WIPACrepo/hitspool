@@ -19,7 +19,8 @@ class HsPrefix(object):
                 return cls.HESE
             elif 'HsDataCopy' in copydir:
                 return cls.SNALERT
-            elif 'HitSpool' in copydir and 'satellite' in copydir:
+            elif 'HitSpool' in copydir and ('satellite' in copydir or
+                                            'archive' in copydir):
                 return cls.LIVE
         return cls.ANON
 
