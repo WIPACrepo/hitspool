@@ -208,7 +208,7 @@ def hs_mk_dir_on_host(host, do_local=False):
                 frun("mkdir -p %s" % wlogdir)
                 _log('WorkerLogsCopyPATH: %s set' % wlogdir)
                 live_paths = [os.path.join(livedir, "i3live")
-                              for livedir in HsCOnstants.I3LIVE_DROPBOXES]
+                              for livedir in HsConstants.I3LIVE_DROPBOXES]
                 frun("mkdir -p %s" % " ".join(live_paths))
                 _log("SPADE pickup directories set")
 
