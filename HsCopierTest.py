@@ -6,6 +6,7 @@ Test HsCopier
 import getpass
 import os
 import shutil
+import socket
 import unittest
 
 from HsCopier import CopyUsingRSync, CopyUsingSCP
@@ -43,6 +44,11 @@ class HsCopierTest(unittest.TestCase):
     def __file_size(cls, files):
         return sum([os.path.getsize(x) for x in files])
 
+    @property
+    def __is_access(self):
+        fullname = socket.gethostname()
+        return "access" in fullname
+
     def tearDown(self):
         if os.path.exists(self.SOURCE_DIR):
             shutil.rmtree(self.SOURCE_DIR)
@@ -64,6 +70,9 @@ class HsCopierTest(unittest.TestCase):
 
     def test_scp(self):
         "Test 'scp' copy"
+        if self.__is_access:
+            return
+
         source_list = self.__create_files(3, topdir=self.SOURCE_DIR)
         source_size = self.__file_size(source_list)
 
