@@ -389,16 +389,13 @@ if __name__ == '__main__':
 
         args = parser.parse_args()
 
-        usage = False
-        if not usage:
-            if args.copydir is not None and not os.path.exists(args.copydir):
-                print >>sys.stderr, \
-                    "Copy directory \"%s\" does not exist" % args.copydir
-                usage = True
-            elif args.hubroot is not None and not os.path.exists(args.hubroot):
-                print >>sys.stderr, \
-                    "Hub directory \"%s\" does not exist" % args.hubroot
-                usage = True
+        if args.copydir is not None and not os.path.exists(args.copydir):
+            print >>sys.stderr, \
+                "WARNING: Copy directory \"%s\" does not exist" % \
+                (args.copydir, )
+        if args.hubroot is not None and not os.path.exists(args.hubroot):
+            raise SystemExit("Hub directory \"%s\" does not exist" %
+                             (args.hubroot, ))
 
         worker = Worker("HsWorker", host=args.hostname, is_test=args.is_test)
 
