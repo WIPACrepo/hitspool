@@ -242,6 +242,9 @@ class ListQueue(object):
         listed = False
 
         conn = self.__open_hitspool_database()
+        if conn is None:
+            return
+
         try:
             cursor = conn.cursor()
 
