@@ -13,6 +13,7 @@ import time
 import zmq
 
 import DAQTime
+import HsMessage
 import HsUtil
 
 from HsBase import HsBase
@@ -165,7 +166,7 @@ class HsRSyncFiles(HsBase):
 
         if start_delay > 0.0:
             logging.info("Delay rsync start by %d seconds", int(start_delay))
-            time.sleep(start_delay)
+            self.__delay(start_delay, request=req, update_status=update_status)
 
         rsyncdir = self.__get_rsync_directory(hs_copydir, timetag_dir)
         use_daemon = self.is_cluster_sps or self.is_cluster_spts
@@ -177,7 +178,7 @@ class HsRSyncFiles(HsBase):
 
         if stop_delay > 0.0:
             logging.info("Delay rsync finish by %d seconds", int(stop_delay))
-            time.sleep(stop_delay)
+            self.__delay(start_delay, request=req, update_status=update_status)
 
         if failed:
             return None, tmp_dir
@@ -209,6 +210,37 @@ class HsRSyncFiles(HsBase):
         debugjson = HsUtil.assemble_email_dict(self.DEBUG_EMAIL, header,
                                                message)
         self.__i3socket.send_json(debugjson)
+
+    def __delay(self, delay_time, request=None, update_status=None):
+        """
+        Delay start/stop by alternately sending a "keepalive" message and then
+        sleeping for a bit
+        """
+        if request is None or update_status is None:
+            # since we're missing vital info, we must sleep and then return
+            time.sleep(delay_time)
+            return
+
+        five_minutes = 300.0
+        total_delay = 0.0
+        while True:
+            # send a "keepalive" message, even if we'll immediately exit
+            update_status(request.copy_dir, request.destination_dir,
+                          HsMessage.WORKING)
+
+            # if we've waited for the requested time, we're done sleeping
+            if total_delay >= delay_time:
+                break
+
+            # figure out how long we should sleep
+            if delay_time - total_delay > five_minutes:
+                sleep_time = five_minutes
+            else:
+                sleep_time = delay_time
+
+            # sleep then update the total delay
+            time.sleep(sleep_time)
+            total_delay += sleep_time
 
     def __extract_hits(self, src_tuples_list, start_tick, stop_tick, tmp_dir):
         """
