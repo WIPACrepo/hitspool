@@ -118,6 +118,40 @@ class MockPullSocket(HsTestUtil.MockPollableSocket):
             (type(self).__name__, self.__name, cstr, xstr,
              len(self.__outqueue))
 
+    def __check_expected(self, msgjson):
+        with self.__exp_lock:
+            found = None
+            for i in range(len(self.__expected)):
+                if i >= len(self.__expected):
+                    break
+                expjson = self.__expected[i]
+                try:
+                    HsTestUtil.CompareObjects(self.__name, msgjson, expjson)
+                    found = i
+                    break
+                except:
+                    continue
+
+            # if the message was unknown, throw a CompareException
+            if found is None:
+                if len(self.__expected) == 0:
+                    xstr = ""
+                else:
+                    xstr = "\n\t(exp %s)" % str(self.__expected[0])
+
+                raise HsTestUtil.CompareException("Unexpected %s(%s) message"
+                                                  " (of %d): %s%s" %
+                                                  (type(self).__name__,
+                                                   self.__name,
+                                                   len(self.__expected),
+                                                   msgjson, xstr))
+
+            # we received an expected message, delete it
+            expjson = self.__expected[found]
+            del self.__expected[found]
+
+            return expjson
+
     def add_expected(self, jdict):
         with self.__exp_lock:
             self.__expected.append(jdict)
@@ -151,36 +185,10 @@ class MockPullSocket(HsTestUtil.MockPollableSocket):
         except:
             msgjson = msgstr
 
-        with self.__exp_lock:
-            found = None
-            for i in range(len(self.__expected)):
-                if i >= len(self.__expected):
-                    break
-                expjson = self.__expected[i]
-                try:
-                    HsTestUtil.CompareObjects(self.__name, msgjson, expjson)
-                    found = i
-                    break
-                except:
-                    continue
-
-            # if the message was unknown, throw a CompareException
-            if found is None:
-                if len(self.__expected) == 0:
-                    xstr = ""
-                else:
-                    xstr = "\n\t(exp %s)" % str(self.__expected[0])
-
-                raise HsTestUtil.CompareException("Unexpected %s(%s) message"
-                                                  " (of %d): %s%s" %
-                                                  (type(self).__name__,
-                                                   self.__name,
-                                                   len(self.__expected),
-                                                   msgjson, xstr))
-
-            # we received an expected message, delete it
-            expjson = self.__expected[found]
-            del self.__expected[found]
+        if msgjson["msgtype"] == HsMessage.WORKING:
+            pass  # ignore "keepalive" messages
+        else:
+            expjson = self.__check_expected(msgjson)
 
             if self.__verbose:
                 explen = len(self.__expected)
@@ -190,13 +198,13 @@ class MockPullSocket(HsTestUtil.MockPollableSocket):
                     (type(self).__name__, self.__name, explen,
                      "s" if explen != 1 else "")
 
-        with self.__queue_lock:
-            if self.__closed:
-                raise Exception("Cannot send from closed %s socket" %
-                                str(self.__name))
+            with self.__queue_lock:
+                if self.__closed:
+                    raise Exception("Cannot send from closed %s socket" %
+                                    str(self.__name))
 
-            self.__outqueue.append(msgjson)
-            self.__queue_lock.notify()
+                self.__outqueue.append(msgjson)
+                self.__queue_lock.notify()
 
     def set_verbose(self, value=True):
         self.__verbose = value
@@ -676,12 +684,6 @@ class IntegrationTest(LoggingTestCase):
             msg_started["host"] = wrk.shorthost
             sender.reporter.add_expected(msg_started)
 
-            msg_working = msg_started.copy()
-            msg_working["msgtype"] = HsMessage.WORKING
-            sender.reporter.add_expected(msg_working)
-            # hard-coded to only expect 2 file transfers
-            sender.reporter.add_expected(msg_working)
-
             msg_done = msg_started.copy()
             msg_done["msgtype"] = HsMessage.DONE
             msg_done["copy_dir"] = re.compile(os.path.join(destdir, prefix) +
@@ -708,11 +710,6 @@ class IntegrationTest(LoggingTestCase):
             "copy_dir": None,
         }
         worker.sender.add_expected(msg_started)
-
-        msg_working = msg_started.copy()
-        msg_working["msgtype"] = HsMessage.WORKING
-        worker.sender.add_expected(msg_working)
-        worker.sender.add_expected(msg_working)
 
         msg_done = msg_started.copy()
         msg_done["msgtype"] = HsMessage.DONE

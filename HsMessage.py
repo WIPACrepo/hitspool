@@ -7,6 +7,8 @@ import struct
 import threading
 import time
 
+import HsConstants
+
 from HsException import HsException
 from HsPrefix import HsPrefix
 from HsUtil import dict_to_object
@@ -120,6 +122,14 @@ def send(sock, msgtype, req_id, user, start_ticks, stop_ticks, destdir,
     extract = extract is not None and extract
     if version is None:
         version = CURRENT_VERSION
+
+    # I3Live should only specify one of their known dropboxes
+    if prefix == HsPrefix.LIVE:
+        # testbed/test_requests.py writes to /tmp/TESTCLUSTER
+        if destdir not in HsConstants.I3LIVE_DROPBOXES \
+          and "TESTCLUSTER" not in destdir:
+            raise HsException("Destination \"%s\" is not valid for %s"
+                              " in Req#%s" % (destdir, prefix, str(req_id)))
 
     msg = {
         "msgtype": msgtype,

@@ -312,21 +312,6 @@ class Worker(HsRSyncFiles):
         logging.warning("Signal Handler called with signal %s", signum)
         logging.warning("Shutting down...\n")
 
-        if self.i3socket is not None:
-            if signum != signal.SIGUSR1:
-                i3live_dict = {}
-                i3live_dict["service"] = "HSiface"
-                i3live_dict["varname"] = "HsWorker@%s" % self.shorthost
-                i3live_dict["value"] = "INFO: SHUT DOWN due to signal %s" % \
-                                       (signum, )
-                self.i3socket.send_json(i3live_dict)
-
-            i3live_dict = {}
-            i3live_dict["service"] = "HSiface"
-            i3live_dict["varname"] = "HsWorker@%s" % self.shorthost
-            i3live_dict["value"] = "STOPPED"
-            self.i3socket.send_json(i3live_dict)
-
         self.close_all()
 
         raise SystemExit(0)
@@ -403,17 +388,6 @@ if __name__ == '__main__':
         add_arguments(parser)
 
         args = parser.parse_args()
-
-        usage = False
-        if not usage:
-            if args.copydir is not None and not os.path.exists(args.copydir):
-                print >>sys.stderr, \
-                    "Copy directory \"%s\" does not exist" % args.copydir
-                usage = True
-            elif args.hubroot is not None and not os.path.exists(args.hubroot):
-                print >>sys.stderr, \
-                    "Hub directory \"%s\" does not exist" % args.hubroot
-                usage = True
 
         worker = Worker("HsWorker", host=args.hostname, is_test=args.is_test)
 

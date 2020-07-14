@@ -242,6 +242,9 @@ class ListQueue(object):
         listed = False
 
         conn = self.__open_hitspool_database()
+        if conn is None:
+            return
+
         try:
             cursor = conn.cursor()
 
@@ -294,6 +297,9 @@ class ListQueue(object):
     def list_requests(self):
         "List all requests"
         conn = self.__open_state_database()
+        if conn is None:
+            return
+
         try:
             requests = self.__load_state_db(conn)
         finally:
