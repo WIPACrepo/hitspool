@@ -125,8 +125,14 @@ def send(sock, msgtype, req_id, user, start_ticks, stop_ticks, destdir,
 
     # I3Live should only specify one of their known dropboxes
     if prefix == HsPrefix.LIVE:
+        if not destdir.endswith("/"):
+            chkdir = destdir
+        else:
+            chkdir = destdir[:-1]
+
         # testbed/test_requests.py writes to /tmp/TESTCLUSTER
         if destdir not in HsConstants.I3LIVE_DROPBOXES \
+          and chkdir not in HsConstants.I3LIVE_DROPBOXES \
           and "TESTCLUSTER" not in destdir:
             raise HsException("Destination \"%s\" is not valid for %s"
                               " in Req#%s" % (destdir, prefix, str(req_id)))
