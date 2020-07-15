@@ -9,6 +9,7 @@ import os
 import re
 import select
 import subprocess
+import time
 
 import HsMessage
 

@@ -10,12 +10,6 @@ In an emergency, log onto access and run:
 
 This will stop all the hitspool programs and restart them.
 
-### Deploying
-
-On access:
-
-`cd HsInterface/current && fab hs_deploy && fab hs_start`
-
 ### Basic architecture
 
 ```
@@ -61,7 +55,26 @@ as expected:
 * `sender.log` should note that it received the `rsync_sum` message and moved
   the associated files, and that it received and ignored to `log_done` message
 
+### Releasing
+
+On access:
+
+`cd HsInterface/current`
+`svn copy \
+ http://code.icecube.wisc.edu/daq/projects/hitspool/trunk \
+ http://code.icecube.wisc.edu/daq/projects/hitspool/releases/NewFoo`
+`cp -pr ../OldFoo ../NewFoo`
+`cd ../NewFoo && svn switch \
+ http://code.icecube.wisc.edu/daq/projects/hitspool/releases/NewFoo`
+
+### Deploying
+
+On access:
+
+`cd HsInterface/current && fab hs_deploy && fab hs_start`
+
 ### SnDAQ verification
+
 SnDAQ's control program (`access:~pdaq/sndaq/sndaq_current_build/bin/sni3ctl`)
 includes a `create_test_alert` command which can be used to verify that SnDAQ
 can still talk to the HitSpool code.  The `create_test_alert` command fakes an
