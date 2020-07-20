@@ -9,6 +9,7 @@ import os
 import re
 import select
 import subprocess
+import sys
 import time
 
 import HsMessage
@@ -57,7 +58,7 @@ class Copier(object):
 
         result = self.summarize()
         if result is not None:
-            (filename, size, received, bps, speedup) = result
+            (_, size, _, _, _) = result
             if self.__size is None:
                 self.__size = size
             else:
@@ -69,9 +70,18 @@ class Copier(object):
         full_cmd = "%s %s \"%s\"" % (self.__cmd, filename, self.__target)
 
         logging.info("command: %s", full_cmd)
-        proc = subprocess.Popen(full_cmd, shell=True, bufsize=256,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                preexec_fn=os.setsid)
+        if sys.version_info < (3, 2):
+            # pylint: disable=subprocess-popen-preexec-fn
+            proc = subprocess.Popen(full_cmd, shell=True, bufsize=256,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    preexec_fn=os.setsid)
+        else:
+            # use thread-safe 'start_new_session' to start a new session
+            proc = subprocess.Popen(full_cmd, shell=True, bufsize=256,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    start_new_session=True)
 
         num_err = 0
         while True:
@@ -87,9 +97,9 @@ class Copier(object):
 
             for fin in ret[0]:
                 if fin == proc.stdout.fileno():
-                    self.parse_line(proc.stdout.readline())
+                    self.parse_line(proc.stdout.readline().decode("utf-8"))
                 if fin == proc.stderr.fileno():
-                    self.parse_line(proc.stderr.readline())
+                    self.parse_line(proc.stderr.readline().decode("utf-8"))
 
             if proc.poll() is not None:
                 break
@@ -282,7 +292,7 @@ class CopyUsingRSync(Copier):
         if line.startswith("sent "):
             mtch = self.SENT_PAT.match(line)
             if mtch is None:
-                logging.error("??? " + line.rstrip())
+                logging.error("??? %s", line.rstrip())
                 return
 
             try:
@@ -290,21 +300,21 @@ class CopyUsingRSync(Copier):
                 self.__rcvd = int(mtch.group(2).replace(",", ""))
                 self.__bps = float(mtch.group(3).replace(",", ""))
             except:
-                logging.error("Bad value(s) in " + line.rstrip())
+                logging.error("Bad value(s) in %s", line.rstrip())
 
             return
 
         if line.startswith("total size is "):
             mtch = self.TOTAL_PAT.match(line)
             if mtch is None:
-                logging.error("??? " + line.rstrip())
+                logging.error("??? %s", line.rstrip())
                 return
 
             try:
                 tsize = int(mtch.group(1).replace(",", ""))
                 self.__speedup = float(mtch.group(2).replace(",", ""))
             except:
-                logging.error("Bad value(s) in " + line.rstrip())
+                logging.error("Bad value(s) in %s", line.rstrip())
                 return
 
             if tsize != self.__size and self.__size != 0:
@@ -378,13 +388,13 @@ class CopyUsingSCP(Copier):
             return
 
         if line.startswith("scp: "):
-            logging.error("SCP error: " + line[5:].rstrip())
+            logging.error("SCP error: %s", line[5:].rstrip())
             return
 
         if line.find("Sink: ") >= 0:
             flds = line.split()
             if len(flds) < 4:
-                logging.error("Malformed SCP line: " + line.rstrip())
+                logging.error("Malformed SCP line: %s", line.rstrip())
                 return
 
             try:
@@ -413,7 +423,7 @@ class CopyUsingSCP(Copier):
         if line.find("Bytes per second: ") >= 0:
             flds = line.split()
             if not flds[4].endswith(","):
-                logging.error("Bad BPS line: " + line.rstrip())
+                logging.error("Bad BPS line: %s", line.rstrip())
             else:
                 self.__bps = float(flds[4][:-1])
             return

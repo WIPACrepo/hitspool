@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import errno
 import logging
 import os
 import tempfile
@@ -101,9 +102,10 @@ class HsSpaderTest(LoggingTestCase):
         outdir = tempfile.mkdtemp()
 
         # add all expected log messages
-        self.expectLogMessage("Preparation for SPADE Pickup of HS data"
-                              " started manually via HsSpader...")
-        self.expectLogMessage("no HS data found for this alert time pattern.")
+        self.expect_log_message("Preparation for SPADE Pickup of HS data"
+                                " started manually via HsSpader...")
+        self.expect_log_message("no HS data found for this alert time "
+                                "pattern.")
 
         hsp.spade_pickup_data(outdir, timetag, outdir)
 
@@ -131,14 +133,13 @@ class HsSpaderTest(LoggingTestCase):
         outdir = "/xxx/yyy/zzz\/\/foo::bar"
 
         # add all expected log messages
-        self.expectLogMessage("Preparation for SPADE Pickup of HS data"
-                              " started manually via HsSpader...")
+        self.expect_log_message("Preparation for SPADE Pickup of HS data"
+                                " started manually via HsSpader...")
 
         try:
             hsp.spade_pickup_data(outdir, timetag, outdir)
             self.fail("Should not be able to create %s" % outdir)
-        except OSError, err:
-            import errno
+        except OSError as err:
             if err.errno != errno.EACCES:
                 raise
 
@@ -167,19 +168,19 @@ class HsSpaderTest(LoggingTestCase):
         outdir = tempfile.mkdtemp()
 
         # add all expected log messages
-        self.expectLogMessage("Preparation for SPADE Pickup of HS data"
-                              " started manually via HsSpader...")
-        self.expectLogMessage("found HS data:\n%s" % [hsdir, ])
-        self.expectLogMessage("data: %s_%s_%s will be tarred to: %s" %
-                              (category, timetag, host, tarname))
-        self.expectLogMessage("Preparation for SPADE Pickup of %s DONE" %
-                              basename)
-        for hub in xrange(2, 87):
-            self.expectLogMessage("no or ambiguous HS data found for ichub%02d"
-                                  " in this directory." % hub)
-        for hub in xrange(1, 12):
-            self.expectLogMessage("no or ambiguous HS data found for ithub%02d"
-                                  " in this directory." % hub)
+        self.expect_log_message("Preparation for SPADE Pickup of HS data"
+                                " started manually via HsSpader...")
+        self.expect_log_message("found HS data:\n%s" % [hsdir, ])
+        self.expect_log_message("data: %s_%s_%s will be tarred to: %s" %
+                                (category, timetag, host, tarname))
+        self.expect_log_message("Preparation for SPADE Pickup of %s DONE" %
+                                basename)
+        for hub in range(2, 87):
+            self.expect_log_message("no or ambiguous HS data found for"
+                                    " ichub%02d in this directory." % hub)
+        for hub in range(1, 12):
+            self.expect_log_message("no or ambiguous HS data found for"
+                                    " ithub%02d in this directory." % hub)
 
         hsp.spade_pickup_data(MockHitspool.COPY_DIR, timetag, outdir)
 
@@ -195,9 +196,10 @@ class HsSpaderTest(LoggingTestCase):
         self.setLogLevel(logging.INFO)
 
         # add all expected log messages
-        self.expectLogMessage("Preparation for SPADE Pickup of HS data"
-                              " started manually via HsSpader...")
-        self.expectLogMessage("no HS data found for this alert time pattern.")
+        self.expect_log_message("Preparation for SPADE Pickup of HS data"
+                                " started manually via HsSpader...")
+        self.expect_log_message("no HS data found for this alert time "
+                                "pattern.")
 
         hsp.spade_pickup_data(indir, timetag, outdir)
 
@@ -217,15 +219,15 @@ class HsSpaderTest(LoggingTestCase):
         self.setLogLevel(logging.INFO)
 
         # add all expected log messages
-        self.expectLogMessage("Preparation for SPADE Pickup of HS data"
-                              " started manually via HsSpader...")
-        self.expectLogMessage("found HS data:\n%s" % filelist)
-        for hub in xrange(1, 87):
-            self.expectLogMessage("no or ambiguous HS data found for ichub%02d"
-                                  " in this directory." % hub)
-        for hub in xrange(1, 12):
-            self.expectLogMessage("no or ambiguous HS data found for ithub%02d"
-                                  " in this directory." % hub)
+        self.expect_log_message("Preparation for SPADE Pickup of HS data"
+                                " started manually via HsSpader...")
+        self.expect_log_message("found HS data:\n%s" % filelist)
+        for hub in range(1, 87):
+            self.expect_log_message("no or ambiguous HS data found for"
+                                    " ichub%02d in this directory." % hub)
+        for hub in range(1, 12):
+            self.expect_log_message("no or ambiguous HS data found for"
+                                    " ithub%02d in this directory." % hub)
 
         hsp.spade_pickup_data(indir, timetag, outdir)
 
@@ -252,20 +254,20 @@ class HsSpaderTest(LoggingTestCase):
         self.setLogLevel(logging.INFO)
 
         # add all expected log messages
-        self.expectLogMessage("Preparation for SPADE Pickup of HS data"
-                              " started manually via HsSpader...")
-        self.expectLogMessage("found HS data:\n%s" % filelist)
-        for hub in xrange(1, 86):
-            self.expectLogMessage("no or ambiguous HS data found for ichub%02d"
-                                  " in this directory." % hub)
-        self.expectLogMessage("data: %s_%s_%s will be tarred to: %s" %
-                              (category, timetag, host, tarname))
-        self.expectLogMessage("Fake Tar Error")
-        self.expectLogMessage("Please put the data manually in"
-                              " the SPADE directory")
-        for hub in xrange(1, 12):
-            self.expectLogMessage("no or ambiguous HS data found for ithub%02d"
-                                  " in this directory." % hub)
+        self.expect_log_message("Preparation for SPADE Pickup of HS data"
+                                " started manually via HsSpader...")
+        self.expect_log_message("found HS data:\n%s" % filelist)
+        for hub in range(1, 86):
+            self.expect_log_message("no or ambiguous HS data found for"
+                                    " ichub%02d in this directory." % hub)
+        self.expect_log_message("data: %s_%s_%s will be tarred to: %s" %
+                                (category, timetag, host, tarname))
+        self.expect_log_message("Fake Tar Error")
+        self.expect_log_message("Please put the data manually in"
+                                " the SPADE directory")
+        for hub in range(1, 12):
+            self.expect_log_message("no or ambiguous HS data found for"
+                                    " ithub%02d in this directory." % hub)
 
         hsp.spade_pickup_data(indir, timetag, outdir)
 
@@ -292,20 +294,20 @@ class HsSpaderTest(LoggingTestCase):
         self.setLogLevel(logging.INFO)
 
         # add all expected log messages
-        self.expectLogMessage("Preparation for SPADE Pickup of HS data"
-                              " started manually via HsSpader...")
-        self.expectLogMessage("found HS data:\n%s" % filelist)
-        for hub in xrange(1, 86):
-            self.expectLogMessage("no or ambiguous HS data found for ichub%02d"
-                                  " in this directory." % hub)
-        self.expectLogMessage("data: %s_%s_%s will be tarred to: %s" %
-                              (category, timetag, host, tarname))
-        self.expectLogMessage("Fake Move Error")
-        self.expectLogMessage("Please put the data manually in"
-                              " the SPADE directory")
-        for hub in xrange(1, 12):
-            self.expectLogMessage("no or ambiguous HS data found for ithub%02d"
-                                  " in this directory." % hub)
+        self.expect_log_message("Preparation for SPADE Pickup of HS data"
+                                " started manually via HsSpader...")
+        self.expect_log_message("found HS data:\n%s" % filelist)
+        for hub in range(1, 86):
+            self.expect_log_message("no or ambiguous HS data found for"
+                                    " ichub%02d in this directory." % hub)
+        self.expect_log_message("data: %s_%s_%s will be tarred to: %s" %
+                                (category, timetag, host, tarname))
+        self.expect_log_message("Fake Move Error")
+        self.expect_log_message("Please put the data manually in"
+                                " the SPADE directory")
+        for hub in range(1, 12):
+            self.expect_log_message("no or ambiguous HS data found for"
+                                    " ithub%02d in this directory." % hub)
 
         hsp.spade_pickup_data(indir, timetag, outdir)
 
@@ -332,21 +334,21 @@ class HsSpaderTest(LoggingTestCase):
         self.setLogLevel(logging.INFO)
 
         # add all expected log messages
-        self.expectLogMessage("Preparation for SPADE Pickup of HS data"
-                              " started manually via HsSpader...")
-        self.expectLogMessage("found HS data:\n%s" % filelist)
-        for hub in xrange(1, 86):
-            self.expectLogMessage("no or ambiguous HS data found for ichub%02d"
-                                  " in this directory." % hub)
-        self.expectLogMessage("data: %s_%s_%s will be tarred to: %s" %
-                              (category, timetag, host, tarname))
-        self.expectLogMessage("Fake Touch Error")
-        self.expectLogMessage("Please put the data manually in"
-                              " the SPADE directory")
+        self.expect_log_message("Preparation for SPADE Pickup of HS data"
+                                " started manually via HsSpader...")
+        self.expect_log_message("found HS data:\n%s" % filelist)
+        for hub in range(1, 86):
+            self.expect_log_message("no or ambiguous HS data found for"
+                                    " ichub%02d in this directory." % hub)
+        self.expect_log_message("data: %s_%s_%s will be tarred to: %s" %
+                                (category, timetag, host, tarname))
+        self.expect_log_message("Fake Touch Error")
+        self.expect_log_message("Please put the data manually in"
+                                " the SPADE directory")
 
-        for hub in xrange(1, 12):
-            self.expectLogMessage("no or ambiguous HS data found for ithub%02d"
-                                  " in this directory." % hub)
+        for hub in range(1, 12):
+            self.expect_log_message("no or ambiguous HS data found for"
+                                    " ithub%02d in this directory." % hub)
 
         hsp.spade_pickup_data(indir, timetag, outdir)
 
@@ -371,20 +373,20 @@ class HsSpaderTest(LoggingTestCase):
         self.setLogLevel(logging.INFO)
 
         # add all expected log messages
-        self.expectLogMessage("Preparation for SPADE Pickup of HS data"
-                              " started manually via HsSpader...")
-        self.expectLogMessage("found HS data:\n%s" % filelist)
-        for hub in xrange(1, 86):
-            self.expectLogMessage("no or ambiguous HS data found for ichub%02d"
-                                  " in this directory." % hub)
-        self.expectLogMessage("data: %s_%s_%s will be tarred to: %s" %
-                              (category, timetag, host, tarname))
-        self.expectLogMessage("Preparation for SPADE Pickup of %s DONE" %
-                              basename)
+        self.expect_log_message("Preparation for SPADE Pickup of HS data"
+                                " started manually via HsSpader...")
+        self.expect_log_message("found HS data:\n%s" % filelist)
+        for hub in range(1, 86):
+            self.expect_log_message("no or ambiguous HS data found for"
+                                    " ichub%02d in this directory." % hub)
+        self.expect_log_message("data: %s_%s_%s will be tarred to: %s" %
+                                (category, timetag, host, tarname))
+        self.expect_log_message("Preparation for SPADE Pickup of %s DONE" %
+                                basename)
 
-        for hub in xrange(1, 12):
-            self.expectLogMessage("no or ambiguous HS data found for ithub%02d"
-                                  " in this directory." % hub)
+        for hub in range(1, 12):
+            self.expect_log_message("no or ambiguous HS data found for"
+                                    " ithub%02d in this directory." % hub)
 
         hsp.spade_pickup_data(indir, timetag, outdir)
 

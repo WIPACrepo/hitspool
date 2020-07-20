@@ -35,10 +35,12 @@ class HsSpader(HsBase):
     def __init__(self):
         super(HsSpader, self).__init__()
 
+    # pylint: disable=no-self-use
     def find_matching_files(self, basedir, alertname):
         "This wrapper exists only so tests can override it"
         return glob.glob(os.path.join(basedir, "*" + alertname + "*"))
 
+    # pylint: disable=no-self-use
     def makedirs(self, path):
         "This wrapper exists only so tests can override it"
         if not os.path.exists(path):
@@ -67,8 +69,8 @@ class HsSpader(HsBase):
 
         datalistlocal = [os.path.basename(s) for s in datalist]
 
-        hubnamelist = ["ichub%02d" % i for i in xrange(1, 87)] + \
-                      ["ithub%02d" % i for i in xrange(1, 12)]
+        hubnamelist = ["ichub%02d" % i for i in range(1, 87)] + \
+                      ["ithub%02d" % i for i in range(1, 12)]
         for hub in hubnamelist:
             data = [s for s in datalistlocal if hub in s]
             if len(data) != 1:

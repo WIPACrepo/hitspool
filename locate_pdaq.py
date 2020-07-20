@@ -8,11 +8,11 @@ CONFIGDIR = None
 
 
 class DirectoryNotFoundException(Exception):
-    pass
+    "Thrown if a directory cannot be found"
 
 
 class DirectoryAlreadySetException(Exception):
-    pass
+    "Thrown if the caller attempts to override the existing CONFIGDIR"
 
 
 def find_pdaq_config():
@@ -41,7 +41,7 @@ def find_pdaq_config():
     #  the source directory
     try:
         trunk = find_pdaq_trunk()
-    except:
+    except DirectoryNotFoundException:
         trunk = None
 
     if trunk is not None:
@@ -61,22 +61,22 @@ def find_pdaq_trunk():
         return METADIR
 
     if "PDAQ_HOME" in os.environ:
-        dir = os.environ["PDAQ_HOME"]
-        if os.path.exists(dir):
-            METADIR = dir
+        metadir = os.environ["PDAQ_HOME"]
+        if os.path.exists(metadir):
+            METADIR = metadir
             return METADIR
 
-    homePDAQ = os.path.join(os.environ["HOME"], "pDAQ_current")
-    curDir = os.getcwd()
-    [parentDir, baseName] = os.path.split(curDir)
-    for dir in [curDir, parentDir, homePDAQ]:
+    pdaq_home = os.path.join(os.environ["HOME"], "pDAQ_current")
+    cur_dir = os.getcwd()
+    [parent_dir, _] = os.path.split(cur_dir)
+    for xdir in [cur_dir, parent_dir, pdaq_home]:
         # source tree has 'dash', 'src', and 'StringHub' (and maybe 'target')
         # deployed tree has 'dash', 'src', and 'target'
-        if os.path.isdir(os.path.join(dir, 'dash')) and \
-            os.path.isdir(os.path.join(dir, 'src')) and \
-            (os.path.isdir(os.path.join(dir, 'target')) or
-             os.path.isdir(os.path.join(dir, 'StringHub'))):
-            METADIR = dir
+        if os.path.isdir(os.path.join(xdir, 'dash')) and \
+            os.path.isdir(os.path.join(xdir, 'src')) and \
+            (os.path.isdir(os.path.join(xdir, 'target')) or
+             os.path.isdir(os.path.join(xdir, 'StringHub'))):
+            METADIR = xdir
             return METADIR
 
     raise DirectoryNotFoundException("Cannot find pDAQ trunk (PDAQ_HOME)")

@@ -58,8 +58,8 @@ class LoggingTestCase(TestCasePlus):
 
     # pylint: disable=invalid-name
     # match other test methods
-    def expectLogMessage(self, msg):
-        self._my_log_handler.addExpected(msg)
+    def expect_log_message(self, msg):
+        self._my_log_handler.add_expected(msg)
 
     # pylint: disable=invalid-name
     # match other test methods

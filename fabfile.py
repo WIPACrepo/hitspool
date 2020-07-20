@@ -5,6 +5,8 @@ on a localhost machine.
 David Heereman, i3.hsinterface@gmail.com
 """
 
+from __future__ import print_function
+
 import os
 import subprocess
 import sys
@@ -17,6 +19,8 @@ from fabric.api import *
 from fabric.contrib.project import rsync_project
 
 import HsConstants
+
+from i3helper import read_input
 
 
 # detect the system this fab is running on
@@ -85,23 +89,24 @@ elif SYSTEM_NAME == "SPS":
         '2ndbuild': ['pdaq@2ndbuild'],
         'expcont': ['pdaq@expcont'],
         'hubs': ['pdaq@ichub%02d' % i for i in range(1, 87)] +
-        ['pdaq@ithub%02d' % i for i in range(1, 12)],
+                ['pdaq@ithub%02d' % i for i in range(1, 12)],
     }
     DO_LOCAL = False
 
 elif SYSTEM_NAME == "LOCALHOST":
 
     rolename = USER + '@' + HOST
-    print "This fabfile is running on a local machine.\n\
-    This means that there is no real cluster. \n\
-    So we'll assume the following:\n\
-    SVN_PATH = your development sandbox\n\
-    HSIFACE_PATH = CHECKOUT_PATH\n"
+    print("""
+This fabfile is running on a local machine.\n
+This means that there is no real cluster. \n
+So we'll assume the following:\n
+SVN_PATH = your development sandbox\n
+HSIFACE_PATH = CHECKOUT_PATH\n""")
 
     SVN_PATH = "http://code.icecube.wisc.edu/svn/sandbox/dheereman/" \
         "HitSpoolScripts/trunk"
     CHECKOUT_PATH \
-        = str(raw_input("Your local path to the HitSpool Interface: "))
+        = str(read_input("Your local path to the HitSpool Interface: "))
     HSIFACE_PATH = CHECKOUT_PATH
     DEPLOY_TARGET = ["localhost"]
 
@@ -380,9 +385,6 @@ def hs_stop_watcher_on_host(host, do_local=DO_LOCAL):
     """
     Stop a hanging HsWatcher on <host>
     """
-    """
-    Kill a script
-    """
     if do_local:
         frun = _capture_local
     else:
@@ -551,18 +553,18 @@ def hs_status():
 
     if len(inactive_comp) > 0:
         value = "%s of %s components NOT RUNNING: %s" % \
-                (len(inactive_comp), len(DEPLOY_TARGET), inactive_comp),
+                (len(inactive_comp), len(DEPLOY_TARGET), inactive_comp)
     else:
         value = "%s of %s components RUNNING" % \
-                (len(DEPLOY_TARGET), len(DEPLOY_TARGET)),
+                (len(DEPLOY_TARGET), len(DEPLOY_TARGET))
     i3socket.send_json({"service": "HSiface",
                         "varname": "state",
                         "value": value,
                         "prio": 1})
 
     if len(active_comp) > 0:
-        print "%d HsInterface components are active:\n%s" % \
-            (len(active_comp), active_comp)
+        print("%d HsInterface components are active:\n%s" %
+              (len(active_comp), active_comp))
     if len(inactive_comp) > 0:
-        print "%d HsInterface components are NOT active:\n%s" % \
-            (len(inactive_comp), inactive_comp)
+        print("%d HsInterface components are NOT active:\n%s" %
+              (len(inactive_comp), inactive_comp))

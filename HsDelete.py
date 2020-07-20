@@ -3,6 +3,8 @@
 Hit Spool Request Deletion
 """
 
+from __future__ import print_function
+
 import getpass
 import logging
 import os
@@ -14,6 +16,7 @@ import HsMessage
 
 from HsBase import HsBase
 from HsConstants import ALERT_PORT
+from i3helper import read_input
 
 
 # requests longer than this will provoke a warning message
@@ -44,23 +47,23 @@ class LogToConsole(object):  # pragma: no cover
     @staticmethod
     def info(msg, *args):
         "Print INFO message to stdout"
-        print msg % args
+        print(msg % args)
 
     @staticmethod
     def error(msg, *args):
         "Print ERROR message to stderr"
-        print >>sys.stderr, msg % args
+        print(msg % args, file=sys.stderr)
 
     @staticmethod
     def exception(msg, *args):
         "Print ERROR message and exception stacktrace to stderr"
-        print >>sys.stderr, msg % args
+        print(msg % args, file=sys.stderr)
         traceback.print_exc()
 
     @staticmethod
     def warn(msg, *args):
         "Print WARN message to stderr"
-        print >>sys.stderr, msg % args
+        print(msg % args, file=sys.stderr)
 
 
 class HsDelete(HsBase):
@@ -124,7 +127,7 @@ class HsDelete(HsBase):
             print_log = logging
 
         if print_to_console:
-            answer = raw_input("Do you want to proceed? [y/n] : ")
+            answer = read_input("Do you want to proceed? [y/n] : ")
             if not answer.lower().startswith("y"):
                 return False
 
@@ -132,7 +135,7 @@ class HsDelete(HsBase):
 
         try:
             if not HsMessage.send(self.__sender, HsMessage.DELETE, request_id,
-                                  username, 0L, 0L, "/dev/null",
+                                  username, 0, 0, "/dev/null",
                                   host=self.shorthost):
                 print_log.error("Delete message was not sent!")
             else:
@@ -184,7 +187,7 @@ class HsDelete(HsBase):
                 logging.info("Unknown response: %s", msg)
 
             if print_to_console:
-                print ".",
+                print(".", end="")
                 sys.stdout.flush()
 
         logging.error("No response within %s seconds.\nAbort request.",

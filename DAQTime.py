@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 import datetime
 import numbers
 import re
+import sys
 
 from HsException import HsException
-from leapseconds import leapseconds
+from leapseconds import LeapSeconds
 
 
 # dictionary which maps year to the datetime object for January 1 of that year
@@ -32,6 +35,7 @@ def jan1_by_year(daq_time=None):
 
 
 def ticks_to_utc(ticks):
+    "Convert an integral DAQ tick value to a time object"
     if ticks is None:
         raise HsException("No tick value specified")
     if not isinstance(ticks, numbers.Number):
@@ -41,15 +45,16 @@ def ticks_to_utc(ticks):
 
 
 def string_to_ticks(timestr, is_ns=False):
+    "Convert a time string to an integral DAQ tick value"
     if timestr is None:
         raise HsException("Found null value for start/stop time in %s" %
                           (timestr, ))
 
     multiplier = 10 if is_ns else 1
     if isinstance(timestr, numbers.Number):
-        return timestr * multiplier
+        return int(timestr * multiplier)
 
-    if isinstance(timestr, str) or isinstance(timestr, unicode):
+    if isinstance(timestr, str):
         if timestr.isdigit():
             try:
                 return int(timestr) * multiplier
@@ -89,7 +94,7 @@ def utc_to_ticks(utc):
     delta = utc - jan1_by_year(utc)
 
     # get the number of leap seconds (0 or 1) since the start of the year
-    leap = leapseconds.instance()
+    leap = LeapSeconds.instance()
     jan1_leapsecs = leap.get_leap_offset(0, year=utc.year)
     utc_leapsecs = leap.get_leap_offset(delta.days, year=utc.year)
     extrasecs = utc_leapsecs - jan1_leapsecs
@@ -98,8 +103,8 @@ def utc_to_ticks(utc):
                 1000000 + delta.microseconds) * 10000)
 
 
-if __name__ == "__main__":
-    import sys
+def main():
+    "Main method"
 
     is_ns = False
     for arg in sys.argv[1:]:
@@ -111,5 +116,9 @@ if __name__ == "__main__":
         utc = ticks_to_utc(ticks)
         tick2 = utc_to_ticks(utc)
 
-        print "Arg \"%s\"\n\t-> ticks %s\n\t->utc \"%s\"\n\t-> ticks %s" % \
-            (arg, ticks, utc, tick2)
+        print("Arg \"%s\"\n\t-> ticks %s\n\t->utc \"%s\"\n\t-> ticks %s" %
+              (arg, ticks, utc, tick2))
+
+
+if __name__ == "__main__":
+    main()

@@ -3,6 +3,8 @@
 Hit Spool Request Submitter
 """
 
+from __future__ import print_function
+
 import datetime
 import getpass
 import json
@@ -20,6 +22,7 @@ from HsBase import HsBase
 from HsConstants import ALERT_PORT, OLDALERT_PORT
 from HsException import HsException
 from HsPrefix import HsPrefix
+from i3helper import read_input
 
 
 # requests longer than this will provoke a warning message
@@ -112,23 +115,23 @@ class LogToConsole(object):  # pragma: no cover
     @staticmethod
     def info(msg, *args):
         "Print INFO message to stdout"
-        print msg % args
+        print(msg % args)
 
     @staticmethod
     def error(msg, *args):
         "Print ERROR message to stderr"
-        print >>sys.stderr, msg % args
+        print(msg % args, file=sys.stderr)
 
     @staticmethod
     def exception(msg, *args):
         "Print ERROR message and exception stacktrace to stderr"
-        print >>sys.stderr, msg % args
+        print(msg % args, file=sys.stderr)
         traceback.print_exc()
 
     @staticmethod
     def warn(msg, *args):
         "Print WARN message to stderr"
-        print >>sys.stderr, msg % args
+        print(msg % args, file=sys.stderr)
 
 
 class HsGrabber(HsBase):
@@ -239,7 +242,7 @@ class HsGrabber(HsBase):
                             secrange, WARN_SECONDS)
 
         if print_to_console and not proceed_no_prompt:
-            answer = raw_input("Do you want to proceed? [y/n] : ")
+            answer = read_input("Do you want to proceed? [y/n] : ")
             if not answer.lower().startswith("y"):
                 print_log.error("Request was not sent")
                 return False
@@ -390,7 +393,7 @@ class HsGrabber(HsBase):
                                   type(sock).__name__)
                     continue
 
-                if sock != self.__sender and sock != self.__publisher:
+                if sock not in (self.__sender, self.__publisher):
                     if sock is not None:
                         logging.error("Ignoring unknown incoming socket"
                                       " %s<%s>", sock.identity,
@@ -416,7 +419,7 @@ class HsGrabber(HsBase):
                 logging.info("Unknown response: %s", msg)
 
             if print_to_console:
-                print ".",
+                print(".", end="")
                 sys.stdout.flush()
 
         logging.error("No response from expcont's HsPublisher"
@@ -449,11 +452,11 @@ if __name__ == "__main__":
         if daq_ticks < now_ticks:
             return daq_ticks
 
-        print >>sys.stderr, "WARNING: %s %s is %s" % \
-            (name, rawval, DAQTime.ticks_to_utc(daq_ticks))
-        print >>sys.stderr, \
-            "         Assuming ticks instead of nanoseconds"
-        print >>sys.stderr
+        print("WARNING: %s %s is %s" %
+              (name, rawval, DAQTime.ticks_to_utc(daq_ticks)), file=sys.stderr)
+        print("         Assuming ticks instead of nanoseconds",
+              file=sys.stderr)
+        print("", file=sys.stderr)
 
         return DAQTime.string_to_ticks(rawval)
 
@@ -476,8 +479,8 @@ if __name__ == "__main__":
         if not usage:
             tmptime = parse_time("Starting time", args.begin_time, now_ticks)
             if tmptime is None:
-                print >>sys.stderr, "Invalid starting time \"%s\"" % \
-                        args.begin_time
+                print("Invalid starting time \"%s\"" % args.begin_time,
+                      file=sys.stderr)
                 usage = True
 
             start_ticks = tmptime
@@ -485,15 +488,15 @@ if __name__ == "__main__":
         if not usage:
             if args.end_time is not None:
                 if args.duration is not None:
-                    print >>sys.stderr, \
-                        "Cannot specify -d(uration) and -e(nd_time) together"
+                    print("Cannot specify -d(uration) and -e(nd_time) together",
+                          file=sys.stderr)
                     usage = True
                 else:
                     tmptime = parse_time("Stopping time", args.end_time,
                                          now_ticks)
                     if tmptime is None:
-                        print >>sys.stderr, "Invalid ending time \"%s\"" % \
-                            args.end_time
+                        print("Invalid ending time \"%s\"" % args.end_time,
+                              file=sys.stderr)
                         usage = True
                     stop_ticks = tmptime
             elif args.duration is not None:
@@ -501,12 +504,12 @@ if __name__ == "__main__":
                     dur = get_duration_from_string(args.duration)
                     stop_ticks = start_ticks + int(dur * 1E10)
                 except ValueError:
-                    print >>sys.stderr, "Invalid duration \"%s\"" % \
-                        args.duration
+                    print("Invalid duration \"%s\"" % args.duration,
+                          file=sys.stderr)
                     usage = True
             else:
-                print >>sys.stderr, \
-                    "Please specify either -d(uration) or -e(nd_time)"
+                print("Please specify either -d(uration) or -e(nd_time)",
+                      file=sys.stderr)
                 usage = True
 
         if usage:
@@ -540,13 +543,13 @@ if __name__ == "__main__":
 
         logging.info("This HsGrabber runs on: %s", hsg.fullhost)
 
-        print "Request start: %s (%d ns)" % \
-            (DAQTime.ticks_to_utc(start_ticks), start_ticks / 10)
-        print "Request end: %s (%d ns)" % \
-            (DAQTime.ticks_to_utc(stop_ticks), stop_ticks / 10)
-        print "Destination: %s" % (destdir, )
+        print("Request start: %s (%d ns)" %
+              (DAQTime.ticks_to_utc(start_ticks), start_ticks / 10))
+        print("Request end: %s (%d ns)" %
+              (DAQTime.ticks_to_utc(stop_ticks), stop_ticks / 10))
+        print("Destination: %s" % (destdir, ))
         if hubs is not None:
-            print "Hubs: %s" % (hubs, )
+            print("Hubs: %s" % (hubs, ))
 
         if not hsg.send_alert(start_ticks, stop_ticks, destdir,
                               request_id=args.request_id,

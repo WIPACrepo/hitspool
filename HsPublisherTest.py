@@ -2,6 +2,7 @@
 
 import json
 import re
+import traceback
 import unittest
 
 import HsMessage
@@ -69,7 +70,6 @@ class HsPublisherTest(LoggingTestCase):
                 try:
                     self.RECEIVER.close_all()
                 except:
-                    import traceback
                     traceback.print_exc()
                     found_error = True
                 self.RECEIVER = None
@@ -85,14 +85,14 @@ class HsPublisherTest(LoggingTestCase):
         req_str = ""
 
         # initialize incoming socket and add expected message(s)
-        rcvr.alert_socket.addIncoming(req_str)
-        rcvr.alert_socket.addExpected("ERROR\0")
+        rcvr.alert_socket.add_incoming(req_str)
+        rcvr.alert_socket.add_expected("ERROR\0")
 
         # add all expected log messages
-        self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage("Cannot decode %s" % req_str)
-        self.expectLogMessage("Ignoring bad request: %s" % req_str)
-        self.expectLogMessage("Sent response back to requester: ERROR")
+        self.expect_log_message("received request:\n%s" % req_str)
+        self.expect_log_message("Cannot decode %s" % req_str)
+        self.expect_log_message("Ignoring bad request: %s" % req_str)
+        self.expect_log_message("Sent response back to requester: ERROR")
 
         # run it!
         rcvr.reply_request()
@@ -107,14 +107,14 @@ class HsPublisherTest(LoggingTestCase):
         req_str = "XXX"
 
         # initialize incoming socket and add expected message(s)
-        rcvr.alert_socket.addIncoming(req_str)
-        rcvr.alert_socket.addExpected("ERROR\0")
+        rcvr.alert_socket.add_incoming(req_str)
+        rcvr.alert_socket.add_expected("ERROR\0")
 
         # add all expected log messages
-        self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage("Cannot decode %s" % req_str)
-        self.expectLogMessage("Ignoring bad request: %s" % req_str)
-        self.expectLogMessage("Sent response back to requester: ERROR")
+        self.expect_log_message("received request:\n%s" % req_str)
+        self.expect_log_message("Cannot decode %s" % req_str)
+        self.expect_log_message("Ignoring bad request: %s" % req_str)
+        self.expect_log_message("Sent response back to requester: ERROR")
 
         # run it!
         rcvr.reply_request()
@@ -135,18 +135,18 @@ class HsPublisherTest(LoggingTestCase):
                   (start_utc, stop_utc, copydir)
 
         # initialize incoming socket and add expected message(s)
-        rcvr.alert_socket.addIncoming(req_str)
-        rcvr.alert_socket.addExpected("ERROR\0")
+        rcvr.alert_socket.add_incoming(req_str)
+        rcvr.alert_socket.add_expected("ERROR\0")
 
         # add all expected log messages
-        self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage("Bad start time \"%s\"" % start_utc)
-        self.expectLogMessage(re.compile(r"Could not find start/stop time"
-                                         r" in request:\n.*"))
-        self.expectLogMessage("Sent response back to requester: ERROR")
+        self.expect_log_message("received request:\n%s" % req_str)
+        self.expect_log_message("Bad start time \"%s\"" % start_utc)
+        self.expect_log_message(re.compile(r"Could not find start/stop time"
+                                           r" in request:\n.*"))
+        self.expect_log_message("Sent response back to requester: ERROR")
 
         # initialize I3Live socket and add all expected I3Live messages
-        rcvr.i3socket.addExpectedMessage({
+        rcvr.i3socket.add_expected_message({
             'username': HsPublisher.Receiver.DEFAULT_USERNAME,
             'status': HsUtil.STATUS_REQUEST_ERROR,
             'prefix': HsPrefix.ANON,
@@ -156,7 +156,7 @@ class HsPublisherTest(LoggingTestCase):
             'destination_dir': copydir,
             'update_time': self.MATCH_ANY,
         }, service="hitspool", varname="hsrequest_info", prio=1,
-                                         time=self.MATCH_ANY)
+                                           time=self.MATCH_ANY)
 
         # run it!
         rcvr.reply_request()
@@ -174,25 +174,25 @@ class HsPublisherTest(LoggingTestCase):
 
         # build initial message
         alertdict = {
-            "start": start_ticks / 10,
+            "start": int(start_ticks / 10),
             "stop": stop_utc,
             "copy": copydir,
         }
         req_str = json.dumps(alertdict)
 
         # initialize incoming socket and add expected message(s)
-        rcvr.alert_socket.addIncoming(req_str)
-        rcvr.alert_socket.addExpected("ERROR\0")
+        rcvr.alert_socket.add_incoming(req_str)
+        rcvr.alert_socket.add_expected("ERROR\0")
 
         # add all expected log messages
-        self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage("Bad stop time \"%s\"" % stop_utc)
-        self.expectLogMessage(re.compile(r"Could not find start/stop time"
-                                         r" in request:\n.*"))
-        self.expectLogMessage("Sent response back to requester: ERROR")
+        self.expect_log_message("received request:\n%s" % req_str)
+        self.expect_log_message("Bad stop time \"%s\"" % stop_utc)
+        self.expect_log_message(re.compile(r"Could not find start/stop time"
+                                           r" in request:\n.*"))
+        self.expect_log_message("Sent response back to requester: ERROR")
 
         # initialize I3Live socket and add all expected I3Live messages
-        rcvr.i3socket.addExpectedMessage({
+        rcvr.i3socket.add_expected_message({
             'username': HsPublisher.Receiver.DEFAULT_USERNAME,
             'status': HsUtil.STATUS_REQUEST_ERROR,
             'prefix': HsPrefix.ANON,
@@ -202,7 +202,7 @@ class HsPublisherTest(LoggingTestCase):
             'destination_dir': copydir,
             'update_time': self.MATCH_ANY,
         }, service="hitspool", varname="hsrequest_info", prio=1,
-                                         time=self.MATCH_ANY)
+                                           time=self.MATCH_ANY)
 
         # run it!
         rcvr.reply_request()
@@ -219,20 +219,20 @@ class HsPublisherTest(LoggingTestCase):
 
         # request message
         req_str = "{'start': %d, 'stop': %s}" % \
-                  (start_ticks / 10, stop_ticks / 10)
+                  (int(start_ticks / 10), int(stop_ticks / 10))
 
         # initialize incoming socket and add expected message(s)
-        rcvr.alert_socket.addIncoming(req_str)
-        rcvr.alert_socket.addExpected("ERROR\0")
+        rcvr.alert_socket.add_incoming(req_str)
+        rcvr.alert_socket.add_expected("ERROR\0")
 
         # add all expected log messages
-        self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage("Request did not specify a destination"
-                              " directory")
-        self.expectLogMessage("Sent response back to requester: ERROR")
+        self.expect_log_message("received request:\n%s" % req_str)
+        self.expect_log_message("Request did not specify a destination"
+                                " directory")
+        self.expect_log_message("Sent response back to requester: ERROR")
 
         # initialize I3Live socket and add all expected I3Live messages
-        rcvr.i3socket.addExpectedMessage({
+        rcvr.i3socket.add_expected_message({
             'username': HsPublisher.Receiver.DEFAULT_USERNAME,
             'status': HsUtil.STATUS_REQUEST_ERROR,
             'prefix': HsPrefix.ANON,
@@ -242,7 +242,7 @@ class HsPublisherTest(LoggingTestCase):
             'destination_dir': rcvr.BAD_DESTINATION,
             'update_time': self.MATCH_ANY,
         }, service="hitspool", varname="hsrequest_info", prio=1,
-                                         time=self.MATCH_ANY)
+                                           time=self.MATCH_ANY)
 
         # run it!
         rcvr.reply_request()
@@ -259,20 +259,20 @@ class HsPublisherTest(LoggingTestCase):
 
         # request message
         req_str = '{"start": %d, "stop": %s, "copy": null}' % \
-                  (start_ticks / 10, stop_ticks / 10)
+                  (int(start_ticks / 10), int(stop_ticks / 10))
 
         # initialize incoming socket and add expected message(s)
-        rcvr.alert_socket.addIncoming(req_str)
-        rcvr.alert_socket.addExpected("ERROR\0")
+        rcvr.alert_socket.add_incoming(req_str)
+        rcvr.alert_socket.add_expected("ERROR\0")
 
         # add all expected log messages
-        self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage("Request did not specify a destination"
-                              " directory")
-        self.expectLogMessage("Sent response back to requester: ERROR")
+        self.expect_log_message("received request:\n%s" % req_str)
+        self.expect_log_message("Request did not specify a destination"
+                                " directory")
+        self.expect_log_message("Sent response back to requester: ERROR")
 
         # initialize I3Live socket and add all expected I3Live messages
-        rcvr.i3socket.addExpectedMessage({
+        rcvr.i3socket.add_expected_message({
             'username': HsPublisher.Receiver.DEFAULT_USERNAME,
             'status': HsUtil.STATUS_REQUEST_ERROR,
             'prefix': HsPrefix.ANON,
@@ -282,7 +282,7 @@ class HsPublisherTest(LoggingTestCase):
             'destination_dir': rcvr.BAD_DESTINATION,
             'update_time': self.MATCH_ANY,
         }, service="hitspool", varname="hsrequest_info", prio=1,
-                                         time=self.MATCH_ANY)
+                                           time=self.MATCH_ANY)
 
         # run it!
         rcvr.reply_request()
@@ -304,20 +304,20 @@ class HsPublisherTest(LoggingTestCase):
 
         # request message
         req_str = "{'start': %d, 'stop': %s, 'copy': '%s'}" % \
-                  (start_ticks / 10, stop_ticks / 10, copydir)
+                  (int(start_ticks / 10), int(stop_ticks / 10), copydir)
 
         # initialize incoming socket and add expected message(s)
-        rcvr.alert_socket.addIncoming(req_str)
-        rcvr.alert_socket.addExpected("ERROR\0")
+        rcvr.alert_socket.add_incoming(req_str)
+        rcvr.alert_socket.add_expected("ERROR\0")
 
         # add all expected log messages
-        self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage("rsync user must be %s, not %s (from \"%s\")" %
-                              (rcvr.rsync_user, copy_user, copydir))
-        self.expectLogMessage("Sent response back to requester: ERROR")
+        self.expect_log_message("received request:\n%s" % req_str)
+        self.expect_log_message("rsync user must be %s, not %s (from \"%s\")" %
+                                (rcvr.rsync_user, copy_user, copydir))
+        self.expect_log_message("Sent response back to requester: ERROR")
 
         # initialize I3Live socket and add all expected I3Live messages
-        rcvr.i3socket.addExpectedMessage({
+        rcvr.i3socket.add_expected_message({
             'username': HsPublisher.Receiver.DEFAULT_USERNAME,
             'status': HsUtil.STATUS_REQUEST_ERROR,
             'prefix': HsPrefix.ANON,
@@ -327,7 +327,7 @@ class HsPublisherTest(LoggingTestCase):
             'destination_dir': copydir,
             'update_time': self.MATCH_ANY,
         }, service="hitspool", varname="hsrequest_info", prio=1,
-                                         time=self.MATCH_ANY)
+                                           time=self.MATCH_ANY)
 
         # run it!
         rcvr.reply_request()
@@ -349,20 +349,20 @@ class HsPublisherTest(LoggingTestCase):
 
         # request message
         req_str = "{'start': %d, 'stop': %s, 'copy': '%s'}" % \
-                  (start_ticks / 10, stop_ticks / 10, copydir)
+                  (int(start_ticks / 10), int(stop_ticks / 10), copydir)
 
         # initialize incoming socket and add expected message(s)
-        rcvr.alert_socket.addIncoming(req_str)
-        rcvr.alert_socket.addExpected("ERROR\0")
+        rcvr.alert_socket.add_incoming(req_str)
+        rcvr.alert_socket.add_expected("ERROR\0")
 
         # add all expected log messages
-        self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage("rsync host must be %s, not %s (from \"%s\")" %
-                              (rcvr.rsync_host, copy_host, copydir))
-        self.expectLogMessage("Sent response back to requester: ERROR")
+        self.expect_log_message("received request:\n%s" % req_str)
+        self.expect_log_message("rsync host must be %s, not %s (from \"%s\")" %
+                                (rcvr.rsync_host, copy_host, copydir))
+        self.expect_log_message("Sent response back to requester: ERROR")
 
         # initialize I3Live socket and add all expected I3Live messages
-        rcvr.i3socket.addExpectedMessage({
+        rcvr.i3socket.add_expected_message({
             'username': HsPublisher.Receiver.DEFAULT_USERNAME,
             'status': HsUtil.STATUS_REQUEST_ERROR,
             'prefix': HsPrefix.ANON,
@@ -372,7 +372,7 @@ class HsPublisherTest(LoggingTestCase):
             'destination_dir': copydir,
             'update_time': self.MATCH_ANY,
         }, service="hitspool", varname="hsrequest_info", prio=1,
-                                         time=self.MATCH_ANY)
+                                           time=self.MATCH_ANY)
 
         # run it!
         rcvr.reply_request()
@@ -390,16 +390,16 @@ class HsPublisherTest(LoggingTestCase):
 
         # build initial message
         alertdict = {
-            "start": start_ticks / 10,
-            "stop": stop_ticks / 10,
+            "start": int(start_ticks / 10),
+            "stop": int(stop_ticks / 10),
             "copy": copydir,
         }
         req_str = json.dumps(alertdict)
         answer = "BadAnswer"
 
         # initialize incoming socket and add expected message(s)
-        rcvr.alert_socket.addIncoming(req_str)
-        rcvr.alert_socket.addExpected("DONE\0", answer=answer)
+        rcvr.alert_socket.add_incoming(req_str)
+        rcvr.alert_socket.add_expected("DONE\0", answer=answer)
 
         # build sender status message
         send_msg = {
@@ -418,12 +418,12 @@ class HsPublisherTest(LoggingTestCase):
         }
 
         # add expected sender message
-        rcvr.sender.addExpected(send_msg)
+        rcvr.sender.add_expected(send_msg)
 
         # add all expected log messages
-        self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage(re.compile("Publisher published: .*"))
-        self.expectLogMessage("Failed sending DONE to requester: %s" % answer)
+        self.expect_log_message("received request:\n%s" % req_str)
+        self.expect_log_message(re.compile("Publisher published: .*"))
+        self.expect_log_message("Failed sending DONE to requester: %s" % answer)
 
         # run it!
         rcvr.reply_request()
@@ -441,15 +441,15 @@ class HsPublisherTest(LoggingTestCase):
 
         # request message
         alertdict = {
-            "start": start_ticks / 10,
-            "stop": stop_ticks / 10,
+            "start": int(start_ticks / 10),
+            "stop": int(stop_ticks / 10),
             "copy": copydir,
         }
         req_str = json.dumps(alertdict)
 
         # initialize incoming socket and add expected message(s)
-        rcvr.alert_socket.addIncoming(req_str)
-        rcvr.alert_socket.addExpected("DONE\0")
+        rcvr.alert_socket.add_incoming(req_str)
+        rcvr.alert_socket.add_expected("DONE\0")
 
         # fill in defaults for worker request
         send_msg = {
@@ -468,12 +468,12 @@ class HsPublisherTest(LoggingTestCase):
         }
 
         # add expected sender message
-        rcvr.sender.addExpected(send_msg)
+        rcvr.sender.add_expected(send_msg)
 
         # add all expected log messages
-        self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage(re.compile("Publisher published: .*"))
-        self.expectLogMessage("Sent response back to requester: DONE")
+        self.expect_log_message("received request:\n%s" % req_str)
+        self.expect_log_message(re.compile("Publisher published: .*"))
+        self.expect_log_message("Sent response back to requester: DONE")
 
         # run it!
         rcvr.reply_request()
@@ -491,8 +491,8 @@ class HsPublisherTest(LoggingTestCase):
 
         # request message
         alertdict = {
-            "start_time": start_ticks / 10,
-            "stop_time": stop_ticks / 10,
+            "start_time": int(start_ticks / 10),
+            "stop_time": int(stop_ticks / 10),
             "destination_dir": copydir,
             "prefix": HsPrefix.ANON,
             "request_id": "NO ID",
@@ -500,8 +500,8 @@ class HsPublisherTest(LoggingTestCase):
         req_str = json.dumps(alertdict)
 
         # initialize incoming socket and add expected message(s)
-        rcvr.alert_socket.addIncoming(req_str)
-        rcvr.alert_socket.addExpected("DONE\0")
+        rcvr.alert_socket.add_incoming(req_str)
+        rcvr.alert_socket.add_expected("DONE\0")
 
         # build sender status message
         send_msg = {
@@ -520,12 +520,12 @@ class HsPublisherTest(LoggingTestCase):
         }
 
         # add expected sender message
-        rcvr.sender.addExpected(send_msg)
+        rcvr.sender.add_expected(send_msg)
 
         # add all expected log messages
-        self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage(re.compile("Publisher published: .*"))
-        self.expectLogMessage("Sent response back to requester: DONE")
+        self.expect_log_message("received request:\n%s" % req_str)
+        self.expect_log_message(re.compile("Publisher published: .*"))
+        self.expect_log_message("Sent response back to requester: DONE")
 
         # run it!
         rcvr.reply_request()
@@ -552,8 +552,8 @@ class HsPublisherTest(LoggingTestCase):
         req_str = json.dumps(alertdict)
 
         # initialize incoming socket and add expected message(s)
-        rcvr.alert_socket.addIncoming(req_str)
-        rcvr.alert_socket.addExpected("DONE\0")
+        rcvr.alert_socket.add_incoming(req_str)
+        rcvr.alert_socket.add_expected("DONE\0")
 
         # build sender status message
         send_msg = {
@@ -572,12 +572,12 @@ class HsPublisherTest(LoggingTestCase):
         }
 
         # add expected sender message
-        rcvr.sender.addExpected(send_msg)
+        rcvr.sender.add_expected(send_msg)
 
         # add all expected log messages
-        self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage(re.compile("Publisher published: .*"))
-        self.expectLogMessage("Sent response back to requester: DONE")
+        self.expect_log_message("received request:\n%s" % req_str)
+        self.expect_log_message(re.compile("Publisher published: .*"))
+        self.expect_log_message("Sent response back to requester: DONE")
 
         # run it!
         rcvr.reply_request()
@@ -595,8 +595,8 @@ class HsPublisherTest(LoggingTestCase):
 
         # request message
         alertdict = {
-            "start_time": start_ticks / 10,
-            "stop_time": stop_ticks / 10,
+            "start_time": int(start_ticks / 10),
+            "stop_time": int(stop_ticks / 10),
             "destination_dir": copydir,
             "prefix": HsPrefix.ANON,
             "request_id": "NO ID",
@@ -604,8 +604,8 @@ class HsPublisherTest(LoggingTestCase):
         req_str = json.dumps(alertdict)
 
         # initialize incoming socket and add expected message(s)
-        rcvr.alert_socket.addIncoming(req_str)
-        rcvr.alert_socket.addExpected("DONE\0")
+        rcvr.alert_socket.add_incoming(req_str)
+        rcvr.alert_socket.add_expected("DONE\0")
 
         _, request_dir = copydir.split(":")
 
@@ -626,12 +626,12 @@ class HsPublisherTest(LoggingTestCase):
         }
 
         # add expected sender message
-        rcvr.sender.addExpected(send_msg)
+        rcvr.sender.add_expected(send_msg)
 
         # add all expected log messages
-        self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage(re.compile("Publisher published: .*"))
-        self.expectLogMessage("Sent response back to requester: DONE")
+        self.expect_log_message("received request:\n%s" % req_str)
+        self.expect_log_message(re.compile("Publisher published: .*"))
+        self.expect_log_message("Sent response back to requester: DONE")
 
         # run it!
         rcvr.reply_request()
@@ -658,8 +658,8 @@ class HsPublisherTest(LoggingTestCase):
         req_str = json.dumps(alertdict)
 
         # initialize incoming socket and add expected message(s)
-        rcvr.alert_socket.addIncoming(req_str)
-        rcvr.alert_socket.addExpected("DONE\0")
+        rcvr.alert_socket.add_incoming(req_str)
+        rcvr.alert_socket.add_expected("DONE\0")
 
         _, request_dir = copydir.split(":")
 
@@ -680,12 +680,12 @@ class HsPublisherTest(LoggingTestCase):
         }
 
         # add expected sender message
-        rcvr.sender.addExpected(send_msg)
+        rcvr.sender.add_expected(send_msg)
 
         # add all expected log messages
-        self.expectLogMessage("received request:\n%s" % req_str)
-        self.expectLogMessage(re.compile("Publisher published: .*"))
-        self.expectLogMessage("Sent response back to requester: DONE")
+        self.expect_log_message("received request:\n%s" % req_str)
+        self.expect_log_message(re.compile("Publisher published: .*"))
+        self.expect_log_message("Sent response back to requester: DONE")
 
         # run it!
         rcvr.reply_request()

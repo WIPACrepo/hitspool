@@ -67,7 +67,7 @@ class HsDeleteTest(LoggingTestCase):
         hsg = MyDelete()
 
         # add grabber to poller socket
-        hsg.poller.addPollResult(None)
+        hsg.poller.add_poll_result(None)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -76,8 +76,8 @@ class HsDeleteTest(LoggingTestCase):
         timeout = 1
 
         # add all expected log messages
-        self.expectLogMessage("No response within %s seconds.\n"
-                              "Abort request." % timeout)
+        self.expect_log_message("No response within %s seconds.\n"
+                                "Abort request." % timeout)
 
         # run it!
         hsg.wait_for_response(timeout=timeout, print_to_console=False)
@@ -94,8 +94,8 @@ class HsDeleteTest(LoggingTestCase):
 
         # add all JSON and response messages
         expected = {
-            "start_ticks": 0L,
-            "stop_ticks": 0L,
+            "start_ticks": 0,
+            "stop_ticks": 0,
             "destination_dir": "/dev/null",
             "prefix": HsPrefix.ANON,
             "request_id": req_id,
@@ -107,11 +107,11 @@ class HsDeleteTest(LoggingTestCase):
             "copy_dir": None,
             "hubs": None,
         }
-        hsg.sender.addExpected(expected)
-        hsg.sender.addIncoming("DONE\0")
+        hsg.sender.add_expected(expected)
+        hsg.sender.add_incoming("DONE\0")
 
         # add grabber to poller socket
-        hsg.poller.addPollResult(hsg.sender)
+        hsg.poller.add_poll_result(hsg.sender)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)

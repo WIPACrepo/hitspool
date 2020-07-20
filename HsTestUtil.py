@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
 
 import datetime
 import json
@@ -8,13 +9,19 @@ import re
 import shutil
 import sqlite3
 import struct
+import sys
 import tempfile
 import threading
 import zmq
 
-from leapseconds import leapseconds
+from leapseconds import LeapSeconds
 from HsRSyncFiles import HsRSyncFiles
 from RequestMonitor import RequestMonitor
+
+
+if sys.version_info.major > 2:
+    # unicode isn't present in Python3
+    unicode = str
 
 
 # January 1 of this year
@@ -30,10 +37,10 @@ TEMP_STATE_DB = None
 def create_hits(filename, start_tick, stop_tick, interval):
     hit_type = 3
     hit_len = 54
-    ignored = 0L
+    ignored = 0
     mbid = 0x1234567890123
 
-    filler = [i for i in range((hit_len - 32) / 2)]
+    filler = [val for val in range(int((hit_len - 32) / 2))]
     # byte-order word must be 1
     filler[0] = 1
 
@@ -46,7 +53,7 @@ def create_hits(filename, start_tick, stop_tick, interval):
             fout.write(buf)
             if tick == stop_tick:
                 break
-            tick += interval
+            tick += int(interval)
             if tick > stop_tick:
                 tick = stop_tick
     finally:
@@ -71,20 +78,19 @@ def create_hitspool_db(spooldir):
 
 
 def dump_dir(path, title=None, indent=""):
-    import sys
     if title is not None:
-        print >>sys.stderr, "%s=== %s" % (indent, title)
+        print("%s=== %s" % (indent, title), file=sys.stderr)
     if path is None:
-        print >>sys.stderr, "%s(path is None)" % indent
+        print("%s(path is None)" % indent, file=sys.stderr)
     elif not os.path.exists(path):
-        print >>sys.stderr, "%s%s (does not exist)" % (indent, path)
+        print("%s%s (does not exist)" % (indent, path), file=sys.stderr)
     else:
         for entry in os.listdir(path):
             full = os.path.join(path, entry)
             if not os.path.isdir(full):
-                print >>sys.stderr, "%s%s" % (indent, entry)
+                print("%s%s" % (indent, entry), file=sys.stderr)
             else:
-                print >>sys.stderr, "%s%s/" % (indent, entry)
+                print("%s%s/" % (indent, entry), file=sys.stderr)
                 dump_dir(full, indent=indent + "  ")
 
 
@@ -105,7 +111,7 @@ def get_time(tick, year=None, is_ns=False):
                 ticks_per_ms)
     delta = datetime.timedelta(seconds=secs, microseconds=msecs)
 
-    leap = leapseconds.instance()
+    leap = LeapSeconds.instance()
 
     # if there's a leap second, add that
     jan1_leapsecs = leap.get_leap_offset(0, year=year)
@@ -218,7 +224,7 @@ class CompareObjects(object):
 
         extra = {}
         badval = {}
-        for key, val in jmsg.iteritems():
+        for key, val in jmsg.items():
             val = self.__unicode_to_ascii(val)
 
             if key not in jexp:
@@ -228,8 +234,8 @@ class CompareObjects(object):
 
                 try:
                     self.__compare_objects(None, val, expval)
-                except CompareException, ce:
-                    badval[key] = str(ce)
+                except CompareException as cex:
+                    badval[key] = str(cex)
 
                 del jexp[key]
 
@@ -245,11 +251,10 @@ class CompareObjects(object):
         debug = False
         if errstr is not None:
             if debug:
-                print "*** Error: %s" % errstr
+                print("*** Error: %s" % errstr)
             raise CompareException("Message %s: %s" % (jmsg, errstr))
-        else:
-            if debug:
-                print "+++ Valid message"
+        if debug:
+            print("+++ Valid message")
 
     def __compare_lists(self, name, obj, exp):
         if not isinstance(obj, list):
@@ -263,12 +268,12 @@ class CompareObjects(object):
                                    (self.__namestr(name), len(exp), len(obj),
                                     obj))
 
-        for i in range(len(obj)):
+        for idx, entry in enumerate(obj):
             try:
-                self.__compare_objects(name, obj[i], exp[i])
-            except CompareException, ce:
+                self.__compare_objects(name, entry, exp[idx])
+            except CompareException as cex:
                 raise CompareException("%slist#%d: %s" %
-                                       (self.__namestr(name), i, ce))
+                                       (self.__namestr(name), idx, cex))
 
     def __compare_objects(self, name, obj, exp):
         if isinstance(obj, list) and isinstance(exp, list):
@@ -276,8 +281,12 @@ class CompareObjects(object):
         elif isinstance(obj, dict) and isinstance(exp, dict):
             self.__compare_dicts(name, obj.copy(), exp.copy())
         elif hasattr(exp, 'flags') and hasattr(exp, 'pattern'):
+            if not isinstance(obj, bytes):
+                objstr = str(obj)
+            else:
+                objstr = obj.decode("utf-8")
             # try to match regular expression
-            if exp.match(str(obj)) is None:
+            if exp.match(objstr) is None:
                 raise CompareException("%s'%s' does not match '%s'" %
                                        (self.__namestr(name), obj,
                                         exp.pattern))
@@ -323,7 +332,7 @@ class Mock0MQPoller(object):
         self.__socks = {}
         self.__pollresult = []
 
-    def addPollResult(self, source, polltype=zmq.POLLIN):
+    def add_poll_result(self, source, polltype=zmq.POLLIN):
         self.__pollresult.append([(source, polltype)])
 
     def close(self):
@@ -395,12 +404,12 @@ class Mock0MQSocket(MockPollableSocket):
         return "%s(%s%s%s)" % \
             (type(self).__name__, self.__name, vstr, xstr)
 
-    def addExpected(self, jdict, answer=None):
+    def add_expected(self, jdict, answer=None):
         self.__expected.append(jdict)
         if answer is not None:
             self.__answer[jdict] = answer
 
-    def addIncoming(self, msg):
+    def add_incoming(self, msg):
         self.__outqueue.append(msg)
 
     def close(self):
@@ -431,7 +440,7 @@ class Mock0MQSocket(MockPollableSocket):
         msg = self.__outqueue.pop(0)
 
         if self.__verbose:
-            print "%s(%s) -> %s" % (type(self).__name__, self.__name, str(msg))
+            print("%s(%s) -> %s" % (type(self).__name__, self.__name, str(msg)))
 
         return msg
 
@@ -452,11 +461,10 @@ class Mock0MQSocket(MockPollableSocket):
                             (self.__name, msgjson))
 
         found = None
-        for i in range(len(self.__expected)):
-            expjson = self.__expected[i]
+        for idx, expjson in enumerate(self.__expected):
             try:
                 CompareObjects(self.__name, msgjson, expjson)
-                found = i
+                found = idx
                 break
             except:
                 continue
@@ -473,11 +481,12 @@ class Mock0MQSocket(MockPollableSocket):
         del self.__expected[found]
 
         if self.__verbose:
-            print "%s(%s) <- %s (exp %s)" % \
-                (type(self).__name__, self.__name, str(msgjson), str(expjson))
-            print "%s(%s) expect %d more message%s" % \
-                (type(self).__name__, self.__name, len(self.__expected),
-                 "s" if len(self.__expected) != 1 else "")
+            print("%s(%s) <- %s (exp %s)" %
+                  (type(self).__name__, self.__name, str(msgjson),
+                   str(expjson)))
+            print("%s(%s) expect %d more message%s" %
+                  (type(self).__name__, self.__name, len(self.__expected),
+                   "s" if len(self.__expected) != 1 else ""))
 
         expkey = str(expjson)
         if expkey in self.__answer:
@@ -566,10 +575,10 @@ class MockHitspool(object):
                 os.makedirs(path)
 
             # create all fake hitspool files
-            for num in xrange(startnum, startnum + numfiles):
+            for num in range(startnum, startnum + numfiles):
                 fpath = os.path.join(path, "HitSpool-%d" % num)
                 with open(fpath, "w") as fout:
-                    print >>fout, "Fake#%d" % num
+                    print("Fake#%d" % num, file=fout)
 
         return path
 
@@ -598,15 +607,15 @@ class MockI3Socket(Mock0MQSocket):
         self.__service = "HSiface"
         self.__varname = varname
 
-    def addDebugEMail(self, host=r".*"):
+    def add_debug_email(self, host=r".*"):
         header = re.compile(r"Query for \[\d+-\d+\] failed on " + host + "$")
         message = re.compile(r"DB contains \d+ entries from .* to .*$")
 
-        self.addGenericEMail(HsRSyncFiles.DEBUG_EMAIL, header, message)
+        self.add_generic_email(HsRSyncFiles.DEBUG_EMAIL, header, message)
 
-    def addGenericEMail(self, address_list, header, message,
-                        description="HsInterface Data Request",
-                        prio=2, short_subject=True, quiet=True):
+    def add_generic_email(self, address_list, header, message,
+                          description="HsInterface Data Request",
+                          prio=2, short_subject=True, quiet=True):
         notifies = []
         for email in address_list:
             notifies.append({
@@ -615,7 +624,7 @@ class MockI3Socket(Mock0MQSocket):
                 "notifies_header": header,
             })
 
-        self.addExpectedAlert({
+        self.add_expected_alert({
             "condition": header,
             "desc": description,
             "notifies": notifies,
@@ -623,12 +632,12 @@ class MockI3Socket(Mock0MQSocket):
             "quiet": "true" if quiet else "false",
         }, prio=prio)
 
-    def addExpectedAlert(self, value, prio=1):
-        self.addExpectedMessage(value, service=self.__service,
-                                varname="alert", prio=prio, time=TIME_PAT)
+    def add_expected_alert(self, value, prio=1):
+        self.add_expected_message(value, service=self.__service,
+                                  varname="alert", prio=prio, time=TIME_PAT)
 
-    def addExpectedMessage(self, value, service=None, varname=None, prio=None,
-                           t=None, time=None):
+    def add_expected_message(self, value, service=None, varname=None, prio=None,
+                             t=None, time=None):
         if service is None:
             service = self.__service
         if varname is None:
@@ -646,11 +655,11 @@ class MockI3Socket(Mock0MQSocket):
         if time is not None:
             edict['time'] = time
 
-        self.addExpected(edict)
+        self.add_expected(edict)
 
-    def addExpectedValue(self, value, prio=None):
-        self.addExpectedMessage(value, service=self.__service,
-                                varname=self.__varname, prio=prio)
+    def add_expected_value(self, value, prio=None):
+        self.add_expected_message(value, service=self.__service,
+                                  varname=self.__varname, prio=prio)
 
 
 class RunParam(object):

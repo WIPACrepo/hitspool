@@ -3,12 +3,18 @@
 import datetime
 import logging
 import numbers
+import sys
 
 from collections import namedtuple
 
 import DAQTime
 
 from HsException import HsException
+
+
+if sys.version_info.major > 2:
+    # unicode isn't present in Python3
+    unicode = str
 
 
 # default log directory
@@ -73,7 +79,7 @@ def dict_to_object(xdict, expected_fields, objtype):
         raise HsException("Missing fields %s from %s" %
                           (tuple(missing), xdict))
 
-    return namedtuple(objtype, xdict.keys())(**xdict)
+    return namedtuple(objtype, list(xdict.keys()))(**xdict)
 
 
 def get_daq_ticks(start_time, end_time, is_ns=False):

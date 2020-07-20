@@ -17,6 +17,7 @@ import HsUtil
 from HsBase import HsBase
 from HsException import HsException
 from HsPrefix import HsPrefix
+from i3helper import reraise_excinfo
 
 
 def add_arguments(parser):
@@ -137,7 +138,7 @@ class Receiver(HsBase):
 
         if exc_info is not None:
             # if there was an exception, re-raise it
-            raise exc_info[0], exc_info[1], exc_info[2]
+            reraise_excinfo(exc_info)
 
         # let caller know there was a problem
         return False

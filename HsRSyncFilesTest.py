@@ -21,7 +21,7 @@ class MyHsRSyncFiles(HsRSyncFiles.HsRSyncFiles):
         self.__fail_hardlink = False
 
         # don't sleep during unit tests
-        self.MIN_DELAY = 0.0
+        self.set_min_delay(0.0)
 
     @classmethod
     def __timetag(cls, ticks):
@@ -29,7 +29,7 @@ class MyHsRSyncFiles(HsRSyncFiles.HsRSyncFiles):
 
     def add_expected_links(self, start_tick, rundir, firstnum, numfiles):
         timetag = self.__timetag(start_tick)
-        for i in xrange(firstnum, firstnum + numfiles):
+        for i in range(firstnum, firstnum + numfiles):
             frompath = os.path.join(self.TEST_HUB_DIR, rundir,
                                     "HitSpool-%d.dat" % i)
             self.__link_paths.append((frompath, self.TEST_HUB_DIR, timetag))
@@ -98,12 +98,6 @@ class HsRSyncFilesTest(HsRSyncTestCase.HsRSyncTestCase):
     @property
     def wrapped_object(self):
         return MyHsRSyncFiles(is_test=True)
-
-    def setUp(self):
-        super(HsRSyncFilesTest, self).setUp()
-
-    def tearDown(self):
-        super(HsRSyncFilesTest, self).tearDown()
 
 
 if __name__ == '__main__':

@@ -100,9 +100,9 @@ class HsWatcherTest(LoggingTestCase):
         notify_hdr = '%s HsInterface Alert: %s@%s' % \
             (alert_type, program, watcher.shorthost)
 
-        watcher.i3socket.addGenericEMail(HsConstants.ALERT_EMAIL_DEV,
-                                         notify_hdr, alertmsg,
-                                         description=desc)
+        watcher.i3socket.add_generic_email(HsConstants.ALERT_EMAIL_DEV,
+                                           notify_hdr, alertmsg,
+                                           description=desc)
 
     def setUp(self):
         super(HsWatcherTest, self).setUp()
@@ -301,10 +301,10 @@ class HsWatcherTest(LoggingTestCase):
 
         watcher.add_log_status(watcher.STATUS_STARTED)
 
-        self.expectLogMessage("Found multiple copies of %s;"
-                              " killing everything!" % program)
-        self.expectLogMessage("Found multiple copies of %s after starting" %
-                              program)
+        self.expect_log_message("Found multiple copies of %s;"
+                                " killing everything!" % program)
+        self.expect_log_message("Found multiple copies of %s after starting" %
+                                program)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -317,6 +317,7 @@ class HsWatcherTest(LoggingTestCase):
 
         watcher.validate()
 
+    # pylint: disable=no-self-use
     def test_kill_none(self):
         watchee = MyWatchee("HsNope")
         watchee.kill_all()

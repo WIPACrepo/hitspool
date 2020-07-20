@@ -10,6 +10,7 @@ import shutil
 import tarfile
 import tempfile
 import time
+import traceback
 import unittest
 
 import DAQTime
@@ -201,9 +202,9 @@ class MockRequestBuilder(object):
             value["success"] = failed
 
         # add all expected I3Live messages
-        i3socket.addExpectedMessage(value, service="hitspool",
-                                    varname="hsrequest_info", time=TIME_PAT,
-                                    prio=1)
+        i3socket.add_expected_message(value, service="hitspool",
+                                      varname="hsrequest_info", time=TIME_PAT,
+                                      prio=1)
 
     @classmethod
     def add_reporter_request(cls, reporter, msgtype, req_id, username,
@@ -230,7 +231,7 @@ class MockRequestBuilder(object):
             rcv_msg["failed"] = failed
 
         # add all expected JSON messages
-        reporter.addIncoming(rcv_msg)
+        reporter.add_incoming(rcv_msg)
 
     def add_request(self, reporter, msgtype, success=None, failed=None):
         self.add_reporter_request(reporter, msgtype, self.__req_id,
@@ -273,7 +274,7 @@ class MockRequestBuilder(object):
     def check_hitspool_file_list(cls, flist, firstfile, numfiles):
         flist.sort()
 
-        for fnum in xrange(firstfile, firstfile + numfiles):
+        for fnum in range(firstfile, firstfile + numfiles):
             fname = "HitSpool-%d" % fnum
             if len(flist) == 0:
                 raise TestException("Not all files were copied"
@@ -342,18 +343,18 @@ class HsSenderTest(LoggingTestCase):
     def __check_hitspool_file_list(self, flist, firstnum, numfiles):
         flist.sort()
 
-        for fnum in xrange(firstnum, firstnum + numfiles):
+        for fnum in range(firstnum, firstnum + numfiles):
             fname = "HitSpool-%d" % fnum
             if len(flist) == 0:
                 self.fail("Not all files were copied (found %d of %d)" %
                           (fnum - firstnum, numfiles))
 
-            self.assertEquals(fname, flist[0],
-                              "Expected file #%d to be \"%s\" not \"%s\"" %
-                              (fnum - firstnum, fname, flist[0]))
+            self.assertEqual(fname, flist[0],
+                             "Expected file #%d to be \"%s\" not \"%s\"" %
+                             (fnum - firstnum, fname, flist[0]))
             del flist[0]
         if len(flist) != 0:
-            self.fail("%d extra files were copied (%s)", (len(flist), flist))
+            self.fail("%d extra files were copied (%s)" % (len(flist), flist))
 
     def setUp(self):
         super(HsSenderTest, self).setUp()
@@ -378,14 +379,12 @@ class HsSenderTest(LoggingTestCase):
             try:
                 MockHitspool.destroy()
             except:
-                import traceback
                 traceback.print_exc()
                 found_error = True
 
             try:
                 MockRequestBuilder.destroy()
             except:
-                import traceback
                 traceback.print_exc()
                 found_error = True
 
@@ -397,7 +396,6 @@ class HsSenderTest(LoggingTestCase):
                 try:
                     self.SENDER.close_all()
                 except:
-                    import traceback
                     traceback.print_exc()
                     found_error = True
                 self.SENDER = None
@@ -408,7 +406,6 @@ class HsSenderTest(LoggingTestCase):
                 try:
                     os.unlink(dbpath)
                 except:
-                    import traceback
                     traceback.print_exc()
                     found_error = True
 
@@ -551,12 +548,12 @@ class HsSenderTest(LoggingTestCase):
         # run it!
         (tarname, semname) \
             = sender.spade_pickup_data(hsdir, mybase, prefix=category)
-        self.assertEquals(mytar, tarname,
-                          "Expected tarfile to be named \"%s\" not \"%s\"" %
-                          (mytar, tarname))
-        self.assertEquals(mysem, semname,
-                          "Expected semaphore to be named \"%s\" not \"%s\"" %
-                          (mysem, semname))
+        self.assertEqual(mytar, tarname,
+                         "Expected tarfile to be named \"%s\" not \"%s\"" %
+                         (mytar, tarname))
+        self.assertEqual(mysem, semname,
+                         "Expected semaphore to be named \"%s\" not \"%s\"" %
+                         (mysem, semname))
 
         # make sure 0MQ communications checked out
         sender.validate()
@@ -585,9 +582,9 @@ class HsSenderTest(LoggingTestCase):
         self.setLogLevel(logging.WARN)
 
         # add all expected log messages
-        self.expectLogMessage("Fake Tar Error")
-        self.expectLogMessage("Please put the data manually in the SPADE"
-                              " directory. Use HsSpader.py, for example.")
+        self.expect_log_message("Fake Tar Error")
+        self.expect_log_message("Please put the data manually in the SPADE"
+                                " directory. Use HsSpader.py, for example.")
 
         # run it!
         result = sender.spade_pickup_data(hsdir, "ignored", prefix=category)
@@ -621,9 +618,9 @@ class HsSenderTest(LoggingTestCase):
         self.setLogLevel(logging.WARN)
 
         # add all expected log messages
-        self.expectLogMessage("Fake Move Error")
-        self.expectLogMessage("Please put the data manually in the SPADE"
-                              " directory. Use HsSpader.py, for example.")
+        self.expect_log_message("Fake Move Error")
+        self.expect_log_message("Please put the data manually in the SPADE"
+                                " directory. Use HsSpader.py, for example.")
 
         # run it!
         result = sender.spade_pickup_data(hsdir, "ignored", prefix=category)
@@ -657,9 +654,9 @@ class HsSenderTest(LoggingTestCase):
         self.setLogLevel(logging.WARN)
 
         # add all expected log messages
-        self.expectLogMessage("Fake Touch Error")
-        self.expectLogMessage("Please put the data manually in the SPADE"
-                              " directory. Use HsSpader.py, for example.")
+        self.expect_log_message("Fake Touch Error")
+        self.expect_log_message("Please put the data manually in the SPADE"
+                                " directory. Use HsSpader.py, for example.")
 
         # run it!
         result = sender.spade_pickup_data(hsdir, "ignored", prefix=category)
@@ -720,12 +717,12 @@ class HsSenderTest(LoggingTestCase):
         # run it!
         (tarname, semname) = sender.spade_pickup_data(movedir, mybase,
                                                       prefix=category)
-        self.assertEquals(mytar, tarname,
-                          "Expected tarfile to be named \"%s\" not \"%s\"" %
-                          (mytar, tarname))
-        self.assertEquals(mysem, semname,
-                          "Expected semaphore to be named \"%s\" not \"%s\"" %
-                          (mysem, semname))
+        self.assertEqual(mytar, tarname,
+                         "Expected tarfile to be named \"%s\" not \"%s\"" %
+                         (mytar, tarname))
+        self.assertEqual(mysem, semname,
+                         "Expected semaphore to be named \"%s\" not \"%s\"" %
+                         (mysem, semname))
 
         sempath = os.path.join(sender.HS_SPADE_DIR, semname)
         self.assertTrue(os.path.exists(sempath),
@@ -760,7 +757,7 @@ class HsSenderTest(LoggingTestCase):
         no_msg = None
 
         # add all expected JSON messages
-        sender.reporter.addIncoming(no_msg)
+        sender.reporter.add_incoming(no_msg)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -783,7 +780,7 @@ class HsSenderTest(LoggingTestCase):
         snd_msg = json.dumps("abc")
 
         # add all expected JSON messages
-        sender.reporter.addIncoming(snd_msg)
+        sender.reporter.add_incoming(snd_msg)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -792,7 +789,7 @@ class HsSenderTest(LoggingTestCase):
         try:
             if sender.mainloop():
                 self.fail("'str' message was accepted")
-        except HsException, hse:
+        except HsException as hse:
             hsestr = str(hse)
             if hsestr.find("Received ") < 0 or \
                hsestr.find(", not dictionary") < 0:
@@ -816,7 +813,7 @@ class HsSenderTest(LoggingTestCase):
         }
 
         # add all expected JSON messages
-        sender.reporter.addIncoming(rcv_msg)
+        sender.reporter.add_incoming(rcv_msg)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -825,7 +822,7 @@ class HsSenderTest(LoggingTestCase):
         try:
             if sender.mainloop():
                 self.fail("Message with no request ID was accepted")
-        except HsException, hse:
+        except HsException as hse:
             hsestr = str(hse)
             if hsestr.find("No request ID found in ") < 0:
                 self.fail("Unexpected exception: " + hsestr)
@@ -844,7 +841,7 @@ class HsSenderTest(LoggingTestCase):
         rcv_msg = {"msgtype": "rsync_sum", "request_id": "incomplete"}
 
         # add all expected JSON messages
-        sender.reporter.addIncoming(rcv_msg)
+        sender.reporter.add_incoming(rcv_msg)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -853,7 +850,7 @@ class HsSenderTest(LoggingTestCase):
         try:
             if sender.mainloop():
                 self.fail("Bad message was accepted")
-        except HsException, hse:
+        except HsException as hse:
             hsestr = str(hse)
             if hsestr.find("Dictionary is missing start_") < 0:
                 self.fail("Unexpected exception: " + hsestr)
@@ -884,13 +881,13 @@ class HsSenderTest(LoggingTestCase):
         }
 
         # add all expected JSON messages
-        sender.reporter.addIncoming(rcv_msg)
+        sender.reporter.add_incoming(rcv_msg)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
         # add all expected log messages
-        self.expectLogMessage(re.compile("Received bad message .*"))
+        self.expect_log_message(re.compile("Received bad message .*"))
 
         # run it!
         if sender.mainloop():
@@ -923,13 +920,13 @@ class HsSenderTest(LoggingTestCase):
         }
 
         # add all expected JSON messages
-        sender.reporter.addIncoming(rcv_msg)
+        sender.reporter.add_incoming(rcv_msg)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
 
         # add all expected log messages
-        self.expectLogMessage(re.compile(r"Received bad message .*"))
+        self.expect_log_message(re.compile(r"Received bad message .*"))
 
         # run it!
         if sender.mainloop():
@@ -960,15 +957,15 @@ class HsSenderTest(LoggingTestCase):
         self.setLogLevel(logging.WARN)
 
         # add all expected log messages
-        self.expectLogMessage("Received unexpected %s message from"
-                              " %s for Req#%s (no active request)" %
-                              (msgtype, req.host, req.req_id))
+        self.expect_log_message("Received unexpected %s message from"
+                                " %s for Req#%s (no active request)" %
+                                (msgtype, req.host, req.req_id))
 
-        self.expectLogMessage("Request %s was not initialized (received %s"
-                              " from %s)" % (req.req_id, msgtype, req.host))
-        self.expectLogMessage("Saw %s message for request %s host %s without"
-                              " a START message" % (msgtype, req.req_id,
-                                                    req.host))
+        self.expect_log_message("Request %s was not initialized (received %s"
+                                " from %s)" % (req.req_id, msgtype, req.host))
+        self.expect_log_message("Saw %s message for request %s host %s without"
+                                " a START message" % (msgtype, req.req_id,
+                                                      req.host))
 
         req.add_i3live_message(sender.i3socket, HsUtil.STATUS_SUCCESS,
                                success="1")
@@ -1026,8 +1023,8 @@ class HsSenderTest(LoggingTestCase):
         notify_pat = re.compile(r".*" + re.escape("\n".join(notify_lines)),
                                 flags=re.MULTILINE)
 
-        sender.i3socket.addGenericEMail(HsConstants.ALERT_EMAIL_DEV,
-                                        notify_hdr, notify_pat, prio=1)
+        sender.i3socket.add_generic_email(HsConstants.ALERT_EMAIL_DEV,
+                                          notify_hdr, notify_pat, prio=1)
 
         # add hub01 messages
         req01.add_i3live_message(sender.i3socket, HsUtil.STATUS_IN_PROGRESS)

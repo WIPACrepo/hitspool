@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 
+import binascii
 import getpass
 import numbers
 import struct
@@ -42,7 +43,7 @@ class ID(object):
             cls.__seed = (cls.__seed + 1) % 0xFFFFFF
         packed = struct.pack('>i', int(time.time()))
         packed += struct.pack('>i', val)[1:4]
-        return packed.encode('hex')
+        return binascii.hexlify(packed)
 
 
 def dict_to_message(mdict, allow_old_format=False):

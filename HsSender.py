@@ -291,7 +291,7 @@ class HsSender(HsBase):
     def mainloop(self, force_spade=False):
         rtnval = True
         for sock, event in self.__poller.poll():
-            if sock != self.__reporter and sock != self.__alert_socket:
+            if sock not in (self.__reporter, self.__alert_socket):
                 logging.error("Ignoring unknown incoming socket %s<%s>",
                               sock.identity, type(sock).__name__)
                 continue
@@ -327,7 +327,7 @@ class HsSender(HsBase):
         try:
             msg = HsMessage.from_dict(mdict, allow_old_format=True)
             if msg is None:
-                return
+                return False
             error = False
         except HsException:
             raise
@@ -439,7 +439,7 @@ class HsSender(HsBase):
         try:
             shutil.move(copydir, targetdir)
             logging.info("Moved %s to %s", copydir, targetdir)
-        except shutil.Error, err:
+        except shutil.Error as err:
             logging.error("Cannot move \"%s\" to \"%s\": %s", copydir,
                           targetdir, err)
             return False
@@ -469,7 +469,7 @@ class HsSender(HsBase):
 
         logging.info("copy_basedir is: %s", hs_basedir)
 
-        if prefix == HsPrefix.SNALERT or prefix == HsPrefix.HESE:
+        if prefix in (HsPrefix.SNALERT, HsPrefix.HESE):
             hs_basename = "HS_" + data_dir
             spade_dir = self.HS_SPADE_DIR
         else:
@@ -539,7 +539,7 @@ if __name__ == "__main__":
             except KeyboardInterrupt:
                 logging.warning("Interruption received, shutting down...")
                 raise SystemExit(0)
-            except zmq.ZMQError, zex:
+            except zmq.ZMQError as zex:
                 if str(zex).find("Socket operation on non-socket") < 0:
                     logging.exception("ZMQ error received, shutting down...")
                 raise SystemExit(1)

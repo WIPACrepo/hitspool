@@ -1,17 +1,23 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
 
+import argparse
 import datetime
 import logging
 import numbers
 import os
 import sqlite3
+import sys
 
 import DAQTime
 import HsConstants
 import HsUtil
 
-from RequestMonitor import RequestMonitor
+
+if sys.version_info.major > 2:
+    # unicode isn't present in Python3
+    unicode = str
 
 
 class ListQueue(object):
@@ -58,8 +64,8 @@ class ListQueue(object):
             days = delta.days
             seconds = delta.seconds
             microseconds = delta.microseconds
-        elif (isinstance(start_val, str) or isinstance(start_val, unicode)) \
-             and (isinstance(stop_val, str) or isinstance(stop_val, unicode)):
+        elif isinstance(start_val, (str, unicode)) \
+             and isinstance(stop_val, (str, unicode)):
             start_time = datetime.datetime.strptime(start_val,
                                                     DAQTime.TIME_FORMAT)
             stop_time = datetime.datetime.strptime(stop_val,
@@ -69,9 +75,9 @@ class ListQueue(object):
             seconds = delta.seconds
             microseconds = delta.microseconds
         else:
-            print "Bad start/stop value (start %s<%s>, stop %s<%s>)" % \
-                (start_val, type(start_val).__name__, stop_val,
-                 type(stop_val).__name__)
+            print("Bad start/stop value (start %s<%s>, stop %s<%s>)" %
+                  (start_val, type(start_val).__name__, stop_val,
+                   type(stop_val).__name__))
             return "???"
 
         if days > 0:
@@ -134,7 +140,7 @@ class ListQueue(object):
             update_time = datetime.datetime.strptime(row[3],
                                                      DAQTime.TIME_FORMAT)
 
-            if phase == self.DBPHASE_INITIAL or phase == self.DBPHASE_QUEUED:
+            if phase in (self.DBPHASE_INITIAL, self.DBPHASE_QUEUED):
                 if req_id in requests:
                     logging.error("Found multiple initial entries"
                                   " for request %s", req_id)
@@ -252,12 +258,11 @@ class ListQueue(object):
             range_start = None
 
             prev_stop = None
-            for row in cursor.execute("select filename, start_tick, stop_tick"
+            for row in cursor.execute("select start_tick, stop_tick"
                                       " from hitspool"
                                       " order by start_tick"):
-                filename = row[0]
-                start_ticks = row[1]
-                stop_ticks = row[2]
+                start_ticks = row[0]
+                stop_ticks = row[1]
 
                 if prev_stop is None:
                     range_start = start_ticks
@@ -282,17 +287,18 @@ class ListQueue(object):
             conn.close()
 
         if not listed:
-            print "No hitspool files!"
+            print("No hitspool files!")
 
-    def __print_data_range(self, start_tick, stop_tick, file_count,
+    @classmethod
+    def __print_data_range(cls, start_tick, stop_tick, file_count,
                            print_header=False):
         if print_header:
-            print "Hitspool files\n=============="
+            print("Hitspool files\n==============")
 
         tstr = str(DAQTime.ticks_to_utc(start_tick))
-        print "%d file%s :: [%d-%d] %s" % \
-            (file_count, "" if file_count == 1 else "s", start_tick, stop_tick,
-             tstr)
+        print("%d file%s :: [%d-%d] %s" %
+              (file_count, "" if file_count == 1 else "s", start_tick,
+               stop_tick, tstr))
 
     def list_requests(self):
         "List all requests"
@@ -308,7 +314,7 @@ class ListQueue(object):
 
         count = 0
         for rid, rdict in sorted(requests.items(), key=lambda x: x[0]):
-            print "Req#%s" % (rid, )
+            print("Req#%s" % (rid, ))
             count += 1
 
             phase_hosts = {}
@@ -329,19 +335,20 @@ class ListQueue(object):
                     ticks = DAQTime.string_to_ticks(start_ticks)
                     tstr = str(DAQTime.ticks_to_utc(ticks))
 
-                print "\t%s: %s (user %s) %s @ %s" % \
-                    (self.__phase_name(phase), prefix, username, dstr, tstr)
+                print("\t%s: %s (user %s) %s @ %s" %
+                      (self.__phase_name(phase), prefix, username, dstr, tstr))
 
-            for phase, data in sorted(phase_hosts.items(), key=lambda x: x[0]):
+            for phase, data in sorted(phase_hosts.items(),
+                                      key=lambda x: x[0]):
                 hosts = []
                 for host, update_time in data:
                     hosts.append(host)
 
-                print "\t\t%s: %s" % (self.__phase_name(phase),
-                                      HsUtil.hubs_to_string(hosts), )
+                print("\t\t%s: %s" % (self.__phase_name(phase),
+                                      HsUtil.hubs_to_string(hosts), ))
 
         if count == 0:
-            print "No active requests"
+            print("No active requests")
 
 
 def add_arguments(parser):
@@ -357,9 +364,7 @@ def add_arguments(parser):
                         " hitspool cache")
 
 
-if __name__ == "__main__":
-    import argparse
-
+def main():
     parser = argparse.ArgumentParser()
     add_arguments(parser)
     args = parser.parse_args()
@@ -378,5 +383,9 @@ if __name__ == "__main__":
     lsq = ListQueue()
     if args.list_spool:
         lsq.list_hitspool()
-        print
+        print("")
     lsq.list_requests()
+
+
+if __name__ == "__main__":
+    main()
