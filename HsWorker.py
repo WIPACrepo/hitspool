@@ -28,6 +28,8 @@ from HsSender import PingManager
 
 
 def add_arguments(parser):
+    "Add all command line arguments to the argument parser"
+
     dflt_copydir = "%s@%s:%s" % (HsBase.DEFAULT_RSYNC_USER,
                                  HsBase.DEFAULT_RSYNC_HOST,
                                  HsBase.DEFAULT_COPY_PATH)
@@ -380,6 +382,8 @@ class Worker(HsRSyncFiles):
 
 
 def main():
+    "Main program"
+
     parser = argparse.ArgumentParser()
 
     add_arguments(parser)

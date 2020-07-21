@@ -1,11 +1,12 @@
 #!/usr/bin/env python
-
 """
 HsWatcher.py
 David Heereman
 
 Watch a HitSpool process, restart it if it's stopped or dies
 """
+
+import argparse
 import getpass
 import logging
 import os
@@ -447,35 +448,35 @@ class HsWatcher(HsBase):
                 if search_string in line][-total_lines_wanted:]
 
 
+def main():
+    "Main program"
+
+    parser = argparse.ArgumentParser()
+
+    add_arguments(parser)
+
+    args = parser.parse_args()
+
+    watcher = HsWatcher(host=args.host)
+
+    logpath = watcher.init_logging(args.logfile, basename="hswatcher",
+                                   basehost="testhub", both=False)
+
+    if watcher.is_cluster_sps or watcher.is_cluster_spts:
+        user = getpass.getuser()
+        if user != "pdaq":
+            raise SystemExit("Sorry user %s, you are not pdaq."
+                             " Please try again as pdaq." % user)
+
+    try:
+        if args.kill:
+            if watcher.get_watchee().kill_all() is None:
+                raise SystemExit(1)
+        else:
+            watcher.check(logpath)
+    finally:
+        watcher.close_all()
+
+
 if __name__ == "__main__":
-    import argparse
-
-    def main():
-        "Main method"
-        parser = argparse.ArgumentParser()
-
-        add_arguments(parser)
-
-        args = parser.parse_args()
-
-        watcher = HsWatcher(host=args.host)
-
-        logpath = watcher.init_logging(args.logfile, basename="hswatcher",
-                                       basehost="testhub", both=False)
-
-        if watcher.is_cluster_sps or watcher.is_cluster_spts:
-            user = getpass.getuser()
-            if user != "pdaq":
-                raise SystemExit("Sorry user %s, you are not pdaq."
-                                 " Please try again as pdaq." % user)
-
-        try:
-            if args.kill:
-                if watcher.get_watchee().kill_all() is None:
-                    raise SystemExit(1)
-            else:
-                watcher.check(logpath)
-        finally:
-            watcher.close_all()
-
     main()

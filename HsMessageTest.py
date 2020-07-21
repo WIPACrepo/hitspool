@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+Test message-related functions
+"""
 
 import getpass
 import unittest
@@ -10,6 +13,8 @@ from HsPrefix import HsPrefix
 
 
 class MockSocket(object):
+    "A mock socket class for unit tests"
+
     def __init__(self):
         self.__msg = None
 
@@ -26,6 +31,8 @@ class MockSocket(object):
 
 
 class HsMessageTest(unittest.TestCase):
+    "Test the HsMessage class"
+
     def __check_request(self, req, msgtype, req_id, username, start_ticks,
                         stop_ticks, dest_dir, prefix, copy_dir, extract,
                         hubs, host, version):

@@ -81,7 +81,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
-        tstrun.set_current_interval(self.INTERVAL / 100)
+        tstrun.set_current_interval(int(self.INTERVAL / 100))
 
         # populate directory with hit files and database
         tstrun.populate(self)
@@ -218,7 +218,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
         # add all expected log messages
         self.expect_log_message(re.compile(r"No data found between \d+ and "
-                                           "\d+"))
+                                           r"\d+"))
 
         if HsRSyncFiles.DEBUG_EMPTY:
             hsr.i3socket.add_debug_email(hsr.shorthost)
@@ -445,7 +445,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
         # add all expected log messages
         self.expect_log_message(re.compile(r"No data found between \d+ and "
-                                           "\d+"))
+                                           r"\d+"))
 
         if HsRSyncFiles.DEBUG_EMPTY:
             hsr.i3socket.add_debug_email(hsr.shorthost)
@@ -585,7 +585,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
         # add all expected log messages
         self.expect_log_message(re.compile(r"No data found between \d+ and "
-                                           "\d+"))
+                                           r"\d+"))
 
         if HsRSyncFiles.DEBUG_EMPTY:
             hsr.i3socket.add_debug_email(hsr.shorthost)

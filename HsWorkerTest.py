@@ -21,6 +21,7 @@ from LoggingTestCase import LoggingTestCase
 
 
 if sys.version_info.major > 2:
+    # pylint: disable=invalid-name
     # unicode isn't present in Python3
     unicode = str
 
@@ -29,12 +30,12 @@ class MockSenderSocket(HsTestUtil.Mock0MQSocket):
     def __init__(self):
         super(MockSenderSocket, self).__init__("Sender")
 
-    def send_json(self, jobj):
-        if isinstance(jobj, (str, unicode)):
+    def send_json(self, msgjson):
+        if isinstance(msgjson, (str, unicode)):
             raise Exception("Got string JSON object %s<%s>" %
-                            (jobj, type(jobj)))
+                            (msgjson, type(msgjson)))
 
-        super(MockSenderSocket, self).send_json(jobj)
+        super(MockSenderSocket, self).send_json(msgjson)
 
 
 class MockSocket(object):

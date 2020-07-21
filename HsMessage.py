@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-
+"""
+Message-related functions and constants
+"""
 
 import binascii
 import getpass
@@ -33,6 +35,8 @@ __MANDATORY_FIELDS = ("username", "prefix", "destination_dir", "host",
 
 
 class ID(object):
+    "Unique ID generator"
+
     __seed = 0
     __seed_lock = threading.Lock()
 

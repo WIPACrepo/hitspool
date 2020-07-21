@@ -3,6 +3,8 @@
 # Hit Spool SPADE-ing to be run on access
 # author: dheereman
 #
+
+import argparse
 import glob
 import logging
 import os
@@ -11,6 +13,8 @@ from HsBase import HsBase
 
 
 def add_arguments(parser):
+    "Add all command line arguments to the argument parser"
+
     example_log_path = os.path.join(HsBase.DEFAULT_LOG_PATH, "hsspader.log")
 
     parser.add_argument("-i", "--indir", dest="indir", required=True,
@@ -94,21 +98,20 @@ class HsSpader(HsBase):
             logging.info("Preparation for SPADE Pickup of %s DONE", basename)
 
 
+def main():
+    parser = argparse.ArgumentParser()
+
+    add_arguments(parser)
+
+    args = parser.parse_args()
+
+    hsp = HsSpader()
+
+    hsp.init_logging(args.logfile, basename="hsspader",
+                     basehost="access")
+
+    hsp.spade_pickup_data(args.indir, args.pattern, args.spadedir)
+
+
 if __name__ == "__main__":
-    import argparse
-
-    def main():
-        parser = argparse.ArgumentParser()
-
-        add_arguments(parser)
-
-        args = parser.parse_args()
-
-        hsp = HsSpader()
-
-        hsp.init_logging(args.logfile, basename="hsspader",
-                         basehost="access")
-
-        hsp.spade_pickup_data(args.indir, args.pattern, args.spadedir)
-
     main()

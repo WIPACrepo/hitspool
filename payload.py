@@ -27,9 +27,12 @@ class PayloadException(Exception):
     "Payload exception"
 
 
+# pylint: disable=too-few-public-methods
 class StopMessage(object):
+    "Payload used to indicate that an input stream has stopped sending data"
     @property
     def bytes(self):
+        "Return the binary representation of this payload"
         return struct.pack(">I", 4)
 
 
@@ -62,24 +65,27 @@ class Payload(Comparable):
 
     @property
     def data_bytes(self):
-        "Data bytes (should not include the 16 byte envelope)"
+        "Return the data bytes (should not include the 16 byte envelope)"
         if not self.__valid_data:
             raise PayloadException("Data was discarded; cannot return bytes")
         return self.__data
 
     @property
     def data_length(self):
+        "Return the number of data bytes in this payload"
         if not self.__valid_data:
             raise PayloadException("Data was discarded; cannot return length")
         return len(self.__data)
 
     @property
     def envelope(self):
+        "Return the envelope bytes"
         return struct.pack(">2IQ", self.data_length + self.ENVELOPE_LENGTH,
                            self.payload_type_id(), self.__utime)
 
     @classmethod
     def extract_clock_bytes(cls, rawval):
+        "Extract the DOM clock bytes from a number or list"
         if isinstance(rawval, numbers.Number):
             tmpbytes = []
             for _ in range(6):
@@ -115,38 +121,39 @@ class Payload(Comparable):
         comp_num = src_id % 1000
 
         if comp_type == 3:
-            return "icetopHandler-%d" % comp_num
-        if comp_type == 12:
-            return "stringHub-%d" % comp_num
-        if comp_type == 13:
-            return "simHub-%d" % comp_num
-
-        if comp_num != 0:
-            raise PayloadException("Unexpected component#%d for source#%d" %
-                                   (comp_num, comp_type * 1000))
-
-        if comp_type == 4:
-            comp_name = "inIceTrigger"
-        elif comp_type == 5:
-            comp_name = "iceTopTrigger"
-        elif comp_type == 6:
-            comp_name = "globalTrigger"
-        elif comp_type == 7:
-            comp_name = "eventBuilder"
-        elif comp_type == 8:
-            comp_name = "tcalBuilder"
-        elif comp_type == 9:
-            comp_name = "moniBuilder"
-        elif comp_type == 10:
-            comp_name = "amandaTrigger"
-        elif comp_type == 11:
-            comp_name = "snBuilder"
-        elif comp_type == 14:
-            comp_name = "secondaryBuilders"
-        elif comp_type == 15:
-            comp_name = "trackEngine"
+            comp_name = "icetopHandler-%d" % comp_num
+        elif comp_type == 12:
+            comp_name = "stringHub-%d" % comp_num
+        elif comp_type == 13:
+            comp_name = "simHub-%d" % comp_num
         else:
-            comp_name = "??component#%d??" % (comp_type, )
+            if comp_num != 0:
+                raise PayloadException("Unexpected component#%d for"
+                                       " source#%d" %
+                                       (comp_num, comp_type * 1000))
+
+            if comp_type == 4:
+                comp_name = "inIceTrigger"
+            elif comp_type == 5:
+                comp_name = "iceTopTrigger"
+            elif comp_type == 6:
+                comp_name = "globalTrigger"
+            elif comp_type == 7:
+                comp_name = "eventBuilder"
+            elif comp_type == 8:
+                comp_name = "tcalBuilder"
+            elif comp_type == 9:
+                comp_name = "moniBuilder"
+            elif comp_type == 10:
+                comp_name = "amandaTrigger"
+            elif comp_type == 11:
+                comp_name = "snBuilder"
+            elif comp_type == 14:
+                comp_name = "secondaryBuilders"
+            elif comp_type == 15:
+                comp_name = "trackEngine"
+            else:
+                comp_name = "??component#%d??" % (comp_type, )
 
         return comp_name
 
@@ -186,6 +193,7 @@ class SimpleHit(Payload):
     TYPE_ID = 1
     MIN_LENGTH = 38
 
+    # pylint: disable=too-many-arguments
     def __init__(self, utime, data_or_trig_type, cfg_id=None, src_id=None,
                  mbid=None, keep_data=True):
         """Create a simple hit"""
@@ -337,37 +345,45 @@ class delta_codec(object):
 
 
 class HitPayload(Payload):
+    "Superclass for all hit payloads"
+
     def __init__(self, utime, data, keep_data=True):
         super(HitPayload, self).__init__(utime, data, keep_data=keep_data)
 
     @property
     def simple_hit(self):
+        "Return the simplified version of this hit"
         return struct.pack(">2iq3iqh", 38, self.payload_type_id(), self.utime,
                            self.trigger_type, self.config_id, self.source_id,
                            self.mbid, self.trigger_mode)
 
     @property
     def config_id(self):
+        "Return the configuration ID"
         raise NotImplementedError()
 
     @property
     def mbid(self):
+        "Return the mainboard ID"
         raise NotImplementedError()
 
     @property
     def source_id(self):
+        "Return the source ID"
         raise NotImplementedError()
 
     @property
     def trigger_mode(self):
+        "Return the trigger mode"
         raise NotImplementedError()
 
     @property
     def trigger_type(self):
+        "Return the trigger type"
         raise NotImplementedError()
 
 
-# pylint: disable=too-many-instance-attributes
+# pylint: disable=too-many-instance-attributes,too-many-public-methods
 # hits hold a lot of information
 class DeltaCompressedHit(HitPayload):
     "Delta-compressed (omicron) hits"
@@ -470,6 +486,11 @@ class DeltaCompressedHit(HitPayload):
                 ((self.__word2 & 0x1ff) << lsh))
 
     @property
+    def config_id(self):
+        "Always return 0, since no configuration ID is available"
+        return 0
+
+    @property
     def domclk(self):
         "Unadjusted DOM clock"
         return self.__domclk
@@ -526,6 +547,29 @@ class DeltaCompressedHit(HitPayload):
         return "%012x" % self.__mbid
 
     @property
+    def source_id(self):
+        "Always return 0, since no source ID is available"
+        return 0
+
+    @property
+    def trigger_mode(self):
+        bits = (self.__word0 >> 18) & 0x1017
+        if (bits & 0x1000) == 0x1000:
+            return 4
+        if (bits & 0x0010) == 0x0010:
+            return 3
+        if (bits & 0x0003) != 0:
+            return 2
+        if (bits & 0x0004) == 0x0004:
+            return 1
+        return 0
+
+    @property
+    def trigger_type(self):
+        "Always return 0, since no trigger type is available"
+        return 0
+
+    @property
     def trigmask(self):
         "Trigger mask"
         return (self.__word0 >> 18) & 0xfff
@@ -544,6 +588,7 @@ class DeltaCompressedHit(HitPayload):
 
 class EventV5(Payload):
     "Standard event payload"
+
     TYPE_ID = 21
     MIN_LENGTH = 18
 
@@ -625,16 +670,19 @@ class EventV5(Payload):
         return recs, offset
 
     def hit(self, idx):
+        "Return the requested hit record, or None if the index is not valid"
         if idx < 0 or idx >= len(self.__hit_records):
             return None
         return self.__hit_records[idx]
 
     @property
     def hit_count(self):
+        "Return count of hit records"
         return len(self.__hit_records)
 
     @property
     def hits(self):
+        "Return list of hit records"
         return self.__hit_records[:]
 
     @property
@@ -659,10 +707,12 @@ class EventV5(Payload):
 
     @property
     def trigger_count(self):
+        "Return count of trigger records"
         return len(self.__trig_records)
 
     @property
     def triggers(self):
+        "Return list of trigger records"
         return self.__trig_records[:]
 
     @property
@@ -697,14 +747,17 @@ class BaseHitRecord(object):
 
     @property
     def channel_id(self):
+        "Return DOM channel ID"
         return self.__chan_id
 
     @property
     def flags(self):
+        "Return flag bits"
         return self.__flags
 
     @property
     def timestamp(self):
+        "Return payload envelope time"
         return self.__utime
 
 
@@ -718,7 +771,10 @@ class EngineeringHitRecord(BaseHitRecord):
     TYPE_ID = 0
 
 
+# pylint: disable=too-few-public-methods
 class Monitor(object):
+    "Monitoring record base class"
+
     TYPE_ID = 5
 
     def __init__(self):
@@ -729,6 +785,7 @@ class Monitor(object):
 
     @classmethod
     def subtype(cls, utime, data, keep_data=True):
+        "Return record subtype"
         if len(data) < 12:
             raise PayloadException("Truncated monitoring record")
 
@@ -761,6 +818,8 @@ class Monitor(object):
 
 
 class MonitorRecord(object):
+    "Superclass for all monitoring records"
+
     def __init__(self, utime, dom_id, domclock):
         self.__utime = utime
         self.__dom_id = dom_id
@@ -768,18 +827,22 @@ class MonitorRecord(object):
 
     @property
     def bytes(self):
+        "Return the binary representation of this payload"
         return NotImplementedError()
 
     @property
     def clockbytes(self):
+        "Return the raw DOM clock bytes"
         return self.__clock_bytes[:]
 
     @property
     def dom_id(self):
+        "Return the DOM ID"
         return self.__dom_id
 
     @property
     def domclock(self):
+        "Return the DOM clock value"
         val = 0
         for byte in self.__clock_bytes:
             val = (val << 8) + byte
@@ -787,14 +850,18 @@ class MonitorRecord(object):
 
     @property
     def has_data(self):
+        "Return True if this payload has additional data bytes"
         return False
 
     @property
     def utime(self):
+        "Return payload envelope time"
         return self.__utime
 
 
 class MonitorASCII(MonitorRecord):
+    "ASCII monitoring record"
+
     SUBTYPE_ID = 0xcb
 
     def __init__(self, utime, dom_id, domclock, data):
@@ -822,14 +889,18 @@ class MonitorASCII(MonitorRecord):
 
     @property
     def subtype(self):
+        "Return record subtype"
         return self.SUBTYPE_ID
 
     @property
     def text(self):
+        "Return the monitoring text"
         return self.__text
 
 
 class MonitorConfig(MonitorRecord):
+    "Configuration monitoring record"
+
     SUBTYPE_ID = 0xc9
 
     def __init__(self, utime, dom_id, domclock, data):
@@ -843,10 +914,13 @@ class MonitorConfig(MonitorRecord):
 
     @property
     def subtype(self):
+        "Return record subtype"
         return self.SUBTYPE_ID
 
 
 class MonitorConfigChange(MonitorRecord):
+    "Configuration change monitoring record"
+
     SUBTYPE_ID = 0xca
 
     def __init__(self, utime, dom_id, domclock, data):
@@ -860,10 +934,13 @@ class MonitorConfigChange(MonitorRecord):
 
     @property
     def subtype(self):
+        "Return record subtype"
         return self.SUBTYPE_ID
 
 
 class MonitorGeneric(MonitorRecord):
+    "Generic monitoring record"
+
     SUBTYPE_ID = 0xcc
 
     def __init__(self, utime, dom_id, domclock, data):
@@ -877,14 +954,18 @@ class MonitorGeneric(MonitorRecord):
 
     @property
     def data(self):
+        "Return data bytes"
         return self.__data[:]
 
     @property
     def subtype(self):
+        "Return record subtype"
         return self.SUBTYPE_ID
 
 
 class MonitorHardware(MonitorRecord):
+    "Hardware monitoring record"
+
     SUBTYPE_ID = 0xc8
 
     def __init__(self, utime, dom_id, domclock, data):
@@ -898,13 +979,16 @@ class MonitorHardware(MonitorRecord):
 
     @property
     def subtype(self):
+        "Return record subtype"
         return self.SUBTYPE_ID
 
 
 class Supernova(Payload):
+    "Supernova scaler payload"
     TYPE_ID = 16
     MAGIC_NUMBER = 300
 
+    # pylint: disable=too-many-arguments
     def __init__(self, utime, data_or_dom_id, dom_clock=None,
                  scaler_bytes=None, keep_data=False):
         """Create a supernova payload"""
@@ -951,6 +1035,7 @@ class Supernova(Payload):
 
     @property
     def domclock(self):
+        "Return the unadjusted DOM clock time"
         val = 0
         for byte in self.__clock_bytes:
             val = (val << 8) + byte
@@ -958,6 +1043,8 @@ class Supernova(Payload):
 
 
 class TimeCalibration(Payload):
+    "Time calibration"
+
     TYPE_ID = 4
     LENGTH = 322
 
@@ -999,22 +1086,27 @@ class TimeCalibration(Payload):
 
     @property
     def dom_id(self):
+        "Return DOM mainboard ID"
         return self.__dom_id
 
     @property
     def dom_rx(self):
+        "Return DOM receive time"
         return self.__dom_rx
 
     @property
     def dom_tx(self):
+        "Return DOM transmit time"
         return self.__dom_tx
 
     @property
     def dor_rx(self):
+        "Return DOR transmit time"
         return self.__dor_rx
 
     @property
     def dor_tx(self):
+        "Return DOR transmit time"
         return self.__dor_tx
 
 
@@ -1131,7 +1223,10 @@ class PayloadReader(object):
                 return
 
             # decode the next payload
-            pay = next(self)
+            try:
+                pay = next(self)
+            except StopIteration:
+                return
             if pay is None:
                 # must have hit the end of the file
                 return
@@ -1181,67 +1276,71 @@ class PayloadReader(object):
             rawdata = stream.read(length - Payload.ENVELOPE_LENGTH)
 
         if type_id == SimpleHit.TYPE_ID:
-            return SimpleHit(utime, rawdata, keep_data=keep_data)
-        if type_id == DeltaCompressedHit.TYPE_ID:
+            pay = SimpleHit(utime, rawdata, keep_data=keep_data)
+        elif type_id == DeltaCompressedHit.TYPE_ID:
             # 'utime' is actually mainboard ID
-            return DeltaCompressedHit(utime, rawdata, keep_data=keep_data)
-        if type_id == EventV5.TYPE_ID:
-            return EventV5(utime, rawdata, keep_data=keep_data)
-        if type_id == TimeCalibration.TYPE_ID:
-            return TimeCalibration(utime, rawdata, keep_data=keep_data)
-        if type_id == Monitor.TYPE_ID:
-            return Monitor.subtype(utime, rawdata, keep_data=keep_data)
-        if type_id == Supernova.TYPE_ID:
-            return Supernova(utime, rawdata, keep_data=keep_data)
+            pay = DeltaCompressedHit(utime, rawdata, keep_data=keep_data)
+        elif type_id == EventV5.TYPE_ID:
+            pay = EventV5(utime, rawdata, keep_data=keep_data)
+        elif type_id == TimeCalibration.TYPE_ID:
+            pay = TimeCalibration(utime, rawdata, keep_data=keep_data)
+        elif type_id == Monitor.TYPE_ID:
+            pay = Monitor.subtype(utime, rawdata, keep_data=keep_data)
+        elif type_id == Supernova.TYPE_ID:
+            pay = Supernova(utime, rawdata, keep_data=keep_data)
+        else:
+            pay = UnknownPayload(type_id, utime, rawdata, keep_data=keep_data)
 
-        return UnknownPayload(type_id, utime, rawdata, keep_data=keep_data)
+        return pay
 
     next = __next__  # XXX backward compatibility for Python 2
 
 
+def read_file(filename, max_payloads, write_simple_hits=False):
+    "Read a binary payload file and print a description of each payload"
+    if write_simple_hits and filename.startswith("HitSpool-"):
+        out = open("SimpleHit-" + filename[9:], "w")
+    else:
+        out = None
+
+    try:
+        with PayloadReader(filename) as rdr:
+            for pay in rdr:
+                if max_payloads is not None and rdr.nrec > max_payloads:
+                    break
+
+                print(str(pay))
+                if out is not None:
+                    out.write(pay.simple_hit)
+    finally:
+        if out is not None:
+            out.close()
+
+
+def main():
+    "Main program"
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("-S", "--simple-hits", dest="write_simple_hits",
+                        action="store_true", default=False,
+                        help="Rewrite hits to trigger-friendly SimpleHits")
+    parser.add_argument("-n", "--max_payloads", type=int,
+                        dest="max_payloads", default=None,
+                        help="Maximum number of payloads to dump")
+    parser.add_argument(dest="fileList", nargs="+")
+
+    args = parser.parse_args()
+
+    for fnm in args.fileList:
+        if os.path.isfile(fnm):
+            read_file(fnm, args.max_payloads, args.write_simple_hits)
+            continue
+
+        for entry in os.listdir(fnm):
+            path = os.path.join(fnm, entry)
+            if os.path.isfile(path):
+                read_file(path, args.max_payloads, args.write_simple_hits)
+
 if __name__ == "__main__":
-    def read_file(filename, max_payloads, write_simple_hits=False):
-        if write_simple_hits and filename.startswith("HitSpool-"):
-            out = open("SimpleHit-" + filename[9:], "w")
-        else:
-            out = None
-
-        try:
-            with PayloadReader(filename) as rdr:
-                for pay in rdr:
-                    if max_payloads is not None and rdr.nrec > max_payloads:
-                        break
-
-                    print(str(pay))
-                    if out is not None:
-                        out.write(pay.simple_hit)
-        finally:
-            if out is not None:
-                out.close()
-
-    def main():
-        "Main program"
-
-        parser = argparse.ArgumentParser()
-
-        parser.add_argument("-S", "--simple-hits", dest="write_simple_hits",
-                            action="store_true", default=False,
-                            help="Rewrite hits to trigger-friendly SimpleHits")
-        parser.add_argument("-n", "--max_payloads", type=int,
-                            dest="max_payloads", default=None,
-                            help="Maximum number of payloads to dump")
-        parser.add_argument(dest="fileList", nargs="+")
-
-        args = parser.parse_args()
-
-        for fnm in args.fileList:
-            if os.path.isfile(fnm):
-                read_file(fnm, args.max_payloads, args.write_simple_hits)
-                continue
-
-            for entry in os.listdir(fnm):
-                path = os.path.join(fnm, entry)
-                if os.path.isfile(path):
-                    read_file(path, args.max_payloads, args.write_simple_hits)
-
     main()

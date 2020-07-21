@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+"Mock logger used for unit tests"
 
 from __future__ import print_function
 
@@ -7,6 +8,7 @@ import sys
 
 
 if sys.version_info.major > 2:
+    # pylint: disable=invalid-name
     # unicode isn't present in Python3
     unicode = str
 
@@ -86,15 +88,15 @@ class MockLoggingHandler(logging.Handler):
 
             return "Got log message \"%s\", expected \"%s\"" % \
                 (recmsg, xmsg)
-        else:
-            try:
-                if xmsg.match(recmsg) is not None:
-                    return None
 
-                return "Log message \"%s\" does not match \"%s\"" % \
-                    (recmsg, xmsg.pattern)
-            except:
-                pass
+        try:
+            if xmsg.match(recmsg) is not None:
+                return None
+
+            return "Log message \"%s\" does not match \"%s\"" % \
+              (recmsg, xmsg.pattern)
+        except:
+            pass
 
         return "Log message \"%s\"<%s> != \"%s\"<%s>" % \
             (recmsg, type(recmsg), xmsg, type(xmsg))
@@ -102,6 +104,7 @@ class MockLoggingHandler(logging.Handler):
     # pylint: disable=invalid-name
     # match other test methods
     def add_expected(self, msg):
+        "Add an expected log message"
         if self.__verbose:
             if hasattr(msg, 'flags') and hasattr(msg, 'pattern'):
                 logmsg = "%s (pattern)" % msg.pattern
@@ -131,9 +134,11 @@ class MockLoggingHandler(logging.Handler):
     # pylint: disable=invalid-name
     # match other test methods
     def setVerbose(self, value=True):
+        "Set verbosity"
         self.__verbose = (value is True)
 
     def validate(self):
+        "Raise an exception if there are missing log messages"
         if len(self.__expected) > 0:
             raise Exception("Didn't receive %d log messages: %s" %
                             (len(self.__expected),

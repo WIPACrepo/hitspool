@@ -445,6 +445,12 @@ class RequestMonitorTest(LoggingTestCase):
         if rmon.has_message:
             self.fail("ReqMon has not fetched message")
 
+    @classmethod
+    def stop_monitor(cls):
+        if cls.REQUEST_MONITOR is not None:
+            cls.__stop_thread(cls.REQUEST_MONITOR)
+            cls.REQUEST_MONITOR = None
+
     def setUp(self):
         super(RequestMonitorTest, self).setUp()
 
@@ -457,9 +463,7 @@ class RequestMonitorTest(LoggingTestCase):
             os.unlink(path)
 
     def tearDown(self):
-        if self.REQUEST_MONITOR is not None:
-            self.__stop_thread(self.REQUEST_MONITOR)
-            self.REQUEST_MONITOR = None
+        self.stop_monitor()
 
         super(RequestMonitorTest, self).tearDown()
 

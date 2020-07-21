@@ -13,6 +13,7 @@ from HsException import HsException
 
 
 if sys.version_info.major > 2:
+    # pylint: disable=invalid-name
     # unicode isn't present in Python3
     unicode = str
 

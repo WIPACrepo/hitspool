@@ -356,6 +356,25 @@ class HsSenderTest(LoggingTestCase):
         if len(flist) != 0:
             self.fail("%d extra files were copied (%s)" % (len(flist), flist))
 
+    @classmethod
+    def close_all_senders(cls):
+        found_error = False
+        if cls.SENDER is not None:
+            if not cls.SENDER.has_monitor:
+                logging.error("Sender monitor has died")
+                found_error = True
+            try:
+                cls.SENDER.close_all()
+            except:
+                traceback.print_exc()
+                found_error = True
+            cls.SENDER = None
+        return found_error
+
+    @classmethod
+    def set_sender(cls, sndr):
+        cls.SENDER = sndr
+
     def setUp(self):
         super(HsSenderTest, self).setUp()
         # by default, check all log messages
@@ -389,16 +408,8 @@ class HsSenderTest(LoggingTestCase):
                 found_error = True
 
             # close all sockets
-            if self.SENDER is not None:
-                if not self.SENDER.has_monitor:
-                    logging.error("Sender monitor has died")
-                    found_error = True
-                try:
-                    self.SENDER.close_all()
-                except:
-                    traceback.print_exc()
-                    found_error = True
-                self.SENDER = None
+
+            found_error |= self.close_all_senders()
 
             # get rid of HsSender's state database
             dbpath = RequestMonitor.get_db_path()
@@ -414,7 +425,7 @@ class HsSenderTest(LoggingTestCase):
 
     def test_bad_dir_name(self):
         sender = FailableSender()
-        self.SENDER = sender
+        self.set_sender(sender)
 
         # initialize HitSpool file parameters
         firstnum = 11
@@ -440,7 +451,7 @@ class HsSenderTest(LoggingTestCase):
 
     def test_no_move(self):
         sender = FailableSender()
-        self.SENDER = sender
+        self.set_sender(sender)
 
         # initialize HitSpool file parameters
         firstnum = 11
@@ -469,7 +480,7 @@ class HsSenderTest(LoggingTestCase):
 
     def test_copy_sn_alert(self):
         sender = FailableSender()
-        self.SENDER = sender
+        self.set_sender(sender)
 
         # initialize HitSpool file parameters
         firstnum = 11
@@ -495,7 +506,7 @@ class HsSenderTest(LoggingTestCase):
 
     def test_real_copy_sn_alert(self):
         sender = MySender(verbose=False)
-        self.SENDER = sender
+        self.set_sender(sender)
 
         req = MockRequestBuilder(None, MockRequestBuilder.SNDAQ, None, None,
                                  None, "12345678_987654", "ichub01", 11, 3)
@@ -513,7 +524,7 @@ class HsSenderTest(LoggingTestCase):
 
     def test_spade_data_nonstandard_prefix(self):
         sender = FailableSender()
-        self.SENDER = sender
+        self.set_sender(sender)
 
         # initialize directory parts
         category = "SomeCategory"
@@ -560,7 +571,7 @@ class HsSenderTest(LoggingTestCase):
 
     def test_spade_data_fail_tar(self):
         sender = FailableSender()
-        self.SENDER = sender
+        self.set_sender(sender)
 
         sender.fail_create_tar_file()
 
@@ -596,7 +607,7 @@ class HsSenderTest(LoggingTestCase):
 
     def test_spade_data_fail_move(self):
         sender = FailableSender()
-        self.SENDER = sender
+        self.set_sender(sender)
 
         sender.fail_move_file()
 
@@ -632,7 +643,7 @@ class HsSenderTest(LoggingTestCase):
 
     def test_spade_data_fail_sem(self):
         sender = FailableSender()
-        self.SENDER = sender
+        self.set_sender(sender)
 
         sender.fail_create_sem_file()
 
@@ -668,7 +679,7 @@ class HsSenderTest(LoggingTestCase):
 
     def test_spade_pickup_data(self):
         sender = MySender(verbose=False)
-        self.SENDER = sender
+        self.set_sender(sender)
 
         # initialize directory parts
         category = "SNALERT"
@@ -751,7 +762,7 @@ class HsSenderTest(LoggingTestCase):
 
     def test_main_loop_no_msg(self):
         sender = MySender(verbose=False)
-        self.SENDER = sender
+        self.set_sender(sender)
 
         # initialize message
         no_msg = None
@@ -774,7 +785,7 @@ class HsSenderTest(LoggingTestCase):
 
     def test_main_loop_str_msg(self):
         sender = MySender(verbose=False)
-        self.SENDER = sender
+        self.set_sender(sender)
 
         # initialize message
         snd_msg = json.dumps("abc")
@@ -803,7 +814,7 @@ class HsSenderTest(LoggingTestCase):
 
     def test_main_loop_no_request_id(self):
         sender = MySender(verbose=False)
-        self.SENDER = sender
+        self.set_sender(sender)
 
         # initialize message
         rcv_msg = {
@@ -835,7 +846,7 @@ class HsSenderTest(LoggingTestCase):
 
     def test_main_loop_incomplete_msg(self):
         sender = MySender(verbose=False)
-        self.SENDER = sender
+        self.set_sender(sender)
 
         # initialize message
         rcv_msg = {"msgtype": "rsync_sum", "request_id": "incomplete"}
@@ -863,7 +874,7 @@ class HsSenderTest(LoggingTestCase):
 
     def test_main_loop_unknown_msg(self):
         sender = MySender(verbose=False)
-        self.SENDER = sender
+        self.set_sender(sender)
 
         # initialize message
         rcv_msg = {
@@ -901,7 +912,7 @@ class HsSenderTest(LoggingTestCase):
 
     def test_main_loop_bad_hubs(self):
         sender = MySender(verbose=False)
-        self.SENDER = sender
+        self.set_sender(sender)
 
         # initialize message
         rcv_msg = {
@@ -940,7 +951,7 @@ class HsSenderTest(LoggingTestCase):
 
     def test_main_loop_no_init_just_success(self):
         sender = MySender(verbose=False)
-        self.SENDER = sender
+        self.set_sender(sender)
 
         # expected start/stop times
         start_ticks = 98765432100000
@@ -985,7 +996,7 @@ class HsSenderTest(LoggingTestCase):
 
     def test_main_loop_multi_request(self):
         sender = MySender(verbose=False)
-        self.SENDER = sender
+        self.set_sender(sender)
 
         # expected start/stop times
         start_ticks = 98765432100000

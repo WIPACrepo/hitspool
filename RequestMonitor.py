@@ -18,6 +18,8 @@ from HsPrefix import HsPrefix
 
 
 class RequestMonitor(threading.Thread):
+    "Monitor requests from all hubs"
+
     # path to the SQLite database which acts as a disk cache
     STATE_DB_PATH = None
 

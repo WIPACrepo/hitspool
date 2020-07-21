@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-
+"""
+Run all doctests in leapseconds.py
+"""
 
 import doctest
 import unittest

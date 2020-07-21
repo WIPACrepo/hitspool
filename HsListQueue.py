@@ -16,6 +16,7 @@ import HsUtil
 
 
 if sys.version_info.major > 2:
+    # pylint: disable=invalid-name
     # unicode isn't present in Python3
     unicode = str
 
@@ -92,12 +93,12 @@ class ListQueue(object):
             if seconds >= 3600:
                 # one or more hours
                 if seconds % 3600 == 0:
-                    return "%dh" % (seconds / 3600, )
+                    return "%dh" % int(seconds / 3600)
                 return "%.2fh" % (float(seconds) / 3600.0, )
             if seconds >= 60:
                 # one or more minutes
                 if seconds % 60 == 0:
-                    return "%dm" % (seconds / 60, )
+                    return "%dm" % int(seconds / 60)
                 return "%.2fm" % (float(seconds) / 60.0, )
 
         # one or more seconds
@@ -352,6 +353,8 @@ class ListQueue(object):
 
 
 def add_arguments(parser):
+    "Add all command line arguments to the argument parser"
+
     parser.add_argument("-D", "--state-db", dest="state_db",
                         help="Path to HitSpool state database"
                         " (used for testing)")
@@ -365,6 +368,8 @@ def add_arguments(parser):
 
 
 def main():
+    "Main program"
+
     parser = argparse.ArgumentParser()
     add_arguments(parser)
     args = parser.parse_args()

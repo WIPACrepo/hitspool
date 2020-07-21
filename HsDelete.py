@@ -5,6 +5,7 @@ Hit Spool Request Deletion
 
 from __future__ import print_function
 
+import argparse
 import getpass
 import logging
 import os
@@ -196,35 +197,36 @@ class HsDelete(HsBase):
         return False
 
 
+def main():
+    "Main program"
+
+    ''''Process arguments'''
+    epilog = "HsDelete deletes a request from the HitSpool system"
+    parser = argparse.ArgumentParser(epilog=epilog, add_help=False)
+    parser.add_argument("-?", "--help", action="help",
+                        help="show this help message and exit")
+
+    add_arguments(parser)
+
+    args = parser.parse_args()
+
+    hsd = HsDelete(is_test=args.is_test)
+
+    hsd.init_logging(args.logfile, level=logging.INFO)
+
+    logging.info("HsDelete running on: %s", hsd.fullhost)
+
+    if args.username is not None:
+        username = args.username
+    else:
+        username = getpass.getuser()
+
+    if not hsd.send_alert(request_id=args.request_id, username=username,
+                          print_to_console=True):
+        raise SystemExit(1)
+
+    hsd.wait_for_response()
+
+
 if __name__ == "__main__":
-    import argparse
-
-    def main():
-        ''''Process arguments'''
-        epilog = "HsDelete deletes a request from the HitSpool system"
-        parser = argparse.ArgumentParser(epilog=epilog, add_help=False)
-        parser.add_argument("-?", "--help", action="help",
-                            help="show this help message and exit")
-
-        add_arguments(parser)
-
-        args = parser.parse_args()
-
-        hsd = HsDelete(is_test=args.is_test)
-
-        hsd.init_logging(args.logfile, level=logging.INFO)
-
-        logging.info("HsDelete running on: %s", hsd.fullhost)
-
-        if args.username is not None:
-            username = args.username
-        else:
-            username = getpass.getuser()
-
-        if not hsd.send_alert(request_id=args.request_id, username=username,
-                              print_to_console=True):
-            raise SystemExit(1)
-
-        hsd.wait_for_response()
-
     main()

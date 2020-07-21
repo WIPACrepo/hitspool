@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+Functions to locate various important pDAQ files and directories
+"""
 
 import os
 

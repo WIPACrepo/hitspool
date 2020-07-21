@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+Test the HsRSyncFiles class
+"""
 
 import os
 import unittest
@@ -12,6 +15,8 @@ from HsException import HsException
 
 
 class MyHsRSyncFiles(HsRSyncFiles.HsRSyncFiles):
+    "Extend HsRSyncFiles and/or stub out some methods for unit tests"
+
     def __init__(self, is_test=False):
         self.__i3_sock = None
 
@@ -91,6 +96,8 @@ class MyHsRSyncFiles(HsRSyncFiles.HsRSyncFiles):
 
 
 class HsRSyncFilesTest(HsRSyncTestCase.HsRSyncTestCase):
+    "Test the HsRSyncFiles class"
+
     @property
     def real_object(self):
         return HsRSyncFiles.HsRSyncFiles(is_test=True)

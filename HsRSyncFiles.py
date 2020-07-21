@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+Base class for HitSpool workers
+"""
 
 import datetime
 import logging

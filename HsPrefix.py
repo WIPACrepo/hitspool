@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+Methods to select/validate HitSpool file prefixes
+"""
 
 from __future__ import print_function
 

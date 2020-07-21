@@ -5,6 +5,7 @@ Hit Spool Request Submitter
 
 from __future__ import print_function
 
+import argparse
 import datetime
 import getpass
 import json
@@ -321,8 +322,8 @@ class HsGrabber(HsBase):
                 return False
 
             alert = {
-                "start": start_ticks / 10,
-                "stop": stop_ticks / 10,
+                "start": int(start_ticks / 10),
+                "stop": int(stop_ticks / 10),
                 "copy": destdir,
             }
         else:
@@ -438,127 +439,127 @@ class HsGrabber(HsBase):
         return False
 
 
+def parse_time(name, rawval, now_ticks):
+    try:
+        # convert string to starting time
+        daq_ticks = DAQTime.string_to_ticks(rawval, is_ns=True)
+    except HsException:
+        return None
+
+    # if time is in the future, assume they specified ticks instead of NS
+    if daq_ticks < now_ticks:
+        return daq_ticks
+
+    print("WARNING: %s %s is %s" %
+          (name, rawval, DAQTime.ticks_to_utc(daq_ticks)), file=sys.stderr)
+    print("         Assuming ticks instead of nanoseconds",
+          file=sys.stderr)
+    print("", file=sys.stderr)
+
+    return DAQTime.string_to_ticks(rawval)
+
+def main():
+    "Main program"
+
+    ''''Process arguments'''
+    start_ticks = None
+    stop_ticks = None
+    now_ticks = DAQTime.utc_to_ticks(datetime.datetime.now())
+
+    epilog = "HsGrabber submits a request to the HitSpool system"
+    parser = argparse.ArgumentParser(epilog=epilog, add_help=False)
+    parser.add_argument("-?", "--help", action="help",
+                        help="show this help message and exit")
+
+    add_arguments(parser)
+
+    args = parser.parse_args()
+
+    usage = False
+    if not usage:
+        tmptime = parse_time("Starting time", args.begin_time, now_ticks)
+        if tmptime is None:
+            print("Invalid starting time \"%s\"" % args.begin_time,
+                  file=sys.stderr)
+            usage = True
+
+        start_ticks = tmptime
+
+    if not usage:
+        if args.end_time is not None:
+            if args.duration is not None:
+                print("Cannot specify -d(uration) and -e(nd_time) together",
+                      file=sys.stderr)
+                usage = True
+            else:
+                tmptime = parse_time("Stopping time", args.end_time,
+                                     now_ticks)
+                if tmptime is None:
+                    print("Invalid ending time \"%s\"" % args.end_time,
+                          file=sys.stderr)
+                    usage = True
+                stop_ticks = tmptime
+        elif args.duration is not None:
+            try:
+                dur = get_duration_from_string(args.duration)
+                stop_ticks = start_ticks + int(dur * 1E10)
+            except ValueError:
+                print("Invalid duration \"%s\"" % args.duration,
+                      file=sys.stderr)
+                usage = True
+        else:
+            print("Please specify either -d(uration) or -e(nd_time)",
+                  file=sys.stderr)
+            usage = True
+
+    if usage:
+        parser.print_help()
+        sys.exit(1)
+
+    hsg = HsGrabber(is_test=args.is_test)
+
+    hsg.init_logging(args.logfile, level=logging.INFO)
+
+    # build 'hubs' string from arguments
+    if args.hub is None or len(args.hub) == 0:
+        hubs = None
+    else:
+        hubs = ",".join(args.hub)
+
+    # make sure rsync destination is fully specified
+    if args.copydir is not None:
+        (user, host, path) = hsg.split_rsync_path(args.copydir)
+    else:
+        user = HsBase.DEFAULT_RSYNC_USER
+        host = HsBase.DEFAULT_RSYNC_HOST
+        if args.prefix == HsPrefix.LIVE:
+            path = "/mnt/data/HitSpool/satellite"
+        elif args.prefix == HsPrefix.HESE:
+            path = "/mnt/data/hese_hs"
+        else:
+            path = HsBase.DEFAULT_COPY_PATH
+
+    destdir = "%s@%s:%s" % (user, host, path)
+
+    logging.info("This HsGrabber runs on: %s", hsg.fullhost)
+
+    print("Request start: %s (%d ns)" %
+          (DAQTime.ticks_to_utc(start_ticks), int(start_ticks / 10)))
+    print("Request end: %s (%d ns)" %
+          (DAQTime.ticks_to_utc(stop_ticks), int(stop_ticks / 10)))
+    print("Destination: %s" % (destdir, ))
+    if hubs is not None:
+        print("Hubs: %s" % (hubs, ))
+
+    if not hsg.send_alert(start_ticks, stop_ticks, destdir,
+                          request_id=args.request_id,
+                          username=args.username, prefix=args.prefix,
+                          extract_hits=args.extract, hubs=hubs,
+                          print_to_console=True,
+                          proceed_no_prompt=args.proceed_no_prompt):
+        raise SystemExit(1)
+
+    hsg.wait_for_response()
+
 if __name__ == "__main__":
-    import argparse
-
-    def parse_time(name, rawval, now_ticks):
-        try:
-            # convert string to starting time
-            daq_ticks = DAQTime.string_to_ticks(rawval, is_ns=True)
-        except HsException:
-            return None
-
-        # if time is in the future, assume they specified ticks instead of NS
-        if daq_ticks < now_ticks:
-            return daq_ticks
-
-        print("WARNING: %s %s is %s" %
-              (name, rawval, DAQTime.ticks_to_utc(daq_ticks)), file=sys.stderr)
-        print("         Assuming ticks instead of nanoseconds",
-              file=sys.stderr)
-        print("", file=sys.stderr)
-
-        return DAQTime.string_to_ticks(rawval)
-
-    def main():
-        ''''Process arguments'''
-        start_ticks = None
-        stop_ticks = None
-        now_ticks = DAQTime.utc_to_ticks(datetime.datetime.now())
-
-        epilog = "HsGrabber submits a request to the HitSpool system"
-        parser = argparse.ArgumentParser(epilog=epilog, add_help=False)
-        parser.add_argument("-?", "--help", action="help",
-                            help="show this help message and exit")
-
-        add_arguments(parser)
-
-        args = parser.parse_args()
-
-        usage = False
-        if not usage:
-            tmptime = parse_time("Starting time", args.begin_time, now_ticks)
-            if tmptime is None:
-                print("Invalid starting time \"%s\"" % args.begin_time,
-                      file=sys.stderr)
-                usage = True
-
-            start_ticks = tmptime
-
-        if not usage:
-            if args.end_time is not None:
-                if args.duration is not None:
-                    print("Cannot specify -d(uration) and -e(nd_time) together",
-                          file=sys.stderr)
-                    usage = True
-                else:
-                    tmptime = parse_time("Stopping time", args.end_time,
-                                         now_ticks)
-                    if tmptime is None:
-                        print("Invalid ending time \"%s\"" % args.end_time,
-                              file=sys.stderr)
-                        usage = True
-                    stop_ticks = tmptime
-            elif args.duration is not None:
-                try:
-                    dur = get_duration_from_string(args.duration)
-                    stop_ticks = start_ticks + int(dur * 1E10)
-                except ValueError:
-                    print("Invalid duration \"%s\"" % args.duration,
-                          file=sys.stderr)
-                    usage = True
-            else:
-                print("Please specify either -d(uration) or -e(nd_time)",
-                      file=sys.stderr)
-                usage = True
-
-        if usage:
-            parser.print_help()
-            sys.exit(1)
-
-        hsg = HsGrabber(is_test=args.is_test)
-
-        hsg.init_logging(args.logfile, level=logging.INFO)
-
-        # build 'hubs' string from arguments
-        if args.hub is None or len(args.hub) == 0:
-            hubs = None
-        else:
-            hubs = ",".join(args.hub)
-
-        # make sure rsync destination is fully specified
-        if args.copydir is not None:
-            (user, host, path) = hsg.split_rsync_path(args.copydir)
-        else:
-            user = HsBase.DEFAULT_RSYNC_USER
-            host = HsBase.DEFAULT_RSYNC_HOST
-            if args.prefix == HsPrefix.LIVE:
-                path = "/mnt/data/HitSpool/satellite"
-            elif args.prefix == HsPrefix.HESE:
-                path = "/mnt/data/hese_hs"
-            else:
-                path = HsBase.DEFAULT_COPY_PATH
-
-        destdir = "%s@%s:%s" % (user, host, path)
-
-        logging.info("This HsGrabber runs on: %s", hsg.fullhost)
-
-        print("Request start: %s (%d ns)" %
-              (DAQTime.ticks_to_utc(start_ticks), start_ticks / 10))
-        print("Request end: %s (%d ns)" %
-              (DAQTime.ticks_to_utc(stop_ticks), stop_ticks / 10))
-        print("Destination: %s" % (destdir, ))
-        if hubs is not None:
-            print("Hubs: %s" % (hubs, ))
-
-        if not hsg.send_alert(start_ticks, stop_ticks, destdir,
-                              request_id=args.request_id,
-                              username=args.username, prefix=args.prefix,
-                              extract_hits=args.extract, hubs=hubs,
-                              print_to_console=True,
-                              proceed_no_prompt=args.proceed_no_prompt):
-            raise SystemExit(1)
-
-        hsg.wait_for_response()
-
     main()

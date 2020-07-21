@@ -104,7 +104,7 @@ def utc_to_ticks(utc):
 
 
 def main():
-    "Main method"
+    "Main program"
 
     is_ns = False
     for arg in sys.argv[1:]:

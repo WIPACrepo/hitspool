@@ -40,7 +40,7 @@ class DumpThreadsOnSignal(object):
     @classmethod
     def dump_threads(cls, fout=None, logger=None):
         first = True
-        for tid, stack in sys._current_frames().itertems():
+        for tid, stack in sys._current_frames().items():
             thrd = cls.__find_thread(tid)
             if thrd is None:
                 tstr = "Thread #%d" % tid

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import argparse
 import datetime
 import logging
 import os
@@ -21,6 +22,8 @@ from RequestMonitor import RequestMonitor
 
 
 def add_arguments(parser):
+    "Add all command line arguments to the argument parser"
+
     example_log_path = os.path.join(HsBase.DEFAULT_LOG_PATH, "hssender.log")
 
     parser.add_argument("-D", "--state-db", dest="state_db",
@@ -499,51 +502,51 @@ class HsSender(HsBase):
         return self.__workers
 
 
+def main():
+    "Main method"
+
+    parser = argparse.ArgumentParser()
+
+    add_arguments(parser)
+
+    args = parser.parse_args()
+
+    HsBase.init_logging(args.logfile, basename="hssender",
+                        basehost="2ndbuild")
+
+    if args.state_db is not None:
+        if RequestMonitor.STATE_DB_PATH is not None:
+            raise SystemExit("HitSpool state database path has"
+                             " already been set")
+        RequestMonitor.STATE_DB_PATH = args.state_db
+
+    sender = HsSender(is_test=args.is_test)
+
+    logging.info("HsSender starts on %s", sender.shorthost)
+
+    # override some defaults (generally only used for debugging)
+    if args.spadedir is not None:
+        sender.HS_SPADE_DIR = args.spadedir
+
+    # handler is called when SIGTERM is called (via pkill)
+    signal.signal(signal.SIGTERM, sender.handler)
+
+    while True:
+        logging.debug("HsSender waits for new messages")
+        try:
+            sender.mainloop(force_spade=args.force_spade)
+        except SystemExit:
+            raise
+        except KeyboardInterrupt:
+            logging.warning("Interruption received, shutting down...")
+            raise SystemExit(0)
+        except zmq.ZMQError as zex:
+            if str(zex).find("Socket operation on non-socket") < 0:
+                logging.exception("ZMQ error received, shutting down...")
+            raise SystemExit(1)
+        except:
+            logging.exception("Caught exception, continuing")
+
+
 if __name__ == "__main__":
-    import argparse
-
-    def main():
-        "Main method"
-        parser = argparse.ArgumentParser()
-
-        add_arguments(parser)
-
-        args = parser.parse_args()
-
-        HsBase.init_logging(args.logfile, basename="hssender",
-                            basehost="2ndbuild")
-
-        if args.state_db is not None:
-            if RequestMonitor.STATE_DB_PATH is not None:
-                raise SystemExit("HitSpool state database path has"
-                                 " already been set")
-            RequestMonitor.STATE_DB_PATH = args.state_db
-
-        sender = HsSender(is_test=args.is_test)
-
-        logging.info("HsSender starts on %s", sender.shorthost)
-
-        # override some defaults (generally only used for debugging)
-        if args.spadedir is not None:
-            sender.HS_SPADE_DIR = args.spadedir
-
-        # handler is called when SIGTERM is called (via pkill)
-        signal.signal(signal.SIGTERM, sender.handler)
-
-        while True:
-            logging.debug("HsSender waits for new messages")
-            try:
-                sender.mainloop(force_spade=args.force_spade)
-            except SystemExit:
-                raise
-            except KeyboardInterrupt:
-                logging.warning("Interruption received, shutting down...")
-                raise SystemExit(0)
-            except zmq.ZMQError as zex:
-                if str(zex).find("Socket operation on non-socket") < 0:
-                    logging.exception("ZMQ error received, shutting down...")
-                raise SystemExit(1)
-            except:
-                logging.exception("Caught exception, continuing")
-
     main()

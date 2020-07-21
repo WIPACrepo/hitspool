@@ -55,31 +55,43 @@ class HsPublisherTest(LoggingTestCase):
     MATCH_ANY = re.compile(r"^.*$")
     RECEIVER = None
 
+    @classmethod
+    def close_all_receivers(cls):
+        if cls.RECEIVER is not None:
+            # preserve the receiver, then clear the class variable
+            rcvr = cls.RECEIVER
+            cls.RECEIVER = None
+
+            # close all receiver sockets
+            try:
+                rcvr.close_all()
+            except:
+                traceback.print_exc()
+                return False
+
+        return True
+
     def setUp(self):
         super(HsPublisherTest, self).setUp()
         # by default, check all log messages
         self.setLogLevel(0)
-        self.RECEIVER = None
+        self.set_receiver(None)
 
     def tearDown(self):
         try:
             super(HsPublisherTest, self).tearDown()
         finally:
             found_error = False
-            if self.RECEIVER is not None:
-                try:
-                    self.RECEIVER.close_all()
-                except:
-                    traceback.print_exc()
-                    found_error = True
-                self.RECEIVER = None
-
-            if found_error:
+            if not self.close_all_receivers():
                 self.fail("Found one or more errors during tear-down")
+
+    @classmethod
+    def set_receiver(cls, rcvr):
+        cls.RECEIVER = rcvr
 
     def test_empty_request(self):
         rcvr = MyReceiver()
-        self.RECEIVER = rcvr
+        self.set_receiver(rcvr)
 
         # request message
         req_str = ""
@@ -101,7 +113,7 @@ class HsPublisherTest(LoggingTestCase):
 
     def test_bad_msg(self):
         rcvr = MyReceiver()
-        self.RECEIVER = rcvr
+        self.set_receiver(rcvr)
 
         # request message
         req_str = "XXX"
@@ -123,7 +135,7 @@ class HsPublisherTest(LoggingTestCase):
 
     def test_bad_start(self):
         rcvr = MyReceiver()
-        self.RECEIVER = rcvr
+        self.set_receiver(rcvr)
 
         # expected start/stop times
         start_utc = "XXX"
@@ -165,7 +177,7 @@ class HsPublisherTest(LoggingTestCase):
 
     def test_bad_stop(self):
         rcvr = MyReceiver()
-        self.RECEIVER = rcvr
+        self.set_receiver(rcvr)
 
         # expected start/stop times
         start_ticks = 98765432101234
@@ -211,7 +223,7 @@ class HsPublisherTest(LoggingTestCase):
 
     def test_missing_copydir(self):
         rcvr = MyReceiver()
-        self.RECEIVER = rcvr
+        self.set_receiver(rcvr)
 
         # expected start/stop times
         start_ticks = 98765432101234
@@ -251,7 +263,7 @@ class HsPublisherTest(LoggingTestCase):
 
     def test_null_copydir(self):
         rcvr = MyReceiver()
-        self.RECEIVER = rcvr
+        self.set_receiver(rcvr)
 
         # expected start/stop times
         start_ticks = 98765432101234
@@ -291,7 +303,7 @@ class HsPublisherTest(LoggingTestCase):
 
     def test_bad_copydir_user(self):
         rcvr = MyReceiver()
-        self.RECEIVER = rcvr
+        self.set_receiver(rcvr)
 
         # expected start/stop times
         start_ticks = 98765432101234
@@ -336,7 +348,7 @@ class HsPublisherTest(LoggingTestCase):
 
     def test_bad_copydir_host(self):
         rcvr = MyReceiver()
-        self.RECEIVER = rcvr
+        self.set_receiver(rcvr)
 
         # expected start/stop times
         start_ticks = 98765432101234
@@ -381,7 +393,7 @@ class HsPublisherTest(LoggingTestCase):
 
     def test_done_fail(self):
         rcvr = MyReceiver()
-        self.RECEIVER = rcvr
+        self.set_receiver(rcvr)
 
         # expected start/stop times
         start_ticks = 98765432100000
@@ -432,7 +444,7 @@ class HsPublisherTest(LoggingTestCase):
 
     def test_oldgood(self):
         rcvr = MyReceiver()
-        self.RECEIVER = rcvr
+        self.set_receiver(rcvr)
 
         # expected start/stop times
         start_ticks = 98765432100000
@@ -482,7 +494,7 @@ class HsPublisherTest(LoggingTestCase):
 
     def test_newgood(self):
         rcvr = MyReceiver()
-        self.RECEIVER = rcvr
+        self.set_receiver(rcvr)
 
         # expected start/stop times
         start_ticks = 98765432100000
@@ -534,7 +546,7 @@ class HsPublisherTest(LoggingTestCase):
 
     def test_req_datetime(self):
         rcvr = MyReceiver()
-        self.RECEIVER = rcvr
+        self.set_receiver(rcvr)
 
         # expected start/stop times
         start_ticks = 98765432100000
@@ -586,7 +598,7 @@ class HsPublisherTest(LoggingTestCase):
 
     def test_hese(self):
         rcvr = MyReceiver()
-        self.RECEIVER = rcvr
+        self.set_receiver(rcvr)
 
         # expected start/stop times
         start_ticks = 98765432100000
@@ -640,7 +652,7 @@ class HsPublisherTest(LoggingTestCase):
 
     def test_date_requests(self):
         rcvr = MyReceiver()
-        self.RECEIVER = rcvr
+        self.set_receiver(rcvr)
 
         # expected start/stop times
         start_ticks = 98765432100000

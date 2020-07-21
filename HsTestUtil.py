@@ -20,6 +20,7 @@ from RequestMonitor import RequestMonitor
 
 
 if sys.version_info.major > 2:
+    # pylint: disable=invalid-name
     # unicode isn't present in Python3
     unicode = str
 
@@ -40,7 +41,8 @@ def create_hits(filename, start_tick, stop_tick, interval):
     ignored = 0
     mbid = 0x1234567890123
 
-    filler = [val for val in range(int((hit_len - 32) / 2))]
+    filler = list(range(int((hit_len - 32) / 2)))
+
     # byte-order word must be 1
     filler[0] = 1
 
@@ -103,7 +105,7 @@ def get_time(tick, year=None, is_ns=False):
     ticks_per_sec = TICKS_PER_SECOND
     if is_ns:
         ticks_per_sec /= 10
-    ticks_per_ms = ticks_per_sec / 1000000
+    ticks_per_ms = int(ticks_per_sec / 1000000)
 
     # convert ticks to a datetime delta
     secs = int(tick / ticks_per_sec)
@@ -194,7 +196,7 @@ def update_hitspool_db(spooldir, alert_start, alert_stop, run_start, run_stop,
         if create_files:
             # how many hits should the file contain?
             num_hits_per_file = 20
-            tick_ival = interval / num_hits_per_file
+            tick_ival = int(interval / num_hits_per_file)
             if tick_ival == 0:
                 tick_ival = 1
 

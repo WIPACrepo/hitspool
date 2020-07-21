@@ -10,6 +10,7 @@ is present and is named 'leap-seconds.latest'
 from __future__ import print_function
 
 import calendar
+import doctest
 import os
 import re
 import time
@@ -23,6 +24,8 @@ class LeapsecondException(Exception):
 
 
 class MJD(Comparable):
+    "Modified Julain Date"
+
     def __init__(self, year=None, month=None, day=None, hour=None,
                  minute=None, second=None, rawvalue=None):
         """Convert the date to a modified julian date.
@@ -165,6 +168,8 @@ class MJD(Comparable):
 
 
 class LeapSeconds(object):
+    "Leapsecond-related methods"
+
     # default file name
     DEFAULT_FILENAME = "leapseconds-latest"
     # First year covered by NIST file
@@ -283,6 +288,7 @@ class LeapSeconds(object):
 
 
 class LeapOffsets(object):
+    "Leapsecond offset data extracted froma NIST file"
     def __init__(self, initial_offset, days):
         self.__initial_offset = initial_offset
         self.__days = days
@@ -319,6 +325,8 @@ class LeapOffsets(object):
 
 
 class NISTParser(object):
+    "NIST file parser"
+
     MAX_PRECALCULATE_SPAN = 100
 
     NIST_DATA_PAT = re.compile(r"^(\d+)\s+(\d+)")
@@ -436,7 +444,6 @@ def main():
 
 
 def test():
-    import doctest
     doctest.testmod()
 
 

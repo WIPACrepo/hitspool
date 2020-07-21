@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+Base HitSpool class
+"""
 
 from __future__ import print_function
 
@@ -24,6 +27,8 @@ from HsException import HsException
 
 
 class HsBase(object):
+    "Base HitSpool class"
+
     SPS = 1
     SPTS = 2
     LOCALHOST = 3

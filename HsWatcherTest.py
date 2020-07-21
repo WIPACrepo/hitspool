@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+Test the HsWatcher class
+"""
 
 import logging
 import re
@@ -15,6 +18,8 @@ from LoggingTestCase import LoggingTestCase
 
 
 class MyWatchee(HsWatcher.Watchee):
+    "Extend Watchee and/or stub out some methods for unit tests"
+
     def __init__(self, basename):
         self.__pid = None
         self.__daemon_pid = None
@@ -46,6 +51,8 @@ class MyWatchee(HsWatcher.Watchee):
 
 
 class MyWatcher(HsWatcher.HsWatcher):
+    "Extend HsWatcher and/or stub out some methods for unit tests"
+
     def __init__(self, host=None):
         self.__i3_sock = None
         self.__loglines = []
@@ -95,6 +102,8 @@ class MyWatcher(HsWatcher.HsWatcher):
 
 
 class HsWatcherTest(LoggingTestCase):
+    "Test the HsWatcher class"
+
     @classmethod
     def __add_alert(cls, watcher, program, alert_type, desc, alertmsg):
         notify_hdr = '%s HsInterface Alert: %s@%s' % \

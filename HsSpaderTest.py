@@ -1,4 +1,8 @@
 #!/usr/bin/env python
+"""
+Test the HsSpader class
+"""
+
 
 import errno
 import logging
@@ -14,6 +18,8 @@ from LoggingTestCase import LoggingTestCase
 
 
 class MySpader(HsSpader.HsSpader):
+    "Extend HsSpader and/or stub out some methods for unit tests"
+
     def __init__(self):
         super(MySpader, self).__init__()
 
@@ -65,6 +71,8 @@ class MySpader(HsSpader.HsSpader):
 
 
 class HsSpaderTest(LoggingTestCase):
+    "Test the HsSpader class"
+
     def setUp(self):
         super(HsSpaderTest, self).setUp()
         # by default, check all log messages

@@ -31,12 +31,12 @@ class MockSenderSocket(HsTestUtil.Mock0MQSocket):
     def __init__(self, name="Sender", verbose=False):
         super(MockSenderSocket, self).__init__(name, verbose=verbose)
 
-    def send_json(self, jstr):
-        if isinstance(jstr, str):
+    def send_json(self, msgjson):
+        if isinstance(msgjson, str):
             raise Exception("Got string JSON object %s<%s>" %
-                            (jstr, type(jstr)))
+                            (msgjson, type(msgjson)))
 
-        super(MockSenderSocket, self).send_json(jstr)
+        super(MockSenderSocket, self).send_json(msgjson)
 
 
 class MockPubSocket(object):
@@ -601,8 +601,8 @@ class IntegrationTest(LoggingTestCase):
                          stop_ticks, copydir):
         # request message
         alertdict = {
-            "start": start_ticks / 10,
-            "stop": stop_ticks / 10,
+            "start": int(start_ticks / 10),
+            "stop": int(stop_ticks / 10),
             "copy": copydir,
             "request_id": req_id,
             "username": username,

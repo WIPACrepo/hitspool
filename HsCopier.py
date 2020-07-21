@@ -18,6 +18,8 @@ from HsException import HsException
 
 
 class Copier(object):
+    "Copy files to a remote system"
+
     def __init__(self, cmd=None, rmt_user=None, rmt_host=None,
                  rmt_dir=None, rmt_subdir=None, make_remote_dir=False):
         if rmt_host is None or rmt_host == "":
@@ -148,6 +150,8 @@ class Copier(object):
 
 
 class CopyUsingRSync(Copier):
+    "Copy files to the remote system using 'rsync'"
+
     # regular expression used to get the number of bytes sent by rsync
     SENT_PAT = re.compile(r"sent (\d[\d,]*) bytes\s+received (\d[\d,]*) bytes"
                           r"\s+(\d[\d,]*(\.\d[\d,]*)?) bytes\/sec")
@@ -345,6 +349,8 @@ class CopyUsingRSync(Copier):
 
 
 class CopyUsingSCP(Copier):
+    "Copy files to the remote system using 'scp'"
+
     def __init__(self, rmt_user, rmt_host, rmt_dir, rmt_subdir,
                  bwlimit=None, cipher=None, log_format=None,
                  make_remote_dir=True, relative=None):
