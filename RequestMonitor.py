@@ -1,5 +1,8 @@
 #!/usr/bin/env python
-
+"""
+Manage HitSpool requests by submitting them one at a time and timing out
+"abandoned" requests (where one or more hubs has become unresponsive)
+"""
 
 import datetime
 import logging

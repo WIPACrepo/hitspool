@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-
 import json
 import logging
 import numbers
@@ -19,6 +18,7 @@ import HsSender
 import HsMessage
 import HsUtil
 
+from HsBase import HsBase
 from HsException import HsException
 from HsTestUtil import Mock0MQPoller, Mock0MQSocket, MockHitspool, \
     MockI3Socket, TIME_PAT, set_state_db_path
@@ -339,6 +339,7 @@ class HsSenderTest(LoggingTestCase):
     # Really?!?!  In a test class?!?!  Shut up, pylint!
 
     SENDER = None
+    CACHED_COPY_PATH = None
 
     def __check_hitspool_file_list(self, flist, firstnum, numfiles):
         flist.sort()
@@ -388,11 +389,15 @@ class HsSenderTest(LoggingTestCase):
         if os.path.exists(dbpath):
             os.unlink(dbpath)
 
+        self.set_copy_path()
+
     def tearDown(self):
         try:
             super(HsSenderTest, self).tearDown()
         finally:
             found_error = False
+
+            self.restore_copy_path()
 
             # clear lingering files
             try:
@@ -422,6 +427,23 @@ class HsSenderTest(LoggingTestCase):
 
             if found_error:
                 self.fail("Found one or more errors during tear-down")
+
+    @classmethod
+    def set_copy_path(cls):
+        cls.CACHED_COPY_PATH = HsBase.DEFAULT_COPY_PATH
+        HsBase.set_default_copy_path(tempfile.mkdtemp())
+
+    @classmethod
+    def restore_copy_path(cls):
+        if cls.CACHED_COPY_PATH is not None:
+            try:
+                if HsBase.DEFAULT_COPY_PATH != cls.CACHED_COPY_PATH:
+                    try:
+                        shutil.rmtree(HsBase.DEFAULT_COPY_PATH)
+                    finally:
+                        HsBase.DEFAULT_COPY_PATH = cls.CACHED_COPY_PATH
+            finally:
+                cls.CACHED_COPY_PATH = None
 
     def test_bad_dir_name(self):
         sender = FailableSender()

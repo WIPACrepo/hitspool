@@ -266,6 +266,10 @@ class HsBase(object):
     def rsync_user(self):
         return self.__rsync_user
 
+    @classmethod
+    def set_default_copy_path(cls, path):
+        cls.DEFAULT_COPY_PATH = path
+
     @property
     def shorthost(self):
         return self.__src_mchn_short

@@ -6,6 +6,8 @@ import json
 import logging
 import os
 import re
+import shutil
+import tempfile
 import threading
 import time
 import traceback
@@ -22,6 +24,7 @@ import HsTestUtil
 import HsUtil
 
 from DumpThreads import DumpThreadsOnSignal
+from HsBase import HsBase
 from HsPrefix import HsPrefix
 from LoggingTestCase import LoggingTestCase
 from RequestMonitor import RequestMonitor
@@ -551,6 +554,7 @@ class IntegrationTest(LoggingTestCase):
     INTERVAL = 15 * TICKS_PER_SECOND
 
     MATCH_ANY = re.compile(r"^.*$")
+    CACHED_COPY_PATH = None
 
     def __create_hsdir(self, workers, spoolname, start_ticks, stop_ticks):
         HsTestUtil.MockHitspool.create_copy_dir(workers[0])
@@ -742,6 +746,8 @@ class IntegrationTest(LoggingTestCase):
         # point the RequestMonitor at a temporary state file for tests
         HsTestUtil.set_state_db_path()
 
+        self.set_copy_path()
+
         self.__delete_state()
 
         DumpThreadsOnSignal()
@@ -751,6 +757,25 @@ class IntegrationTest(LoggingTestCase):
             super(IntegrationTest, self).tearDown()
         finally:
             self.__delete_state()
+
+            self.restore_copy_path()
+
+    @classmethod
+    def set_copy_path(cls):
+        cls.CACHED_COPY_PATH = HsBase.DEFAULT_COPY_PATH
+        HsBase.set_default_copy_path(tempfile.mkdtemp())
+
+    @classmethod
+    def restore_copy_path(cls):
+        if cls.CACHED_COPY_PATH is not None:
+            try:
+                if HsBase.DEFAULT_COPY_PATH != cls.CACHED_COPY_PATH:
+                    try:
+                        shutil.rmtree(HsBase.DEFAULT_COPY_PATH)
+                    finally:
+                        HsBase.DEFAULT_COPY_PATH = cls.CACHED_COPY_PATH
+            finally:
+                cls.CACHED_COPY_PATH = None
 
     def test_publisher_to_worker(self):
         verbose = False
