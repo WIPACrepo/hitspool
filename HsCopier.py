@@ -121,7 +121,8 @@ class Copier(object):
             rstr = rmt_host
         else:
             rstr = "%s@%s" % (rmt_user, rmt_host)
-        cmd = ["ssh", rstr, "mkdir", "-p", "\"%s\"" % rmt_dir]
+        cmd = ["ssh", rstr, "if [ ! -d \"%s\" ]; then mkdir -p \"%s\"; fi" %
+               (rmt_dir, rmt_dir)]
         for _ in range(3):
             # this fails occasionally, possibly due to a wave of processes
             #  all trying to create subdirectories in the same directory
