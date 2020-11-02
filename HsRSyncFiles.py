@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+Base class for HitSpool workers
+"""
 
 import datetime
 import logging
@@ -211,7 +214,8 @@ class HsRSyncFiles(HsBase):
                                                message)
         self.__i3socket.send_json(debugjson)
 
-    def __delay(self, delay_time, request=None, update_status=None):
+    @classmethod
+    def __delay(cls, delay_time, request=None, update_status=None):
         """
         Delay start/stop by alternately sending a "keepalive" message and then
         sleeping for a bit
@@ -314,7 +318,7 @@ class HsRSyncFiles(HsBase):
             # preserve file to prevent being overwritten on next hs cycle
             try:
                 self.hardlink(next_file, tmp_dir)
-            except HsException, hsex:
+            except HsException as hsex:
                 logging.error("failed to link %s to tmp dir: %s", filename,
                               hsex)
                 self.send_alert("ERROR: linking %s to tmp dir failed" %
@@ -459,7 +463,7 @@ class HsRSyncFiles(HsBase):
         # Socket to receive message on:
         sock = self.__context.socket(zmq.SUB)
         sock.identity = (self.fullhost + "<IN").encode("ascii")
-        sock.setsockopt(zmq.SUBSCRIBE, "")
+        sock.setsockopt(zmq.SUBSCRIBE, b"")
         sock.connect("tcp://%s:%d" % (host, PUBLISHER_PORT))
         return sock
 
@@ -480,7 +484,7 @@ class HsRSyncFiles(HsBase):
 
         try:
             os.link(filename, path)
-        except StandardError, err:
+        except Exception as err:
             raise HsException("Cannot link \"%s\" to \"%s\": %s" %
                               (filename, targetdir, err))
 
@@ -542,7 +546,7 @@ class HsRSyncFiles(HsBase):
                     try:
                         shutil.rmtree(tmp_dir)
                         logging.info("Deleted tmp dir %s", tmp_dir)
-                    except StandardError, err:
+                    except Exception as err:
                         logging.error("failed removing tmp files: %s", err)
                         self.send_alert("ERROR: Deleting tmp dir failed")
 
@@ -578,7 +582,7 @@ class HsRSyncFiles(HsBase):
 
                 # if at first we don't succeed...
                 files = failed
-            except HsException, hsex:
+            except HsException as hsex:
                 exception = hsex
 
         if exception is not None:
@@ -612,6 +616,10 @@ class HsRSyncFiles(HsBase):
     @property
     def sender(self):
         return self.__sender
+
+    @classmethod
+    def set_min_delay(cls, min_delay):
+        cls.MIN_DELAY = min_delay
 
     @property
     def subscriber(self):

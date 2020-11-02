@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+Test message-related functions
+"""
 
 import getpass
 import unittest
@@ -10,6 +13,8 @@ from HsPrefix import HsPrefix
 
 
 class MockSocket(object):
+    "A mock socket class for unit tests"
+
     def __init__(self):
         self.__msg = None
 
@@ -26,44 +31,46 @@ class MockSocket(object):
 
 
 class HsMessageTest(unittest.TestCase):
+    "Test the HsMessage class"
+
     def __check_request(self, req, msgtype, req_id, username, start_ticks,
                         stop_ticks, dest_dir, prefix, copy_dir, extract,
                         hubs, host, version):
 
-        self.assertEquals(req.start_ticks, start_ticks,
-                          "Expected start ticks %s<%s>, not %s<%s>" %
-                          (start_ticks, type(start_ticks), req.start_ticks,
-                           type(req.start_ticks)))
-        self.assertEquals(req.stop_ticks, stop_ticks,
-                          "Expected stop ticks %s<%s>, not %s<%s>" %
-                          (stop_ticks, type(stop_ticks), req.stop_ticks,
-                           type(req.stop_ticks)))
-        self.assertEquals(req.destination_dir, dest_dir,
-                          "Expected destination directory %s, not %s" %
-                          (dest_dir, req.destination_dir))
-        self.assertEquals(req.username, username,
-                          "Expected username %s, not %s" %
-                          (username, req.username))
-        self.assertEquals(req.host, host,
-                          "Expected host %s, not %s" % (host, req.host))
-        self.assertEquals(req.copy_dir, copy_dir,
-                          "Expected copy directory %s, not %s" %
-                          (copy_dir, req.copy_dir))
-        self.assertEquals(req.extract, extract,
-                          "Expected 'extract' %s, not %s" %
-                          (extract, req.extract))
-        self.assertEquals(req.prefix, prefix,
-                          "Expected prefix %s, not %s" %
-                          (prefix, req.prefix))
-        self.assertEquals(req.version, version,
-                          "Expected version %s, not %s" %
-                          (version, req.version))
-        self.assertEquals(req.request_id, req_id,
-                          "Expected request ID %s, not %s" %
-                          (req_id, req.request_id))
-        self.assertEquals(req.hubs, hubs,
-                          "Expected hubs %s, not %s" %
-                          (hubs, req.hubs))
+        self.assertEqual(req.start_ticks, start_ticks,
+                         "Expected start ticks %s<%s>, not %s<%s>" %
+                         (start_ticks, type(start_ticks), req.start_ticks,
+                          type(req.start_ticks)))
+        self.assertEqual(req.stop_ticks, stop_ticks,
+                         "Expected stop ticks %s<%s>, not %s<%s>" %
+                         (stop_ticks, type(stop_ticks), req.stop_ticks,
+                          type(req.stop_ticks)))
+        self.assertEqual(req.destination_dir, dest_dir,
+                         "Expected destination directory %s, not %s" %
+                         (dest_dir, req.destination_dir))
+        self.assertEqual(req.username, username,
+                         "Expected username %s, not %s" %
+                         (username, req.username))
+        self.assertEqual(req.host, host,
+                         "Expected host %s, not %s" % (host, req.host))
+        self.assertEqual(req.copy_dir, copy_dir,
+                         "Expected copy directory %s, not %s" %
+                         (copy_dir, req.copy_dir))
+        self.assertEqual(req.extract, extract,
+                         "Expected 'extract' %s, not %s" %
+                         (extract, req.extract))
+        self.assertEqual(req.prefix, prefix,
+                         "Expected prefix %s, not %s" %
+                         (prefix, req.prefix))
+        self.assertEqual(req.version, version,
+                         "Expected version %s, not %s" %
+                         (version, req.version))
+        self.assertEqual(req.request_id, req_id,
+                         "Expected request ID %s, not %s" %
+                         (req_id, req.request_id))
+        self.assertEqual(req.hubs, hubs,
+                         "Expected hubs %s, not %s" %
+                         (hubs, req.hubs))
 
     @classmethod
     def __receive(cls, sock):
@@ -80,8 +87,8 @@ class HsMessageTest(unittest.TestCase):
     def test_send_recv(self):
         sock = MockSocket()
 
-        start_ticks = 1234567890L
-        stop_ticks = start_ticks + long(1E8)
+        start_ticks = 1234567890
+        stop_ticks = start_ticks + 100000000
         dest_dir = "/foo/dest"
 
         username = getpass.getuser()

@@ -1,11 +1,12 @@
 #!/usr/bin/env python
-
 """
 HsWatcher.py
 David Heereman
 
 Watch a HitSpool process, restart it if it's stopped or dies
 """
+
+import argparse
 import getpass
 import logging
 import os
@@ -58,7 +59,7 @@ class Daemon(object):
     def check_executable(cls, basename, executable):
         "Exit if the executable does not exist"
         if not os.path.exists(executable):
-            raise SystemError("Cannot find %s; giving up", basename)
+            raise SystemError("Cannot find %s; giving up" % basename)
 
     def daemonize(self, stdin=None, stdout=None, stderr=None):
         """
@@ -73,8 +74,8 @@ class Daemon(object):
             pid = os.fork()
             if pid > 0:
                 # return so parent can finish its work
-                return None
-        except OSError, oserr:
+                return
+        except OSError as oserr:
             raise SystemExit("fork #1 failed: %d (%s)\n" %
                              (oserr.errno, oserr.strerror))
 
@@ -89,16 +90,16 @@ class Daemon(object):
             if pid > 0:
                 # exit from second parent
                 raise SystemExit(0)
-        except OSError, oserr:
+        except OSError as oserr:
             raise SystemExit("fork #2 failed: %d (%s)\n" %
                              (oserr.errno, oserr.strerror))
 
         # redirect standard file descriptors
         sys.stdout.flush()
         sys.stderr.flush()
-        sin = file(stdin if stdin is not None else "/dev/null", 'r')
-        sout = file(stdout if stdout is not None else "/dev/null", 'a+')
-        serr = file(stderr if stderr is not None else "/dev/null", 'a+')
+        sin = stdin if stdin is not None else open("/dev/null", 'r')
+        sout = stdout if stdout is not None else open("/dev/null", 'a+')
+        serr = stderr if stderr is not None else open("/dev/null", 'a+')
         os.dup2(sin.fileno(), sys.stdin.fileno())
         os.dup2(sout.fileno(), sys.stdout.fileno())
         os.dup2(serr.fileno(), sys.stderr.fileno())
@@ -195,7 +196,7 @@ class Watchee(Daemon):
                 try:
                     os.kill(pid, sig)
                     num_killed += 1
-                except OSError, err:
+                except OSError as err:
                     errstr = str(err)
                     if errstr.find("No such process") == 0:
                         logging.error("Cannot kill %s at PID %d: %s",
@@ -391,11 +392,11 @@ class HsWatcher(HsBase):
         """
         if "2ndbuild" in self.fullhost:
             return self.create_watchee("HsSender")
-        elif "expcont" in self.fullhost:
+        if "expcont" in self.fullhost:
             return self.create_watchee("HsPublisher")
-        elif "hub" in self.fullhost or "scube" in self.fullhost:
+        if "hub" in self.fullhost or "scube" in self.fullhost:
             return self.create_watchee("HsWorker")
-        elif "david" in self.fullhost:
+        if "david" in self.fullhost:
             return self.create_watchee("HsWorker")
 
         raise HsException("Unrecognized host \"%s\"" % self.fullhost)
@@ -417,19 +418,19 @@ class HsWatcher(HsBase):
         try:
             total_lines_wanted = lines
 
-            BLOCK_SIZE = 1024
+            block_size = 1024
             fin.seek(0, 2)
             block_end_byte = fin.tell()
             lines_to_go = total_lines_wanted
             block_number = -1
 
-            # blocks of size BLOCK_SIZE, in reverse order starting
+            # blocks of size block_size, in reverse order starting
             # from the end of the file
             while lines_to_go > 0 and block_end_byte > 0:
-                if block_end_byte - BLOCK_SIZE > 0:
+                if block_end_byte - block_size > 0:
                     # read the last block we haven't yet read
-                    fin.seek(block_number*BLOCK_SIZE, 2)
-                    blocks.append(fin.read(BLOCK_SIZE))
+                    fin.seek(block_number*block_size, 2)
+                    blocks.append(fin.read(block_size))
                 else:
                     # file too small, start from begining
                     fin.seek(0, 0)
@@ -437,7 +438,7 @@ class HsWatcher(HsBase):
                     blocks.append(fin.read(block_end_byte))
                 lines_found = blocks[-1].count(search_string)
                 lines_to_go -= lines_found
-                block_end_byte -= BLOCK_SIZE
+                block_end_byte -= block_size
                 block_number -= 1
         finally:
             fin.close()
@@ -447,35 +448,35 @@ class HsWatcher(HsBase):
                 if search_string in line][-total_lines_wanted:]
 
 
+def main():
+    "Main program"
+
+    parser = argparse.ArgumentParser()
+
+    add_arguments(parser)
+
+    args = parser.parse_args()
+
+    watcher = HsWatcher(host=args.host)
+
+    logpath = watcher.init_logging(args.logfile, basename="hswatcher",
+                                   basehost="testhub", both=False)
+
+    if watcher.is_cluster_sps or watcher.is_cluster_spts:
+        user = getpass.getuser()
+        if user != "pdaq":
+            raise SystemExit("Sorry user %s, you are not pdaq."
+                             " Please try again as pdaq." % user)
+
+    try:
+        if args.kill:
+            if watcher.get_watchee().kill_all() is None:
+                raise SystemExit(1)
+        else:
+            watcher.check(logpath)
+    finally:
+        watcher.close_all()
+
+
 if __name__ == "__main__":
-    import argparse
-
-    def main():
-        "Main method"
-        parser = argparse.ArgumentParser()
-
-        add_arguments(parser)
-
-        args = parser.parse_args()
-
-        watcher = HsWatcher(host=args.host)
-
-        logpath = watcher.init_logging(args.logfile, basename="hswatcher",
-                                       basehost="testhub", both=False)
-
-        if watcher.is_cluster_sps or watcher.is_cluster_spts:
-            user = getpass.getuser()
-            if user != "pdaq":
-                raise SystemExit("Sorry user %s, you are not pdaq."
-                                 " Please try again as pdaq." % user)
-
-        try:
-            if args.kill:
-                if watcher.get_watchee().kill_all() is None:
-                    raise SystemExit(1)
-            else:
-                watcher.check(logpath)
-        finally:
-            watcher.close_all()
-
     main()

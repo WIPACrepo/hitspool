@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-
+import argparse
 import ast
 import json
 import logging
@@ -17,9 +17,12 @@ import HsUtil
 from HsBase import HsBase
 from HsException import HsException
 from HsPrefix import HsPrefix
+from i3helper import reraise_excinfo
 
 
 def add_arguments(parser):
+    "Add all command line arguments to the argument parser"
+
     example_log_path = os.path.join(HsBase.DEFAULT_LOG_PATH, "hspublisher.log")
 
     parser.add_argument("-l", "--logfile", dest="logfile",
@@ -137,7 +140,7 @@ class Receiver(HsBase):
 
         if exc_info is not None:
             # if there was an exception, re-raise it
-            raise exc_info[0], exc_info[1], exc_info[2]
+            reraise_excinfo(exc_info)
 
         # let caller know there was a problem
         return False
@@ -361,41 +364,41 @@ class Receiver(HsBase):
         return self.__sender
 
 
+def main():
+    "Main program"
+
+    parser = argparse.ArgumentParser()
+
+    add_arguments(parser)
+
+    args = parser.parse_args()
+
+    receiver = Receiver(is_test=args.is_test)
+
+    # handler is called when SIGTERM is called (via pkill)
+    signal.signal(signal.SIGTERM, receiver.handler)
+
+    receiver.init_logging(args.logfile, basename="hspublisher",
+                          basehost="expcont")
+
+    logging.info("HsPublisher started on %s", receiver.shorthost)
+
+    # We want to have a stable connection FOREVER to the client
+    while True:
+        try:
+            receiver.reply_request()
+        except SystemExit:
+            raise
+        except KeyboardInterrupt:
+            # catch terminatation signals: can be Ctrl+C (if started
+            # locally) or another termination message from fabfile
+            logging.warning("Interruption received, shutting down...")
+            break
+        except zmq.ZMQError:
+            logging.exception("ZMQ error received, shutting down...")
+            raise SystemExit(1)
+        except:
+            logging.exception("Caught exception, continuing")
+
 if __name__ == '__main__':
-    import argparse
-
-    def main():
-        parser = argparse.ArgumentParser()
-
-        add_arguments(parser)
-
-        args = parser.parse_args()
-
-        receiver = Receiver(is_test=args.is_test)
-
-        # handler is called when SIGTERM is called (via pkill)
-        signal.signal(signal.SIGTERM, receiver.handler)
-
-        receiver.init_logging(args.logfile, basename="hspublisher",
-                              basehost="expcont")
-
-        logging.info("HsPublisher started on %s", receiver.shorthost)
-
-        # We want to have a stable connection FOREVER to the client
-        while True:
-            try:
-                receiver.reply_request()
-            except SystemExit:
-                raise
-            except KeyboardInterrupt:
-                # catch terminatation signals: can be Ctrl+C (if started
-                # locally) or another termination message from fabfile
-                logging.warning("Interruption received, shutting down...")
-                break
-            except zmq.ZMQError:
-                logging.exception("ZMQ error received, shutting down...")
-                raise SystemExit(1)
-            except:
-                logging.exception("Caught exception, continuing")
-
     main()

@@ -12,7 +12,6 @@ import HsMessage
 import HsUtil
 
 from HsException import HsException
-from HsSender import HsSender
 from HsTestUtil import Mock0MQSocket, MockI3Socket, TIME_PAT, \
     set_state_db_path
 from RequestMonitor import RequestMonitor
@@ -48,6 +47,7 @@ class MockSender(object):
     def is_cluster_spts(self):
         return self.__cluster == CLUSTER_SPTS
 
+    # pylint: disable=no-self-use
     def move_to_destination_dir(self, copydir, copydir_user, prefix=None,
                                 force_spade=False):
         return "/dest/dir", True
@@ -142,7 +142,7 @@ class RequestMonitorTest(LoggingTestCase):
             key = prefix + "_ticks"
             if key not in mdict:
                 raise HsException("Message is missing \"%s_ticks\"" %
-                                  (prefix, prefix))
+                                  (prefix, ))
 
             if not isinstance(mdict[key], numbers.Number):
                 raise HsException("Message field %s type is %s, not number" %
@@ -189,7 +189,8 @@ class RequestMonitorTest(LoggingTestCase):
         cls.__start_thread(rmon)
         return rmon
 
-    def __expect_live_status(self, sender, mdict, status=None, success=None,
+    @classmethod
+    def __expect_live_status(cls, sender, mdict, status=None, success=None,
                              failed=None):
         # if no status was specified, use success/failed to derive it
         if status is None:
@@ -230,9 +231,9 @@ class RequestMonitorTest(LoggingTestCase):
         if failed is not None:
             livedict["failed"] = failed
 
-        sender.i3socket.addExpectedMessage(livedict, service="hitspool",
-                                           varname="hsrequest_info", prio=1,
-                                           time=TIME_PAT)
+        sender.i3socket.add_expected_message(livedict, service="hitspool",
+                                             varname="hsrequest_info", prio=1,
+                                             time=TIME_PAT)
 
     def __send_message(self, rmon, template_dict, msgtype=None, host=None,
                        wait_for_receipt=True):
@@ -292,7 +293,7 @@ class RequestMonitorTest(LoggingTestCase):
         mdict = self.__create_message(request_id=req_id, hubs=hubstr)
 
         # tell workers to expect the request
-        sender.workers.addExpected(mdict.copy())
+        sender.workers.add_expected(mdict.copy())
 
         # tell Live to expect a status message from the sender
         self.__expect_live_status(sender, mdict, status=HsUtil.STATUS_QUEUED)
@@ -306,8 +307,8 @@ class RequestMonitorTest(LoggingTestCase):
         notify_msg = re.compile(r'Start: .*\nStop: .*\n' +
                                 r'\(no possible leapseconds applied\)',
                                 flags=re.MULTILINE)
-        sender.i3socket.addGenericEMail(HsConstants.ALERT_EMAIL_DEV,
-                                        notify_hdr, notify_msg, prio=1)
+        sender.i3socket.add_generic_email(HsConstants.ALERT_EMAIL_DEV,
+                                          notify_hdr, notify_msg, prio=1)
 
         # send initial message to RequestMonitor
         self.__send_message(rmon, mdict.copy())
@@ -404,8 +405,8 @@ class RequestMonitorTest(LoggingTestCase):
                     fstr = " failed=%s" % fhubs
 
                 # add expected summary log message
-                self.expectLogMessage("Req#%s %s%s%s" %
-                                      (req_id, final_state, sstr, fstr))
+                self.expect_log_message("Req#%s %s%s%s" %
+                                        (req_id, final_state, sstr, fstr))
 
                 # send summary message to Live
                 self.__expect_live_status(sender, mdict, success=shubs,
@@ -444,6 +445,12 @@ class RequestMonitorTest(LoggingTestCase):
         if rmon.has_message:
             self.fail("ReqMon has not fetched message")
 
+    @classmethod
+    def stop_monitor(cls):
+        if cls.REQUEST_MONITOR is not None:
+            cls.__stop_thread(cls.REQUEST_MONITOR)
+            cls.REQUEST_MONITOR = None
+
     def setUp(self):
         super(RequestMonitorTest, self).setUp()
 
@@ -456,9 +463,7 @@ class RequestMonitorTest(LoggingTestCase):
             os.unlink(path)
 
     def tearDown(self):
-        if self.REQUEST_MONITOR is not None:
-            self.__stop_thread(self.REQUEST_MONITOR)
-            self.REQUEST_MONITOR = None
+        self.stop_monitor()
 
         super(RequestMonitorTest, self).tearDown()
 
@@ -474,11 +479,11 @@ class RequestMonitorTest(LoggingTestCase):
 
         hubname = "ichub11"
 
-        self.expectLogMessage("Received unexpected STARTED message from %s"
-                              " for Req#%s (no active request)" %
-                              (hubname, req_id))
-        self.expectLogMessage("Request %s was not initialized (received"
-                              " START from %s)" % (req_id, hubname))
+        self.expect_log_message("Received unexpected STARTED message from %s"
+                                " for Req#%s (no active request)" %
+                                (hubname, req_id))
+        self.expect_log_message("Request %s was not initialized (received"
+                                " START from %s)" % (req_id, hubname))
 
         self.__send_message(rmon, mdict.copy(), msgtype=HsMessage.STARTED,
                             host=hubname)
@@ -497,14 +502,14 @@ class RequestMonitorTest(LoggingTestCase):
 
         hubname = "ichub11"
 
-        self.expectLogMessage("Received unexpected WORKING message from %s"
-                              " for Req#%s (no active request)" %
-                              (hubname, req_id))
-        self.expectLogMessage("Request %s was not initialized (received"
-                              " WORKING from %s)" % (req_id, hubname))
-        self.expectLogMessage("Saw WORKING message for request %s host %s"
-                              " but host was unknown" %
-                              (req_id, hubname))
+        self.expect_log_message("Received unexpected WORKING message from %s"
+                                " for Req#%s (no active request)" %
+                                (hubname, req_id))
+        self.expect_log_message("Request %s was not initialized (received"
+                                " WORKING from %s)" % (req_id, hubname))
+        self.expect_log_message("Saw WORKING message for request %s host %s"
+                                " but host was unknown" %
+                                (req_id, hubname))
 
         self.__send_message(rmon, mdict.copy(), msgtype=HsMessage.WORKING,
                             host=hubname)
@@ -522,16 +527,16 @@ class RequestMonitorTest(LoggingTestCase):
 
         hubname = "ichub11"
 
-        self.expectLogMessage("Received unexpected DONE message from %s"
-                              " for Req#%s (no active request)" %
-                              (hubname, req_id))
-        self.expectLogMessage("Request %s was not initialized (received"
-                              " DONE from %s)" % (req_id, hubname))
-        self.expectLogMessage("Saw DONE message for request %s host %s"
-                              " without a START message" %
-                              (req_id, hubname))
+        self.expect_log_message("Received unexpected DONE message from %s"
+                                " for Req#%s (no active request)" %
+                                (hubname, req_id))
+        self.expect_log_message("Request %s was not initialized (received"
+                                " DONE from %s)" % (req_id, hubname))
+        self.expect_log_message("Saw DONE message for request %s host %s"
+                                " without a START message" %
+                                (req_id, hubname))
 
-        self.expectLogMessage("Req#%s SUCCESS success=%s" % (req_id, 11))
+        self.expect_log_message("Req#%s SUCCESS success=%s" % (req_id, 11))
 
         self.__send_message(rmon, mdict.copy(), msgtype=HsMessage.DONE,
                             host=hubname)
@@ -551,16 +556,16 @@ class RequestMonitorTest(LoggingTestCase):
 
         self.__expect_live_status(sender, mdict, failed="11")
 
-        self.expectLogMessage("Received unexpected FAILED message from %s"
-                              " for Req#%s (no active request)" %
-                              (hubname, req_id))
-        self.expectLogMessage("Request %s was not initialized (received"
-                              " FAILED from %s)" % (req_id, hubname))
-        self.expectLogMessage("Saw FAILED message for request %s host %s"
-                              " without a START message" %
-                              (req_id, hubname))
+        self.expect_log_message("Received unexpected FAILED message from %s"
+                                " for Req#%s (no active request)" %
+                                (hubname, req_id))
+        self.expect_log_message("Request %s was not initialized (received"
+                                " FAILED from %s)" % (req_id, hubname))
+        self.expect_log_message("Saw FAILED message for request %s host %s"
+                                " without a START message" %
+                                (req_id, hubname))
 
-        self.expectLogMessage("Req#%s FAIL failed=%s" % (req_id, 11))
+        self.expect_log_message("Req#%s FAIL failed=%s" % (req_id, 11))
 
         self.__send_message(rmon, mdict.copy(), msgtype=HsMessage.FAILED,
                             host=hubname)
@@ -621,7 +626,7 @@ class RequestMonitorTest(LoggingTestCase):
         test_msg1 = mdict1.copy()
 
         # workers receive the first request
-        sender.workers.addExpected(test_msg1)
+        sender.workers.add_expected(test_msg1)
 
         # sender notifies Live of first request
         self.__expect_live_status(sender, mdict1, status=HsUtil.STATUS_QUEUED)
@@ -631,8 +636,8 @@ class RequestMonitorTest(LoggingTestCase):
         notify_msg = re.compile(r'Start: .*\nStop: .*\n' +
                                 r'\(no possible leapseconds applied\)',
                                 flags=re.MULTILINE)
-        sender.i3socket.addGenericEMail(HsConstants.ALERT_EMAIL_DEV,
-                                        notify_hdr, notify_msg, prio=1)
+        sender.i3socket.add_generic_email(HsConstants.ALERT_EMAIL_DEV,
+                                          notify_hdr, notify_msg, prio=1)
 
         # send first request to RequestMonitor
         self.__send_message(rmon, test_msg1)
@@ -645,7 +650,7 @@ class RequestMonitorTest(LoggingTestCase):
         test_msg2 = mdict2.copy()
 
         # workers receive the second request
-        sender.workers.addExpected(test_msg2)
+        sender.workers.add_expected(test_msg2)
 
         # sender notifies Live of second request
         self.__expect_live_status(sender, mdict2, status=HsUtil.STATUS_QUEUED)
@@ -655,8 +660,8 @@ class RequestMonitorTest(LoggingTestCase):
         notify_msg = re.compile(r'Start: .*\nStop: .*\n' +
                                 r'\(no possible leapseconds applied\)',
                                 flags=re.MULTILINE)
-        sender.i3socket.addGenericEMail(HsConstants.ALERT_EMAIL_DEV,
-                                        notify_hdr, notify_msg, prio=1)
+        sender.i3socket.add_generic_email(HsConstants.ALERT_EMAIL_DEV,
+                                          notify_hdr, notify_msg, prio=1)
 
         # send second request to RequestMonitor
         self.__send_message(rmon, test_msg2)
@@ -688,13 +693,13 @@ class RequestMonitorTest(LoggingTestCase):
                                   status=HsUtil.STATUS_IN_PROGRESS)
 
         # add expected error messages
-        self.expectLogMessage("Received unexpected STARTED message from"
-                              " %s for Req#%s (Req#%s is active)" %
-                              ("ichub11", req_id2, req_id1))
+        self.expect_log_message("Received unexpected STARTED message from"
+                                " %s for Req#%s (Req#%s is active)" %
+                                ("ichub11", req_id2, req_id1))
 
-        self.expectLogMessage("Received unexpected STARTED message from"
-                              " %s for Req#%s (Req#%s is active)" %
-                              ("ithub05", req_id2, req_id1))
+        self.expect_log_message("Received unexpected STARTED message from"
+                                " %s for Req#%s (Req#%s is active)" %
+                                ("ithub05", req_id2, req_id1))
 
         # send second "worker" STARTED messages to RequestMonitor
         self.__send_message(rmon, mdict2, msgtype=HsMessage.STARTED,
@@ -704,9 +709,9 @@ class RequestMonitorTest(LoggingTestCase):
 
         self.__check_reqmon_state(rmon, req_id2, (11, 205), None, None)
 
-        self.expectLogMessage("Received unexpected DONE message from"
-                              " %s for Req#%s (Req#%s is active)" %
-                              ("ichub11", req_id2, req_id1))
+        self.expect_log_message("Received unexpected DONE message from"
+                                " %s for Req#%s (Req#%s is active)" %
+                                ("ichub11", req_id2, req_id1))
 
         # send second ichub11 DONE message to RequestMonitor
         self.__send_message(rmon, mdict2, msgtype=HsMessage.DONE,
@@ -715,8 +720,8 @@ class RequestMonitorTest(LoggingTestCase):
         self.__check_reqmon_state(rmon, req_id2, (205, ), None, (11, ))
 
         # add second expected summary log message
-        self.expectLogMessage("Req#%s PARTIAL success=%s failed=%s" %
-                              (req_id1, 11, 99))
+        self.expect_log_message("Req#%s PARTIAL success=%s failed=%s" %
+                                (req_id1, 11, 99))
 
         # send second summary message to Live
         self.__expect_live_status(sender, mdict1, success="11", failed="99")
@@ -729,13 +734,13 @@ class RequestMonitorTest(LoggingTestCase):
         self.assertTrue(result is None,
                         "Did not expect in_progress/error/done list")
 
-        self.expectLogMessage("Received unexpected FAILED message from"
-                              " %s for Req#%s (no active request)" %
-                              ("ithub05", req_id2))
+        self.expect_log_message("Received unexpected FAILED message from"
+                                " %s for Req#%s (no active request)" %
+                                ("ithub05", req_id2))
 
         # add second expected summary log message
-        self.expectLogMessage("Req#%s PARTIAL success=%s failed=%s" %
-                              (req_id2, 11, 205))
+        self.expect_log_message("Req#%s PARTIAL success=%s failed=%s" %
+                                (req_id2, 11, 205))
 
         # send second summary message to Live
         self.__expect_live_status(sender, mdict2, success="11", failed="205")
@@ -756,8 +761,8 @@ class RequestMonitorTest(LoggingTestCase):
         mdict1 = self.__create_message(request_id=req_id1)
 
         # expect success message when trying to delete queued request
-        self.expectLogMessage("Request %s was not found (for DELETE)" %
-                              req_id1)
+        self.expect_log_message("Request %s was not found (for DELETE)" %
+                                req_id1)
 
         # try to delete a nonexistent request
         self.__send_message(rmon, mdict1, msgtype=HsMessage.DELETE)
@@ -772,7 +777,7 @@ class RequestMonitorTest(LoggingTestCase):
         test_msg1 = mdict1.copy()
 
         # workers receive the first request
-        sender.workers.addExpected(test_msg1)
+        sender.workers.add_expected(test_msg1)
 
         # sender notifies Live of first request
         self.__expect_live_status(sender, mdict1, status=HsUtil.STATUS_QUEUED)
@@ -782,8 +787,8 @@ class RequestMonitorTest(LoggingTestCase):
         notify_msg = re.compile(r'Start: .*\nStop: .*\n' +
                                 r'\(no possible leapseconds applied\)',
                                 flags=re.MULTILINE)
-        sender.i3socket.addGenericEMail(HsConstants.ALERT_EMAIL_DEV,
-                                        notify_hdr, notify_msg, prio=1)
+        sender.i3socket.add_generic_email(HsConstants.ALERT_EMAIL_DEV,
+                                          notify_hdr, notify_msg, prio=1)
 
         # send first request to RequestMonitor
         self.__send_message(rmon, test_msg1)
@@ -796,7 +801,7 @@ class RequestMonitorTest(LoggingTestCase):
         test_msg2 = mdict2.copy()
 
         # workers receive the second request
-        sender.workers.addExpected(test_msg2)
+        sender.workers.add_expected(test_msg2)
 
         # sender notifies Live of second request
         self.__expect_live_status(sender, mdict2, status=HsUtil.STATUS_QUEUED)
@@ -806,8 +811,8 @@ class RequestMonitorTest(LoggingTestCase):
         notify_msg = re.compile(r'Start: .*\nStop: .*\n' +
                                 r'\(no possible leapseconds applied\)',
                                 flags=re.MULTILINE)
-        sender.i3socket.addGenericEMail(HsConstants.ALERT_EMAIL_DEV,
-                                        notify_hdr, notify_msg, prio=1)
+        sender.i3socket.add_generic_email(HsConstants.ALERT_EMAIL_DEV,
+                                          notify_hdr, notify_msg, prio=1)
 
         # send second request to RequestMonitor
         self.__send_message(rmon, test_msg2)
@@ -829,13 +834,13 @@ class RequestMonitorTest(LoggingTestCase):
         self.__check_reqmon_state(rmon, req_id1, (11, 99), None, None)
 
         # expect error message when trying to delete active request
-        self.expectLogMessage("Request %s is already active" % req_id1)
+        self.expect_log_message("Request %s is already active" % req_id1)
 
         # try to delete the active request
         self.__send_message(rmon, mdict1, msgtype=HsMessage.DELETE)
 
         # expect success message when trying to delete queued request
-        self.expectLogMessage("Deleted request %s" % req_id2)
+        self.expect_log_message("Deleted request %s" % req_id2)
 
         # try to delete the queued request
         self.__send_message(rmon, mdict2, msgtype=HsMessage.DELETE)

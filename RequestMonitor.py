@@ -1,5 +1,8 @@
 #!/usr/bin/env python
-
+"""
+Manage HitSpool requests by submitting them one at a time and timing out
+"abandoned" requests (where one or more hubs has become unresponsive)
+"""
 
 import datetime
 import logging
@@ -18,6 +21,8 @@ from HsPrefix import HsPrefix
 
 
 class RequestMonitor(threading.Thread):
+    "Monitor requests from all hubs"
+
     # path to the SQLite database which acts as a disk cache
     STATE_DB_PATH = None
 
@@ -73,9 +78,11 @@ class RequestMonitor(threading.Thread):
             address_list += HsConstants.ALERT_EMAIL_SN
 
         # if we found one or more recipients, send an alert email
-        if len(address_list) > 0:
-            return HsUtil.assemble_email_dict(address_list, notify_hdr,
-                                              alertmsg, prio=1)
+        if len(address_list) == 0:
+            return None
+
+        return HsUtil.assemble_email_dict(address_list, notify_hdr, alertmsg,
+                                          prio=1)
 
     def __check_if_active(self, msg):
         "If this message is not for the active request, log an error"
@@ -121,6 +128,8 @@ class RequestMonitor(threading.Thread):
             cursor.execute("delete from request_details where id=?",
                            (request_id, ))
 
+        return True
+
     def __expire_requests(self):
         with self.__reqlock:
             if self.__requests is None or len(self.__requests) == 0:
@@ -134,7 +143,7 @@ class RequestMonitor(threading.Thread):
                 # find last update for this request
                 latest = None
                 host = None
-                for hst, val in self.__requests[req_id].iteritems():
+                for hst, val in self.__requests[req_id].items():
                     if hst == self.DETAIL_KEY:
                         continue
 
@@ -196,7 +205,7 @@ class RequestMonitor(threading.Thread):
         success = []
         failed = []
         with self.__reqlock:
-            for host, val in self.__requests[req_id].iteritems():
+            for host, val in self.__requests[req_id].items():
                 if host == self.DETAIL_KEY:
                     continue
 
@@ -206,8 +215,7 @@ class RequestMonitor(threading.Thread):
                     # ignore initial message
                     continue
 
-                if phase == self.DBPHASE_START or \
-                   phase == self.DBPHASE_WORKING:
+                if phase in (self.DBPHASE_START, self.DBPHASE_WORKING):
                     # found in-progress request
                     return (None, None)
 
@@ -223,20 +231,20 @@ class RequestMonitor(threading.Thread):
 
     def __handle_msg(self, msg, force_spade):
         if msg.msgtype == HsMessage.INITIAL:
-            return self.__handle_req_initial(msg)
+            self.__handle_req_initial(msg)
         elif msg.msgtype == HsMessage.STARTED:
-            return self.__handle_req_started(msg)
+            self.__handle_req_started(msg)
         elif msg.msgtype == HsMessage.WORKING:
-            return self.__handle_req_working(msg)
+            self.__handle_req_working(msg)
         elif msg.msgtype == HsMessage.DELETE:
-            return self.__handle_req_delete(msg)
+            self.__handle_req_delete(msg)
         elif (msg.msgtype == HsMessage.IGNORED or
               msg.msgtype == HsMessage.DONE or
               msg.msgtype == HsMessage.FAILED):
-            return self.__handle_req_completed(msg, force_spade=force_spade)
-
-        logging.error("Not handling message type \"%s\" in \"%s\"",
-                      msg.msgtype, msg)
+            self.__handle_req_completed(msg, force_spade=force_spade)
+        else:
+            logging.error("Not handling message type \"%s\" in \"%s\"",
+                          msg.msgtype, msg)
 
     def __handle_req_initial(self, msg):
         with self.__reqlock:
@@ -523,7 +531,7 @@ class RequestMonitor(threading.Thread):
             update_time = datetime.datetime.strptime(row[3],
                                                      DAQTime.TIME_FORMAT)
 
-            if phase == self.DBPHASE_INITIAL or phase == self.DBPHASE_QUEUED:
+            if phase in (self.DBPHASE_INITIAL, self.DBPHASE_QUEUED):
                 if req_id in requests:
                     logging.error("Found multiple initial entries"
                                   " for request %s", req_id)
@@ -701,7 +709,7 @@ class RequestMonitor(threading.Thread):
             # oops, skip broken requests without a DETAIL entry
             if self.DETAIL_KEY not in self.__requests[req_id]:
                 logging.error("Missing details for Req#%s (found key %s)",
-                              req_id, self.__requests[req_id].keys()[0])
+                              req_id, list(self.__requests[req_id].keys())[0])
                 continue
 
             # verify that the detail data is as expected
@@ -811,7 +819,7 @@ class RequestMonitor(threading.Thread):
             if self.__requests is None or req_id not in self.__requests:
                 return None
 
-            for key, phase_time in self.__requests[req_id].items():
+            for key, phase_time in list(self.__requests[req_id].items()):
                 if key == self.DETAIL_KEY:
                     continue
 
@@ -823,8 +831,7 @@ class RequestMonitor(threading.Thread):
                     continue
 
                 phase, _ = phase_time
-                if phase == self.DBPHASE_START or \
-                   phase == self.DBPHASE_WORKING:
+                if phase in (self.DBPHASE_START, self.DBPHASE_WORKING):
                     in_progress.append(host_id)
                 elif phase == self.DBPHASE_DONE:
                     done.append(host_id)

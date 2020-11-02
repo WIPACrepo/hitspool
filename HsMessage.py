@@ -1,6 +1,9 @@
 #!/usr/bin/env python
+"""
+Message-related functions and constants
+"""
 
-
+import binascii
 import getpass
 import numbers
 import struct
@@ -32,6 +35,8 @@ __MANDATORY_FIELDS = ("username", "prefix", "destination_dir", "host",
 
 
 class ID(object):
+    "Unique ID generator"
+
     __seed = 0
     __seed_lock = threading.Lock()
 
@@ -42,7 +47,7 @@ class ID(object):
             cls.__seed = (cls.__seed + 1) % 0xFFFFFF
         packed = struct.pack('>i', int(time.time()))
         packed += struct.pack('>i', val)[1:4]
-        return packed.encode('hex')
+        return binascii.hexlify(packed)
 
 
 def dict_to_message(mdict, allow_old_format=False):

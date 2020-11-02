@@ -1,8 +1,16 @@
 #!/usr/bin/env python
+"Mock logger used for unit tests"
 
+from __future__ import print_function
 
 import logging
 import sys
+
+
+if sys.version_info >= (3, 0):
+    # pylint: disable=invalid-name
+    # unicode isn't present in Python3
+    unicode = str
 
 
 class MockLoggingHandler(logging.Handler):
@@ -33,15 +41,15 @@ class MockLoggingHandler(logging.Handler):
             recmsg = str(record.msg) % record.args
 
         if self.__verbose:
-            print >>sys.stderr, "LOG>> \"%s\"<%s> (Exp#%d)" % \
-                (recmsg, type(recmsg), len(self.__expected))
+            print("LOG>> \"%s\"<%s> (Exp#%d)" %
+                  (recmsg, type(recmsg), len(self.__expected)), file=sys.stderr)
 
         if len(self.__expected) > 0:
             if not self.__out_of_order:
                 xmsg = self.__expected.pop(0)
                 if self.__verbose:
-                    print >>sys.stderr, "CMP#pop>> %s<%s>" % \
-                        (xmsg, type(xmsg))
+                    print("CMP#pop>> %s<%s>" % (xmsg, type(xmsg)),
+                          file=sys.stderr)
                 errmsg = self.__validate(recmsg, xmsg)
                 if errmsg is not None:
                     raise Exception(errmsg)
@@ -49,19 +57,21 @@ class MockLoggingHandler(logging.Handler):
 
             for i in range(len(self.__expected)):
                 if self.__verbose:
-                    print >>sys.stderr, "CMP#%d>> %s<%s>" % \
-                        (i, self.__expected[i], type(self.__expected[i]))
+                    print("CMP#%d>> %s<%s>" %
+                          (i, self.__expected[i], type(self.__expected[i])),
+                          file=sys.stderr)
                 errmsg = self.__validate(recmsg, self.__expected[i])
                 if errmsg is None:
                     del self.__expected[i]
                     return
                 # if self.__verbose:
-                #     print >>sys.stderr, "ERR#%d>> %s" % (i, errmsg)
+                #     print("ERR#%d>> %s" % (i, errmsg), file=sys.stderr)
 
         raise Exception("Unexpected log message: %s[%s]%s" %
                         (record.name, record.levelname, recmsg))
 
-    def __stringify(self, msglist):
+    @classmethod
+    def __stringify(cls, msglist):
         fixed = []
         for msg in msglist:
             try:
@@ -70,36 +80,38 @@ class MockLoggingHandler(logging.Handler):
                 fixed.append(msg)
         return fixed
 
-    def __validate(self, recmsg, xmsg):
-        if isinstance(xmsg, str) or isinstance(xmsg, unicode):
+    @classmethod
+    def __validate(cls, recmsg, xmsg):
+        if isinstance(xmsg, (str, unicode)):
             if recmsg == xmsg:
                 return None
 
             return "Got log message \"%s\", expected \"%s\"" % \
                 (recmsg, xmsg)
-        else:
-            try:
-                if xmsg.match(recmsg) is not None:
-                    return None
 
-                return "Log message \"%s\" does not match \"%s\"" % \
-                    (recmsg, xmsg.pattern)
-            except:
-                pass
+        try:
+            if xmsg.match(recmsg) is not None:
+                return None
+
+            return "Log message \"%s\" does not match \"%s\"" % \
+              (recmsg, xmsg.pattern)
+        except:
+            pass
 
         return "Log message \"%s\"<%s> != \"%s\"<%s>" % \
             (recmsg, type(recmsg), xmsg, type(xmsg))
 
     # pylint: disable=invalid-name
     # match other test methods
-    def addExpected(self, msg):
+    def add_expected(self, msg):
+        "Add an expected log message"
         if self.__verbose:
             if hasattr(msg, 'flags') and hasattr(msg, 'pattern'):
                 logmsg = "%s (pattern)" % msg.pattern
             else:
                 logmsg = str(msg)
-            print >>sys.stderr, "ADDLOG#%d>> %s" % \
-                (len(self.__expected), logmsg)
+            print("ADDLOG#%d>> %s" % (len(self.__expected), logmsg),
+                  file=sys.stderr)
 
         self.__expected.append(msg)
 
@@ -122,9 +134,11 @@ class MockLoggingHandler(logging.Handler):
     # pylint: disable=invalid-name
     # match other test methods
     def setVerbose(self, value=True):
+        "Set verbosity"
         self.__verbose = (value is True)
 
     def validate(self):
+        "Raise an exception if there are missing log messages"
         if len(self.__expected) > 0:
             raise Exception("Didn't receive %d log messages: %s" %
                             (len(self.__expected),

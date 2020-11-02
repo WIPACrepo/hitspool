@@ -8,6 +8,7 @@
 #
 # then type ^\ (control-backslash) to dump all threads while running
 
+from __future__ import print_function
 
 import signal
 import sys
@@ -23,47 +24,47 @@ class DumpThreadsOnSignal(object):
             self.__fd = fd
         self.__logger = logger
 
-        signal.signal(signum, self.__handleSignal)
+        signal.signal(signum, self.__handle_signal)
 
     @staticmethod
-    def __findThread(tId):
-        for t in threading.enumerate():
-            if t.ident == tId:
-                return t
+    def __find_thread(tid):
+        for thrd in threading.enumerate():
+            if thrd.ident == tid:
+                return thrd
 
         return None
 
-    def __handleSignal(self, signum, frame):
-        self.dumpThreads(self.__fd, self.__logger)
+    def __handle_signal(self, signum, frame):
+        self.dump_threads(self.__fd, self.__logger)
 
     @classmethod
-    def dumpThreads(cls, fd=None, logger=None):
+    def dump_threads(cls, fout=None, logger=None):
         first = True
-        for tId, stack in sys._current_frames().items():
-            thrd = cls.__findThread(tId)
+        for tid, stack in sys._current_frames().items():
+            thrd = cls.__find_thread(tid)
             if thrd is None:
-                tStr = "Thread #%d" % tId
+                tstr = "Thread #%d" % tid
             else:
                 # changed to get the string representation
                 # of the thread as it has state, name, and
                 # such embedded in it
-                tStr = "Thread %s" % thrd
+                tstr = "Thread %s" % thrd
 
             if first:
                 first = False
-            elif fd is not None:
-                print >>fd
+            elif fout is not None:
+                print("", file=fout)
 
             for filename, lineno, name, line in traceback.extract_stack(stack):
-                tStr += "\n  File \"%s\", line %d, in %s" % \
+                tstr += "\n  File \"%s\", line %d, in %s" % \
                     (filename, lineno, name)
                 if line is not None:
-                    tStr += "\n    %s" % line.strip()
+                    tstr += "\n    %s" % line.strip()
 
-            if fd is not None:
-                print >>fd, tStr
+            if fout is not None:
+                print("%s" % tstr, file=fout)
             if logger is not None:
-                logger.error(tStr)
+                logger.error(tstr)
 
-        if fd is not None:
-            print >>fd, "---------------------------------------------"
+        if fout is not None:
+            print("---------------------------------------------", file=fout)

@@ -1,4 +1,9 @@
 #!/usr/bin/env python
+"""
+Methods to select/validate HitSpool file prefixes
+"""
+
+from __future__ import print_function
 
 
 class HsPrefix(object):
@@ -32,4 +37,4 @@ class HsPrefix(object):
 if __name__ == "__main__":
     for pfx in (HsPrefix.ANON, HsPrefix.HESE, HsPrefix.SNALERT, HsPrefix.LIVE,
                 "XXX"):
-        print "%s valid? == %s" % (pfx, HsPrefix.is_valid(pfx))
+        print("%s valid? == %s" % (pfx, HsPrefix.is_valid(pfx)))

@@ -1,8 +1,12 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 import logging
 import os
 import re
+import sqlite3
+import sys
 import unittest
 
 from collections import namedtuple
@@ -16,16 +20,22 @@ from HsRSyncFiles import HsRSyncFiles
 from LoggingTestCase import LoggingTestCase
 
 
+if sys.version_info >= (3, 0):
+    # pylint: disable=invalid-name
+    # unicode isn't present in Python3
+    unicode = str
+
+
 class MockSenderSocket(HsTestUtil.Mock0MQSocket):
     def __init__(self):
         super(MockSenderSocket, self).__init__("Sender")
 
-    def send_json(self, jobj):
-        if isinstance(jobj, str) or isinstance(jobj, unicode):
+    def send_json(self, msgjson):
+        if isinstance(msgjson, (str, unicode)):
             raise Exception("Got string JSON object %s<%s>" %
-                            (jobj, type(jobj)))
+                            (msgjson, type(msgjson)))
 
-        super(MockSenderSocket, self).send_json(jobj)
+        super(MockSenderSocket, self).send_json(msgjson)
 
 
 class MockSocket(object):
@@ -63,7 +73,7 @@ class MyWorker(HsWorker.Worker):
     def add_expected_links(self, start_tick, firstnum, numfiles,
                            i3socket=None, finaldir=None):
         timetag = self.__timetag(start_tick)
-        for i in xrange(firstnum, firstnum + numfiles):
+        for i in range(firstnum, firstnum + numfiles):
             frompath = os.path.join(self.TEST_HUB_DIR,
                                     self.DEFAULT_SPOOL_NAME,
                                     "HitSpool-%d.dat" % i)
@@ -142,21 +152,21 @@ class HsWorkerTest(LoggingTestCase):
     INTERVAL = 15 * TICKS_PER_SECOND
     ONE_MINUTE = 60 * TICKS_PER_SECOND
 
-    def __dump_hsdb(self, hsr, spooldir):
+    @classmethod
+    def __dump_hsdb(cls, hsr, spooldir):
         "Debugging code to dump the contents of the SQLite3 database"
-        import sqlite3
         hsdbpath = os.path.join(hsr.TEST_HUB_DIR, spooldir,
                                 HsRSyncFiles.DEFAULT_SPOOL_DB)
-        print ":: %s" % hsdbpath
+        print(":: %s" % hsdbpath)
         conn = sqlite3.connect(hsdbpath)
 
         try:
             cursor = conn.cursor()
 
-            print "=== %s" % hsdbpath
+            print("=== %s" % hsdbpath)
             for row in cursor.execute("select filename,start_tick,stop_tick"
                                       " from hitspool"):
-                print "%s: %d - %d" % row
+                print("%s: %d - %d" % row)
         finally:
             conn.close()
 
@@ -166,7 +176,7 @@ class HsWorkerTest(LoggingTestCase):
         if "prefix" not in xdict:
             mydict["prefix"] = None
 
-        newobj = namedtuple("TestAlert", mydict.keys())(**mydict)
+        newobj = namedtuple("TestAlert", list(mydict.keys()))(**mydict)
         return newobj
 
     @property
@@ -224,7 +234,7 @@ class HsWorkerTest(LoggingTestCase):
         try:
             hsr.receive_request(sock)
             self.fail("This method should fail")
-        except HsException, hse:
+        except HsException as hse:
             hsestr = str(hse)
             if hsestr.find("JSON message should be a dict") < 0:
                 self.fail("Unexpected exception: " + hsestr)
@@ -247,7 +257,7 @@ class HsWorkerTest(LoggingTestCase):
         try:
             hsr.receive_request(sock)
             self.fail("This method should fail")
-        except HsException, hse:
+        except HsException as hse:
             hsestr = str(hse)
             if hsestr.find("Request does not contain ") < 0:
                 self.fail("Unexpected exception: " + hsestr)
@@ -273,7 +283,7 @@ class HsWorkerTest(LoggingTestCase):
         try:
             hsr.alert_parser(self.make_alert_object(alert))
             self.fail("This method should fail")
-        except HsException, hse:
+        except HsException as hse:
             hsestr = str(hse)
             if hsestr.find("No tick value specified") < 0:
                 self.fail("Unexpected exception: " + hsestr)
@@ -301,7 +311,7 @@ class HsWorkerTest(LoggingTestCase):
         try:
             hsr.alert_parser(self.make_alert_object(alert))
             self.fail("This method should fail")
-        except HsException, hse:
+        except HsException as hse:
             hsestr = str(hse)
             if hsestr.find("Tick value %s should be number" % badticks) < 0:
                 self.fail("Unexpected exception: " + hsestr)
@@ -327,13 +337,13 @@ class HsWorkerTest(LoggingTestCase):
         self.setLogLevel(0)
 
         # add all expected log messages
-        self.expectLogMessage(re.compile(r"START = \d+ (.*)"))
+        self.expect_log_message(re.compile(r"START = \d+ (.*)"))
 
         # test parser
         try:
             hsr.alert_parser(self.make_alert_object(alert))
             self.fail("This method should fail")
-        except HsException, hse:
+        except HsException as hse:
             hsestr = str(hse)
             if hsestr.find("No tick value specified") < 0:
                 self.fail("Unexpected exception: " + hsestr)
@@ -360,13 +370,13 @@ class HsWorkerTest(LoggingTestCase):
         self.setLogLevel(0)
 
         # add all expected log messages
-        self.expectLogMessage(re.compile(r"START = \d+ (.*)"))
+        self.expect_log_message(re.compile(r"START = \d+ (.*)"))
 
         # test parser
         try:
             hsr.alert_parser(self.make_alert_object(alert))
             self.fail("This method should fail")
-        except HsException, hse:
+        except HsException as hse:
             hsestr = str(hse)
             if hsestr.find("Tick value %s should be number" % stop_ticks) < 0:
                 self.fail("Unexpected exception: " + hsestr)
@@ -388,8 +398,8 @@ class HsWorkerTest(LoggingTestCase):
         }
 
         # add all expected log messages
-        self.expectLogMessage("Destination parsing failed for \"%s\":\n"
-                              "Abort request." % alert["destination_dir"])
+        self.expect_log_message("Destination parsing failed for \"%s\":\n"
+                                "Abort request." % alert["destination_dir"])
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), delay_rsync=False)
@@ -417,10 +427,10 @@ class HsWorkerTest(LoggingTestCase):
                   hsr.MAX_REQUEST_SECONDS)
 
         # add all expected log messages
-        self.expectLogMessage(errmsg)
+        self.expect_log_message(errmsg)
 
         # add all expected I3Live messages
-        hsr.i3socket.addExpectedValue("ERROR: " + errmsg)
+        hsr.i3socket.add_expected_value("ERROR: " + errmsg)
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), delay_rsync=False)
@@ -451,14 +461,11 @@ class HsWorkerTest(LoggingTestCase):
         # create copy directory
         HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
-        # initialize formatted start/stop times
-        utcstart = HsTestUtil.get_time(start_ticks)
-
         # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_PATH)
+        self.expect_log_message("Requested HS data copy destination differs"
+                                " from default!")
+        self.expect_log_message("data will be sent to default destination: %s" %
+                                hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
@@ -499,14 +506,11 @@ class HsWorkerTest(LoggingTestCase):
         # create copy directory
         HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
-        # initialize formatted start/stop times
-        utcstart = HsTestUtil.get_time(start_ticks)
-
         # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_PATH)
+        self.expect_log_message("Requested HS data copy destination differs"
+                                " from default!")
+        self.expect_log_message("data will be sent to default destination: %s" %
+                                hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
@@ -544,13 +548,13 @@ class HsWorkerTest(LoggingTestCase):
         HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # add all expected log messages
-        self.expectLogMessage("Start and stop times are inverted."
-                              " Abort request.")
-        self.expectLogMessage("Request failed")
+        self.expect_log_message("Start and stop times are inverted."
+                                " Abort request.")
+        self.expect_log_message("Request failed")
 
         # add all expected I3Live messages
-        hsr.i3socket.addExpectedValue("alert_stop < alert_start."
-                                      " Abort request.")
+        hsr.i3socket.add_expected_value("alert_stop < alert_start."
+                                        " Abort request.")
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), delay_rsync=False)
@@ -585,14 +589,11 @@ class HsWorkerTest(LoggingTestCase):
         # create copy directory
         HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
-        # initialize formatted start/stop times
-        utcstart = HsTestUtil.get_time(start_ticks)
-
         # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_PATH)
+        self.expect_log_message("Requested HS data copy destination differs"
+                                " from default!")
+        self.expect_log_message("data will be sent to default destination: %s" %
+                                hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 576, 4, i3socket=hsr.i3socket,
@@ -636,12 +637,12 @@ class HsWorkerTest(LoggingTestCase):
         hsr.DEBUG_EMPTY = False
 
         # add all expected log messages
-        self.expectLogMessage(re.compile(r"No data found between \d+ and \d+"))
-        self.expectLogMessage("Request failed")
+        self.expect_log_message(re.compile(r"No data found between \d+ and \d+"))
+        self.expect_log_message("Request failed")
 
         # add all expected I3Live messages
-        hsr.i3socket.addExpectedValue("Requested data doesn't exist anymore"
-                                      " in HsBuffer. Abort request.")
+        hsr.i3socket.add_expected_value("Requested data doesn't exist anymore"
+                                        " in HsBuffer. Abort request.")
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), delay_rsync=False)
@@ -676,14 +677,11 @@ class HsWorkerTest(LoggingTestCase):
         # create copy directory
         HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
-        # initialize formatted start/stop times
-        utcstart = HsTestUtil.get_time(start_ticks)
-
         # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_PATH)
+        self.expect_log_message("Requested HS data copy destination differs"
+                                " from default!")
+        self.expect_log_message("data will be sent to default destination: %s" %
+                                hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 576, 4, i3socket=hsr.i3socket,
@@ -720,14 +718,11 @@ class HsWorkerTest(LoggingTestCase):
         # create copy directory
         HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
-        # initialize formatted start/stop times
-        utcstart = HsTestUtil.get_time(start_ticks)
-
         # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_PATH)
+        self.expect_log_message("Requested HS data copy destination differs"
+                                " from default!")
+        self.expect_log_message("data will be sent to default destination: %s" %
+                                hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
@@ -764,14 +759,11 @@ class HsWorkerTest(LoggingTestCase):
         # create copy directory
         HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
-        # initialize formatted start/stop times
-        utcstart = HsTestUtil.get_time(start_ticks)
-
         # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_PATH)
+        self.expect_log_message("Requested HS data copy destination differs"
+                                " from default!")
+        self.expect_log_message("data will be sent to default destination: %s" %
+                                hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
@@ -814,20 +806,20 @@ class HsWorkerTest(LoggingTestCase):
         numfiles = 5
 
         # add all expected log messages
-        for num in xrange(firstfile, firstfile + numfiles):
-            self.expectLogMessage("failed to link HitSpool-%d.dat to tmp dir:"
-                                  " Fake Hardlink Error" % num)
-        self.expectLogMessage("No relevant files found")
-        self.expectLogMessage("Request failed")
+        for num in range(firstfile, firstfile + numfiles):
+            self.expect_log_message("failed to link HitSpool-%d.dat to tmp dir:"
+                                    " Fake Hardlink Error" % num)
+        self.expect_log_message("No relevant files found")
+        self.expect_log_message("Request failed")
 
         # add all expected I3Live messages
-        hsr.i3socket.addExpectedValue("ERROR: linking HitSpool-%d.dat to"
-                                      " tmp dir failed" % 20)
-        for num in xrange(firstfile, firstfile + numfiles):
+        hsr.i3socket.add_expected_value("ERROR: linking HitSpool-%d.dat to"
+                                        " tmp dir failed" % 20)
+        for num in range(firstfile, firstfile + numfiles):
             errmsg = "ERROR: linking HitSpool-%d.dat to tmp dir failed" % num
-            hsr.i3socket.addExpectedValue(errmsg)
-        hsr.i3socket.addExpectedValue(" TBD [MB] HS data transferred to %s " %
-                                      alert['destination_dir'], prio=1)
+            hsr.i3socket.add_expected_value(errmsg)
+        hsr.i3socket.add_expected_value(" TBD [MB] HS data transferred to %s " %
+                                        alert['destination_dir'], prio=1)
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), delay_rsync=False)
@@ -861,12 +853,12 @@ class HsWorkerTest(LoggingTestCase):
         hsr.DEBUG_EMPTY = False
 
         # add all expected log messages
-        self.expectLogMessage(re.compile(r"No data found between \d+ and \d+"))
-        self.expectLogMessage("Request failed")
+        self.expect_log_message(re.compile(r"No data found between \d+ and \d+"))
+        self.expect_log_message("Request failed")
 
         # add all expected I3Live messages
-        hsr.i3socket.addExpectedValue("Requested data doesn't exist anymore"
-                                      " in HsBuffer. Abort request.")
+        hsr.i3socket.add_expected_value("Requested data doesn't exist anymore"
+                                        " in HsBuffer. Abort request.")
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), delay_rsync=False)
@@ -898,13 +890,13 @@ class HsWorkerTest(LoggingTestCase):
         HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # add all expected log messages
-        self.expectLogMessage(re.compile(r"No data found between \d+ and \d+"))
-        self.expectLogMessage("Request failed")
+        self.expect_log_message(re.compile(r"No data found between \d+ and \d+"))
+        self.expect_log_message("Request failed")
 
         # add all expected I3Live messages
-        hsr.i3socket.addDebugEMail(hsr.shorthost)
-        hsr.i3socket.addExpectedValue("Requested data doesn't exist anymore"
-                                      " in HsBuffer. Abort request.")
+        hsr.i3socket.add_debug_email(hsr.shorthost)
+        hsr.i3socket.add_expected_value("Requested data doesn't exist anymore"
+                                        " in HsBuffer. Abort request.")
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), delay_rsync=False)
@@ -935,14 +927,11 @@ class HsWorkerTest(LoggingTestCase):
         # create copy directory
         HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
-        # initialize formatted start/stop times
-        utcstart = HsTestUtil.get_time(start_ticks)
-
         # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_PATH)
+        self.expect_log_message("Requested HS data copy destination differs"
+                                " from default!")
+        self.expect_log_message("data will be sent to default destination: %s" %
+                                hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
@@ -985,18 +974,18 @@ class HsWorkerTest(LoggingTestCase):
         numfiles = 5
 
         # add all expected log messages
-        for num in xrange(firstfile, firstfile + numfiles):
-            self.expectLogMessage("failed to link HitSpool-%d.dat to tmp dir:"
-                                  " Fake Hardlink Error" % num)
-        self.expectLogMessage("No relevant files found")
-        self.expectLogMessage("Request failed")
+        for num in range(firstfile, firstfile + numfiles):
+            self.expect_log_message("failed to link HitSpool-%d.dat to tmp dir:"
+                                    " Fake Hardlink Error" % num)
+        self.expect_log_message("No relevant files found")
+        self.expect_log_message("Request failed")
 
         # add all expected I3Live messages
-        for num in xrange(firstfile, firstfile + numfiles):
+        for num in range(firstfile, firstfile + numfiles):
             errmsg = "ERROR: linking HitSpool-%d.dat to tmp dir failed" % num
-            hsr.i3socket.addExpectedValue(errmsg)
-        hsr.i3socket.addExpectedValue(" TBD [MB] HS data transferred to %s " %
-                                      alert['destination_dir'], prio=1)
+            hsr.i3socket.add_expected_value(errmsg)
+        hsr.i3socket.add_expected_value(" TBD [MB] HS data transferred to %s " %
+                                        alert['destination_dir'], prio=1)
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), delay_rsync=False)
@@ -1030,12 +1019,12 @@ class HsWorkerTest(LoggingTestCase):
         hsr.DEBUG_EMPTY = False
 
         # add all expected log messages
-        self.expectLogMessage(re.compile(r"No data found between \d+ and \d+"))
-        self.expectLogMessage("Request failed")
+        self.expect_log_message(re.compile(r"No data found between \d+ and \d+"))
+        self.expect_log_message("Request failed")
 
         # add all expected I3Live messages
-        hsr.i3socket.addExpectedValue("Requested data is younger than most"
-                                      " recent HS data. Abort request.")
+        hsr.i3socket.add_expected_value("Requested data is younger than most"
+                                        " recent HS data. Abort request.")
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), delay_rsync=False)
@@ -1066,14 +1055,11 @@ class HsWorkerTest(LoggingTestCase):
         # create copy directory
         HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
-        # initialize formatted start/stop times
-        utcstart = HsTestUtil.get_time(start_ticks)
-
         # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_PATH)
+        self.expect_log_message("Requested HS data copy destination differs"
+                                " from default!")
+        self.expect_log_message("data will be sent to default destination: %s" %
+                                hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 575, 1, i3socket=hsr.i3socket,
@@ -1110,14 +1096,11 @@ class HsWorkerTest(LoggingTestCase):
         # create copy directory
         HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
-        # initialize formatted start/stop times
-        utcstart = HsTestUtil.get_time(start_ticks)
-
         # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_PATH)
+        self.expect_log_message("Requested HS data copy destination differs"
+                                " from default!")
+        self.expect_log_message("data will be sent to default destination: %s" %
+                                hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
@@ -1136,9 +1119,6 @@ class HsWorkerTest(LoggingTestCase):
         start_ticks = 157886364643990000
         stop_ticks = start_ticks + self.ONE_MINUTE
 
-        # initialize formatted start/stop times
-        utcstart = HsTestUtil.get_time(start_ticks)
-
         # create the alert
         alert = {
             'start_ticks': start_ticks,
@@ -1158,10 +1138,10 @@ class HsWorkerTest(LoggingTestCase):
         HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_PATH)
+        self.expect_log_message("Requested HS data copy destination differs"
+                                " from default!")
+        self.expect_log_message("data will be sent to default destination: %s" %
+                                hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
@@ -1180,9 +1160,6 @@ class HsWorkerTest(LoggingTestCase):
         start_ticks = 157886364643990000
         stop_ticks = start_ticks + self.ONE_MINUTE
 
-        # initialize formatted start/stop times
-        utcstart = HsTestUtil.get_time(start_ticks)
-
         # create the alert
         alert = {
             'start_ticks': start_ticks,
@@ -1202,10 +1179,10 @@ class HsWorkerTest(LoggingTestCase):
         HsTestUtil.MockHitspool.create_copy_dir(hsr)
 
         # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_PATH)
+        self.expect_log_message("Requested HS data copy destination differs"
+                                " from default!")
+        self.expect_log_message("data will be sent to default destination: %s" %
+                                hsr.TEST_COPY_PATH)
 
         # TODO should compute the expected number of files
         hsr.add_expected_links(start_ticks, 575, 5, i3socket=hsr.i3socket,
@@ -1236,8 +1213,8 @@ class HsWorkerTest(LoggingTestCase):
         }
 
         # add all expected log messages
-        self.expectLogMessage("Destination parsing failed for \"%s\":"
-                              "\nAbort request." % (bad_dest_dir, ))
+        self.expect_log_message("Destination parsing failed for \"%s\":"
+                                "\nAbort request." % (bad_dest_dir, ))
 
         # test parser
         hsr.alert_parser(self.make_alert_object(alert), delay_rsync=False)

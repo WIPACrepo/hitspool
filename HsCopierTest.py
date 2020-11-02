@@ -3,6 +3,8 @@
 Test HsCopier
 """
 
+from __future__ import print_function
+
 import getpass
 import os
 import shutil
@@ -24,7 +26,7 @@ class HsCopierTest(unittest.TestCase):
             raise Exception("Top directory has not been set")
 
         if not os.path.exists(topdir):
-            os.mkdir(topdir, 0755)
+            os.mkdir(topdir, 0o755)
 
         created = []
         for idx in range(num):
@@ -36,7 +38,7 @@ class HsCopierTest(unittest.TestCase):
 
             with open(path, "w") as fout:
                 for cnt in range(100):
-                    print >>fout, "x"*cnt
+                    print("x"*cnt, file=fout)
 
         return created
 
@@ -64,9 +66,9 @@ class HsCopierTest(unittest.TestCase):
                                 self.TARGET_DIR, "ignored")
         copier.copy(source_list)
 
-        self.assertEquals(copier.size, source_size,
-                          "Expected size %s, not %s" %
-                          (source_size, copier.size))
+        self.assertEqual(copier.size, source_size,
+                         "Expected size %s, not %s" %
+                         (source_size, copier.size))
 
     def test_scp(self):
         "Test 'scp' copy"
@@ -80,9 +82,9 @@ class HsCopierTest(unittest.TestCase):
                               "ignored")
         copier.copy(source_list)
 
-        self.assertEquals(copier.size, source_size,
-                          "Expected size %s, not %s" %
-                          (source_size, copier.size))
+        self.assertEqual(copier.size, source_size,
+                         "Expected size %s, not %s" %
+                         (source_size, copier.size))
 
 
 if __name__ == '__main__':

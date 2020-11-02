@@ -53,15 +53,15 @@ class HsRSyncTestCase(LoggingTestCase):
         # check all log messages
         self.setLogLevel(0)
 
-        self.expectLogMessage("Missing start/stop time(s). Abort request.")
+        self.expect_log_message("Missing start/stop time(s). Abort request.")
 
         # test parser
         try:
             hsr.request_parser(None, None, None, None, delay_rsync=False)
-        except TypeError, terr:
-            self.assertEquals(str(terr), "expected string or buffer",
-                              "Unexpected %s exception: %s" %
-                              (type(terr), terr))
+        except TypeError as terr:
+            self.assertEqual(str(terr), "expected string or buffer",
+                             "Unexpected %s exception: %s" %
+                             (type(terr), terr))
 
     def test_not_first_current_file(self):
         # create the worker object
@@ -81,7 +81,7 @@ class HsRSyncTestCase(LoggingTestCase):
 
         tstrun = HsTestUtil.HsTestRunner(hsr, last_start, last_stop, cur_start,
                                          cur_stop, interval=self.INTERVAL)
-        tstrun.set_current_interval(self.INTERVAL / 100)
+        tstrun.set_current_interval(int(self.INTERVAL / 100))
 
         # populate directory with hit files and database
         tstrun.populate(self)
@@ -99,10 +99,10 @@ class HsRSyncTestCase(LoggingTestCase):
         tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_PATH)
+        self.expect_log_message("Requested HS data copy destination differs"
+                                " from default!")
+        self.expect_log_message("data will be sent to default destination: %s" %
+                                hsr.TEST_COPY_PATH)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -131,8 +131,8 @@ class HsRSyncTestCase(LoggingTestCase):
         tstrun.populate(self)
 
         # add all expected log messages
-        self.expectLogMessage("Start and stop times are inverted."
-                              " Abort request.")
+        self.expect_log_message("Start and stop times are inverted."
+                                " Abort request.")
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -173,10 +173,10 @@ class HsRSyncTestCase(LoggingTestCase):
         tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_PATH)
+        self.expect_log_message("Requested HS data copy destination differs"
+                                " from default!")
+        self.expect_log_message("data will be sent to default destination: %s" %
+                                hsr.TEST_COPY_PATH)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -217,10 +217,11 @@ class HsRSyncTestCase(LoggingTestCase):
         tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         # add all expected log messages
-        self.expectLogMessage(re.compile(r"No data found between \d+ and \d+"))
+        self.expect_log_message(re.compile(r"No data found between \d+ and "
+                                           r"\d+"))
 
         if HsRSyncFiles.DEBUG_EMPTY:
-            hsr.i3socket.addDebugEMail(hsr.shorthost)
+            hsr.i3socket.add_debug_email(hsr.shorthost)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -261,10 +262,10 @@ class HsRSyncTestCase(LoggingTestCase):
         tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_PATH)
+        self.expect_log_message("Requested HS data copy destination differs"
+                                " from default!")
+        self.expect_log_message("data will be sent to default destination: %s" %
+                                hsr.TEST_COPY_PATH)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -305,10 +306,10 @@ class HsRSyncTestCase(LoggingTestCase):
         tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_PATH)
+        self.expect_log_message("Requested HS data copy destination differs"
+                                " from default!")
+        self.expect_log_message("data will be sent to default destination: %s" %
+                                hsr.TEST_COPY_PATH)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -349,10 +350,10 @@ class HsRSyncTestCase(LoggingTestCase):
         tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_PATH)
+        self.expect_log_message("Requested HS data copy destination differs"
+                                " from default!")
+        self.expect_log_message("data will be sent to default destination: %s" %
+                                hsr.TEST_COPY_PATH)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -382,13 +383,13 @@ class HsRSyncTestCase(LoggingTestCase):
         tstrun.populate(self)
 
         # add all expected log messages
-        self.expectLogMessage("failed to link HitSpool-575.dat to tmp dir:"
-                              " Fake Hardlink Error")
-        self.expectLogMessage("failed to link HitSpool-576.dat to tmp dir:"
-                              " Fake Hardlink Error")
-        self.expectLogMessage("failed to link HitSpool-579.dat to tmp dir:"
-                              " Fake Hardlink Error")
-        self.expectLogMessage("No relevant files found")
+        self.expect_log_message("failed to link HitSpool-575.dat to tmp dir:"
+                                " Fake Hardlink Error")
+        self.expect_log_message("failed to link HitSpool-576.dat to tmp dir:"
+                                " Fake Hardlink Error")
+        self.expect_log_message("failed to link HitSpool-579.dat to tmp dir:"
+                                " Fake Hardlink Error")
+        self.expect_log_message("No relevant files found")
 
         # fill info database
         (lastfile, numlast) \
@@ -443,10 +444,11 @@ class HsRSyncTestCase(LoggingTestCase):
         tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         # add all expected log messages
-        self.expectLogMessage(re.compile(r"No data found between \d+ and \d+"))
+        self.expect_log_message(re.compile(r"No data found between \d+ and "
+                                           r"\d+"))
 
         if HsRSyncFiles.DEBUG_EMPTY:
-            hsr.i3socket.addDebugEMail(hsr.shorthost)
+            hsr.i3socket.add_debug_email(hsr.shorthost)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -487,10 +489,10 @@ class HsRSyncTestCase(LoggingTestCase):
         tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_PATH)
+        self.expect_log_message("Requested HS data copy destination differs"
+                                " from default!")
+        self.expect_log_message("data will be sent to default destination: %s" %
+                                hsr.TEST_COPY_PATH)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -524,10 +526,10 @@ class HsRSyncTestCase(LoggingTestCase):
         numfiles = 5
 
         # add all expected log messages
-        for num in xrange(firstfile, firstfile + numfiles):
-            self.expectLogMessage("failed to link HitSpool-%d.dat to tmp dir:"
-                                  " Fake Hardlink Error" % num)
-        self.expectLogMessage("No relevant files found")
+        for num in range(firstfile, firstfile + numfiles):
+            self.expect_log_message("failed to link HitSpool-%d.dat to tmp dir:"
+                                    " Fake Hardlink Error" % num)
+        self.expect_log_message("No relevant files found")
 
         # fill info database
         (lastfile, numlast) \
@@ -582,10 +584,11 @@ class HsRSyncTestCase(LoggingTestCase):
         tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         # add all expected log messages
-        self.expectLogMessage(re.compile(r"No data found between \d+ and \d+"))
+        self.expect_log_message(re.compile(r"No data found between \d+ and "
+                                           r"\d+"))
 
         if HsRSyncFiles.DEBUG_EMPTY:
-            hsr.i3socket.addDebugEMail(hsr.shorthost)
+            hsr.i3socket.add_debug_email(hsr.shorthost)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -626,10 +629,10 @@ class HsRSyncTestCase(LoggingTestCase):
         tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_PATH)
+        self.expect_log_message("Requested HS data copy destination differs"
+                                " from default!")
+        self.expect_log_message("data will be sent to default destination: %s" %
+                                hsr.TEST_COPY_PATH)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -670,10 +673,10 @@ class HsRSyncTestCase(LoggingTestCase):
         tstrun.add_expected_files(start_ticks, curfile, numcur)
 
         # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_PATH)
+        self.expect_log_message("Requested HS data copy destination differs"
+                                " from default!")
+        self.expect_log_message("data will be sent to default destination: %s" %
+                                hsr.TEST_COPY_PATH)
 
         tstrun.run(start_ticks, stop_ticks)
 
@@ -719,10 +722,10 @@ class HsRSyncTestCase(LoggingTestCase):
                                   destdir=destdir)
 
         # add all expected log messages
-        self.expectLogMessage("Requested HS data copy destination differs"
-                              " from default!")
-        self.expectLogMessage("data will be sent to default destination: %s" %
-                              hsr.TEST_COPY_PATH)
+        self.expect_log_message("Requested HS data copy destination differs"
+                                " from default!")
+        self.expect_log_message("data will be sent to default destination: %s" %
+                                hsr.TEST_COPY_PATH)
 
         tstrun.run(start_ticks, stop_ticks, extract_hits=True)
 
@@ -751,7 +754,7 @@ class HsRSyncTestCase(LoggingTestCase):
         tstrun.populate(self)
 
         # add all expected log messages
-        self.expectLogMessage(re.compile("No hits found for .*"))
+        self.expect_log_message(re.compile("No hits found for .*"))
 
         # fill info database
         offset = (stop_ticks - start_ticks) * 100

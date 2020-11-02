@@ -1,12 +1,16 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
 
 import json
 import logging
 import os
 import re
+import shutil
+import tempfile
 import threading
 import time
+import traceback
 import unittest
 
 import DAQTime
@@ -19,6 +23,8 @@ import HsWorker
 import HsTestUtil
 import HsUtil
 
+from DumpThreads import DumpThreadsOnSignal
+from HsBase import HsBase
 from HsPrefix import HsPrefix
 from LoggingTestCase import LoggingTestCase
 from RequestMonitor import RequestMonitor
@@ -28,12 +34,12 @@ class MockSenderSocket(HsTestUtil.Mock0MQSocket):
     def __init__(self, name="Sender", verbose=False):
         super(MockSenderSocket, self).__init__(name, verbose=verbose)
 
-    def send_json(self, jstr):
-        if isinstance(jstr, str):
+    def send_json(self, msgjson):
+        if isinstance(msgjson, str):
             raise Exception("Got string JSON object %s<%s>" %
-                            (jstr, type(jstr)))
+                            (msgjson, type(msgjson)))
 
-        super(MockSenderSocket, self).send_json(jstr)
+        super(MockSenderSocket, self).send_json(msgjson)
 
 
 class MockPubSocket(object):
@@ -56,12 +62,12 @@ class MockPubSocket(object):
 
     def send(self, msg):
         if self.__verbose:
-            print "%s(%s) -> %s" % (type(self).__name__, self.__name, str(msg))
+            print("%s(%s) -> %s" % (type(self).__name__, self.__name, str(msg)))
         self.__pubsub.send_to_subs(msg)
 
     def send_json(self, msg):
         if self.__verbose:
-            print "%s(%s) -> %s" % (type(self).__name__, self.__name, str(msg))
+            print("%s(%s) -> %s" % (type(self).__name__, self.__name, str(msg)))
         self.__pubsub.send_to_subs(msg)
 
     def validate(self):
@@ -192,11 +198,11 @@ class MockPullSocket(HsTestUtil.MockPollableSocket):
 
             if self.__verbose:
                 explen = len(self.__expected)
-                print "%s(%s) <- %s (exp %s)" % \
-                    (type(self).__name__, self.__name, msgjson, expjson)
-                print "%s(%s) expect %d more message%s" % \
-                    (type(self).__name__, self.__name, explen,
-                     "s" if explen != 1 else "")
+                print("%s(%s) <- %s (exp %s)" %
+                      (type(self).__name__, self.__name, msgjson, expjson))
+                print("%s(%s) expect %d more message%s" %
+                      (type(self).__name__, self.__name, explen,
+                       "s" if explen != 1 else ""))
 
             with self.__queue_lock:
                 if self.__closed:
@@ -285,8 +291,8 @@ class MockPushSocket(object):
 
     def send_json(self, msg):
         if self.__verbose:
-            print "%s <- %s(%s): %s" % (self.__parent, type(self).__name__,
-                                        self.__name, str(msg))
+            print("%s <- %s(%s): %s" % (self.__parent, type(self).__name__,
+                                        self.__name, str(msg)))
         self.__parent.send_json(msg)
 
     def set_verbose(self, value=True):
@@ -458,7 +464,7 @@ class MyWorker(HsWorker.Worker):
     def add_expected_links(self, tick, rundir, firstnum, numfiles):
         timetag = self.__timetag(tick)
         srcdir = self.TEST_HUB_DIR
-        for i in xrange(firstnum, firstnum + numfiles):
+        for i in range(firstnum, firstnum + numfiles):
             frompath = os.path.join(srcdir, rundir, "HitSpool-%d.dat" % i)
             self.__link_paths.append((frompath, srcdir, timetag))
 
@@ -548,6 +554,7 @@ class IntegrationTest(LoggingTestCase):
     INTERVAL = 15 * TICKS_PER_SECOND
 
     MATCH_ANY = re.compile(r"^.*$")
+    CACHED_COPY_PATH = None
 
     def __create_hsdir(self, workers, spoolname, start_ticks, stop_ticks):
         HsTestUtil.MockHitspool.create_copy_dir(workers[0])
@@ -584,7 +591,6 @@ class IntegrationTest(LoggingTestCase):
         try:
             HsTestUtil.MockHitspool.destroy()
         except:
-            import traceback
             traceback.print_exc()
 
         # get rid of HsSender's state database
@@ -593,23 +599,22 @@ class IntegrationTest(LoggingTestCase):
             try:
                 os.unlink(dbpath)
             except:
-                import traceback
                 traceback.print_exc()
 
     def __init_publisher(self, publisher, req_id, username, start_ticks,
                          stop_ticks, copydir):
         # request message
         alertdict = {
-            "start": start_ticks / 10,
-            "stop": stop_ticks / 10,
+            "start": int(start_ticks / 10),
+            "stop": int(stop_ticks / 10),
             "copy": copydir,
             "request_id": req_id,
             "username": username,
         }
 
         # initialize incoming socket and add expected message(s)
-        publisher.alert_socket.addIncoming(alertdict)
-        publisher.alert_socket.addExpected("DONE\0")
+        publisher.alert_socket.add_incoming(alertdict)
+        publisher.alert_socket.add_expected("DONE\0")
 
     def __init_sender(self, sender, workers, req_id, username, prefix,
                       destdir, start_ticks, stop_ticks, success=None):
@@ -624,9 +629,9 @@ class IntegrationTest(LoggingTestCase):
             "status": HsUtil.STATUS_QUEUED,
             "update_time": HsTestUtil.TIME_PAT,
         }
-        sender.i3socket.addExpectedMessage(status_queued, service="hitspool",
-                                           varname="hsrequest_info",
-                                           time=self.MATCH_ANY, prio=1)
+        sender.i3socket.add_expected_message(status_queued, service="hitspool",
+                                             varname="hsrequest_info",
+                                             time=self.MATCH_ANY, prio=1)
 
         # notification message strings
         notify_hdr = 'DATA REQUEST HsInterface Alert: %s' % sender.cluster
@@ -642,24 +647,24 @@ class IntegrationTest(LoggingTestCase):
         if prefix == HsPrefix.SNALERT:
             address_list += HsConstants.ALERT_EMAIL_SN
 
-        sender.i3socket.addGenericEMail(address_list, notify_hdr, notify_pat,
-                                        prio=1)
+        sender.i3socket.add_generic_email(address_list, notify_hdr, notify_pat,
+                                          prio=1)
 
         status_in_progress = status_queued.copy()
         status_in_progress["status"] = HsUtil.STATUS_IN_PROGRESS
-        sender.i3socket.addExpectedMessage(status_in_progress,
-                                           service="hitspool",
-                                           varname="hsrequest_info",
-                                           time=self.MATCH_ANY, prio=1)
+        sender.i3socket.add_expected_message(status_in_progress,
+                                             service="hitspool",
+                                             varname="hsrequest_info",
+                                             time=self.MATCH_ANY, prio=1)
 
         status_success = status_queued.copy()
         status_success["status"] = HsUtil.STATUS_SUCCESS
         if success is not None:
             status_success["success"] = success
-        sender.i3socket.addExpectedMessage(status_success,
-                                           service="hitspool",
-                                           varname="hsrequest_info",
-                                           time=self.MATCH_ANY, prio=1)
+        sender.i3socket.add_expected_message(status_success,
+                                             service="hitspool",
+                                             varname="hsrequest_info",
+                                             time=self.MATCH_ANY, prio=1)
 
         # initial request from publisher
         msg_initial = {
@@ -741,9 +746,10 @@ class IntegrationTest(LoggingTestCase):
         # point the RequestMonitor at a temporary state file for tests
         HsTestUtil.set_state_db_path()
 
+        self.set_copy_path()
+
         self.__delete_state()
 
-        from DumpThreads import DumpThreadsOnSignal
         DumpThreadsOnSignal()
 
     def tearDown(self):
@@ -751,6 +757,25 @@ class IntegrationTest(LoggingTestCase):
             super(IntegrationTest, self).tearDown()
         finally:
             self.__delete_state()
+
+            self.restore_copy_path()
+
+    @classmethod
+    def set_copy_path(cls):
+        cls.CACHED_COPY_PATH = HsBase.DEFAULT_COPY_PATH
+        HsBase.set_default_copy_path(tempfile.mkdtemp())
+
+    @classmethod
+    def restore_copy_path(cls):
+        if cls.CACHED_COPY_PATH is not None:
+            try:
+                if HsBase.DEFAULT_COPY_PATH != cls.CACHED_COPY_PATH:
+                    try:
+                        shutil.rmtree(HsBase.DEFAULT_COPY_PATH)
+                    finally:
+                        HsBase.DEFAULT_COPY_PATH = cls.CACHED_COPY_PATH
+            finally:
+                cls.CACHED_COPY_PATH = None
 
     def test_publisher_to_worker(self):
         verbose = False
@@ -807,9 +832,9 @@ class IntegrationTest(LoggingTestCase):
         for _ in range(25):
             alive = False
             for thrd in thrds:
-                if thrd.isAlive():
+                if thrd.is_alive():
                     thrd.join(1)
-                    if thrd.isAlive():
+                    if thrd.is_alive():
                         alive = True
                         break
             if not alive:
@@ -825,7 +850,6 @@ class IntegrationTest(LoggingTestCase):
             try:
                 prg.validate()
             except Exception:
-                import traceback
                 traceback.print_exc()
                 failed = 1
         if failed > 0:

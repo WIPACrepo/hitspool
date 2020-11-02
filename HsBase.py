@@ -1,4 +1,9 @@
 #!/usr/bin/env python
+"""
+Base HitSpool class
+"""
+
+from __future__ import print_function
 
 import datetime
 import getpass
@@ -22,6 +27,8 @@ from HsException import HsException
 
 
 class HsBase(object):
+    "Base HitSpool class"
+
     SPS = 1
     SPTS = 2
     LOCALHOST = 3
@@ -138,9 +145,8 @@ class HsBase(object):
                 logfile = os.path.join(HsBase.DEFAULT_LOG_PATH,
                                        "%s_%s.log" % (basename, basehost))
             elif basename is not None or basehost is not None:
-                print >>sys.stderr, \
-                    "Not logging to file (basehost=%s, basename=%s)" % \
-                    (basehost, basename)
+                print("Not logging to file (basehost=%s, basename=%s)" %
+                      (basehost, basename), file=sys.stderr)
 
         if logfile is not None:
             logdir = os.path.dirname(logfile)
@@ -198,7 +204,7 @@ class HsBase(object):
 
         try:
             shutil.move(src, dst)
-        except StandardError, sex:
+        except Exception as sex:
             raise HsException("Cannot move \"%s\" to \"%s\": %s" %
                               (src, dst, sex))
 
@@ -234,7 +240,7 @@ class HsBase(object):
             else:
                 semname = None
             self.remove_tree(os.path.join(sourcedir, sourcefile))
-        except HsException, hsex:
+        except HsException as hsex:
             logging.error(str(hsex))
             semname = None
 
@@ -260,6 +266,10 @@ class HsBase(object):
     def rsync_user(self):
         return self.__rsync_user
 
+    @classmethod
+    def set_default_copy_path(cls, path):
+        cls.DEFAULT_COPY_PATH = path
+
     @property
     def shorthost(self):
         return self.__src_mchn_short
@@ -269,7 +279,7 @@ class HsBase(object):
         try:
             with open(name, "a"):
                 os.utime(name, times)
-        except StandardError, err:
+        except Exception as err:
             raise HsException("Failed to 'touch' \"%s\": %s" % (name, err))
 
     def write_meta_xml(self, spadedir, basename, start_ticks, stop_ticks):
@@ -343,7 +353,14 @@ class HsBase(object):
 
         metaname = basename + self.META_SUFFIX
         with open(os.path.join(spadedir, metaname), "w") as out:
-            out.write(etree.tostring(root))
+            line = etree.tostring(root)
+            try:
+                # Python3 needs to convert XML bytes to a string
+                line = line.decode("utf-8")
+            except:
+                pass
+
+            out.write(line)
         return metaname
 
     def write_sem(self, spadedir, basename):
@@ -376,7 +393,7 @@ class HsBase(object):
 
         try:
             tar = tarfile.open(tarname, "w" + extra)
-        except StandardError, err:
+        except Exception as err:
             raise HsException("Cannot create \"%s\" in \"%s\": %s" %
                               (tarname, sourcedir, err))
 
@@ -389,7 +406,7 @@ class HsBase(object):
             for fnm in sourcelist:
                 try:
                     tar.add(fnm)
-                except StandardError, err:
+                except Exception as err:
                     logging.error("Failed to add \"%s\" to \"%s\": %s",
                                   fnm, os.path.join(sourcedir, tarname), err)
         finally:

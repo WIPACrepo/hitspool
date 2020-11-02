@@ -150,8 +150,7 @@ class HsEnvironment(object):
             cursor.execute("select filename from hitspool"
                            " where start_tick<=? and stop_tick>=?",
                            (stop_time, start_time))
-            files = [row[0].encode("ascii") for row in cursor.fetchall()]
-            files.sort()
+            files = sorted([row[0].encode("ascii") for row in cursor.fetchall()])
             return files
         finally:
             conn.close()
@@ -448,7 +447,7 @@ class Request(object):
     def __check_spadetar(self, tarpath, quiet=False):
         try:
             tar = tarfile.open(tarpath, "r")
-        except StandardError, err:
+        except StandardError as err:
             raise HsException("Cannot read %s: %s" %
                               (tarpath, err))
 
@@ -1147,7 +1146,7 @@ if __name__ == "__main__":
             yield hproc
         finally:
             failed = None
-            for hub, proc in hproc.iteritems():
+            for hub, proc in hproc.items():
                 try:
                     proc.terminate()  # send sigterm, or ...
                     proc.kill()       # send sigkill

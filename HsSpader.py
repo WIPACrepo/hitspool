@@ -3,6 +3,8 @@
 # Hit Spool SPADE-ing to be run on access
 # author: dheereman
 #
+
+import argparse
 import glob
 import logging
 import os
@@ -11,6 +13,8 @@ from HsBase import HsBase
 
 
 def add_arguments(parser):
+    "Add all command line arguments to the argument parser"
+
     example_log_path = os.path.join(HsBase.DEFAULT_LOG_PATH, "hsspader.log")
 
     parser.add_argument("-i", "--indir", dest="indir", required=True,
@@ -35,10 +39,12 @@ class HsSpader(HsBase):
     def __init__(self):
         super(HsSpader, self).__init__()
 
+    # pylint: disable=no-self-use
     def find_matching_files(self, basedir, alertname):
         "This wrapper exists only so tests can override it"
         return glob.glob(os.path.join(basedir, "*" + alertname + "*"))
 
+    # pylint: disable=no-self-use
     def makedirs(self, path):
         "This wrapper exists only so tests can override it"
         if not os.path.exists(path):
@@ -67,8 +73,8 @@ class HsSpader(HsBase):
 
         datalistlocal = [os.path.basename(s) for s in datalist]
 
-        hubnamelist = ["ichub%02d" % i for i in xrange(1, 87)] + \
-                      ["ithub%02d" % i for i in xrange(1, 12)]
+        hubnamelist = ["ichub%02d" % i for i in range(1, 87)] + \
+                      ["ithub%02d" % i for i in range(1, 12)]
         for hub in hubnamelist:
             data = [s for s in datalistlocal if hub in s]
             if len(data) != 1:
@@ -92,21 +98,20 @@ class HsSpader(HsBase):
             logging.info("Preparation for SPADE Pickup of %s DONE", basename)
 
 
+def main():
+    parser = argparse.ArgumentParser()
+
+    add_arguments(parser)
+
+    args = parser.parse_args()
+
+    hsp = HsSpader()
+
+    hsp.init_logging(args.logfile, basename="hsspader",
+                     basehost="access")
+
+    hsp.spade_pickup_data(args.indir, args.pattern, args.spadedir)
+
+
 if __name__ == "__main__":
-    import argparse
-
-    def main():
-        parser = argparse.ArgumentParser()
-
-        add_arguments(parser)
-
-        args = parser.parse_args()
-
-        hsp = HsSpader()
-
-        hsp.init_logging(args.logfile, basename="hsspader",
-                         basehost="access")
-
-        hsp.spade_pickup_data(args.indir, args.pattern, args.spadedir)
-
     main()

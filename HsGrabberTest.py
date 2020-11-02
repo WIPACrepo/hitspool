@@ -89,7 +89,7 @@ class HsGrabberTest(LoggingTestCase):
         msg = "Requesting negative time range (%.2f).\n" \
               "Try another time window." % \
               ((stop_ticks - start_ticks) / 1E10)
-        self.expectLogMessage(msg)
+        self.expect_log_message(msg)
 
         # run it!
         hsg.send_alert(start_ticks, stop_ticks, copydir,
@@ -124,7 +124,7 @@ class HsGrabberTest(LoggingTestCase):
             "copy_dir": None,
             "hubs": None,
         }
-        hsg.sender.addExpected(expected)
+        hsg.sender.add_expected(expected)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -133,7 +133,7 @@ class HsGrabberTest(LoggingTestCase):
         msg = "Warning: You are requesting %.2f seconds of data\n" \
               "Normal requests are %d seconds or less" % \
               (secrange, HsGrabber.WARN_SECONDS)
-        self.expectLogMessage(msg)
+        self.expect_log_message(msg)
 
         # run it!
         hsg.send_alert(start_ticks, stop_ticks, copydir,
@@ -142,10 +142,10 @@ class HsGrabberTest(LoggingTestCase):
         hsg.validate()
 
         # add grabber to poller socket
-        hsg.poller.addPollResult(hsg.sender)
+        hsg.poller.add_poll_result(hsg.sender)
 
         # add final grabber response
-        hsg.sender.addIncoming("DONE\0")
+        hsg.sender.add_incoming("DONE\0")
 
         timeout = 1
         hsg.wait_for_response(timeout=timeout, print_to_console=False)
@@ -171,7 +171,7 @@ class HsGrabberTest(LoggingTestCase):
               "HsWorker processes request only up to %d seconds.\n" \
               "Try a smaller time window." % \
               (secrange, HsBase.MAX_REQUEST_SECONDS)
-        self.expectLogMessage(msg)
+        self.expect_log_message(msg)
 
         # run it!
         hsg.send_alert(start_ticks, stop_ticks, copydir,
@@ -186,7 +186,7 @@ class HsGrabberTest(LoggingTestCase):
         hsg = MyGrabber()
 
         # add grabber to poller socket
-        hsg.poller.addPollResult(None)
+        hsg.poller.add_poll_result(None)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)
@@ -195,9 +195,9 @@ class HsGrabberTest(LoggingTestCase):
         timeout = 1
 
         # add all expected log messages
-        self.expectLogMessage("No response from expcont's HsPublisher"
-                              " within %s seconds.\nAbort request." %
-                              (timeout, ))
+        self.expect_log_message("No response from expcont's HsPublisher"
+                                " within %s seconds.\nAbort request." %
+                                (timeout, ))
 
         # run it!
         hsg.wait_for_response(timeout=timeout, print_to_console=False)
@@ -228,11 +228,11 @@ class HsGrabberTest(LoggingTestCase):
             "copy_dir": None,
             "hubs": None,
         }
-        hsg.sender.addExpected(expected)
-        hsg.sender.addIncoming("DONE\0")
+        hsg.sender.add_expected(expected)
+        hsg.sender.add_incoming("DONE\0")
 
         # add grabber to poller socket
-        hsg.poller.addPollResult(hsg.sender)
+        hsg.poller.add_poll_result(hsg.sender)
 
         # don't check DEBUG/INFO log messages
         self.setLogLevel(logging.WARN)

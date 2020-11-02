@@ -6,6 +6,7 @@
 https://wiki.icecube.wisc.edu/index.php/HitSpool_Interface_Operation_Manual
 """
 
+import argparse
 import datetime
 import functools
 import logging
@@ -27,6 +28,8 @@ from HsSender import PingManager
 
 
 def add_arguments(parser):
+    "Add all command line arguments to the argument parser"
+
     dflt_copydir = "%s@%s:%s" % (HsBase.DEFAULT_RSYNC_USER,
                                  HsBase.DEFAULT_RSYNC_HOST,
                                  HsBase.DEFAULT_COPY_PATH)
@@ -97,7 +100,7 @@ class PingWatcher(object):
         self.__last_ping = datetime.datetime.now()
 
 
-class RequestProcessor(threading.Thread):
+class RequestProcessor(object):
     "Process requests"
     def __init__(self, worker, fail_sleep=None):
         self.__worker = worker
@@ -188,7 +191,7 @@ class RequestProcessor(threading.Thread):
         # clear out lingering requests after thread has been stopped
         with self.__lock:
             if len(self.__requests) > 0:
-                logging.error("Exiting thread without processing %d requests" %
+                logging.error("Exiting thread without processing %d requests",
                               len(self.__requests))
                 del self.__requests
 
@@ -328,7 +331,7 @@ class Worker(HsRSyncFiles):
         logging.debug("ready for new alert...")
 
         try:
-            req = self.receive_request(self.subscriber)
+            self.receive_request(self.subscriber)
         except KeyboardInterrupt:
             raise
         except zmq.ZMQError:
@@ -378,47 +381,47 @@ class Worker(HsRSyncFiles):
         self.__req_thread.push(req)
 
 
+def main():
+    "Main program"
+
+    parser = argparse.ArgumentParser()
+
+    add_arguments(parser)
+
+    args = parser.parse_args()
+
+    worker = Worker("HsWorker", host=args.hostname, is_test=args.is_test)
+
+    # override some defaults (generally only used for debugging)
+    if args.copydir is not None:
+        worker.TEST_COPY_PATH = args.copydir
+    if args.hubroot is not None:
+        worker.TEST_HUB_DIR = args.hubroot
+
+    # shut down cleanly when a signal is received (via pkill)
+    signal.signal(signal.SIGTERM, worker.handler)
+    signal.signal(signal.SIGUSR1, worker.handler)
+
+    worker.init_logging(args.logfile, basename="hsworker",
+                        basehost=worker.shorthost)
+
+    logging.info("this Worker runs on: %s", worker.shorthost)
+
+    while True:
+        try:
+            worker.mainloop()
+        except SystemExit:
+            raise
+        except KeyboardInterrupt:
+            logging.warning("Interruption received, shutting down...")
+            raise SystemExit(0)
+        except zmq.ZMQError as zex:
+            if str(zex).find("Socket operation on non-socket") < 0:
+                logging.exception("ZMQ error received, shutting down...")
+            raise SystemExit(1)
+        except:
+            logging.exception("Caught exception, continuing")
+
+
 if __name__ == '__main__':
-    import argparse
-    import sys
-
-    def main():
-        parser = argparse.ArgumentParser()
-
-        add_arguments(parser)
-
-        args = parser.parse_args()
-
-        worker = Worker("HsWorker", host=args.hostname, is_test=args.is_test)
-
-        # override some defaults (generally only used for debugging)
-        if args.copydir is not None:
-            worker.TEST_COPY_PATH = args.copydir
-        if args.hubroot is not None:
-            worker.TEST_HUB_DIR = args.hubroot
-
-        # shut down cleanly when a signal is received (via pkill)
-        signal.signal(signal.SIGTERM, worker.handler)
-        signal.signal(signal.SIGUSR1, worker.handler)
-
-        worker.init_logging(args.logfile, basename="hsworker",
-                            basehost=worker.shorthost)
-
-        logging.info("this Worker runs on: %s", worker.shorthost)
-
-        while True:
-            try:
-                worker.mainloop()
-            except SystemExit:
-                raise
-            except KeyboardInterrupt:
-                logging.warning("Interruption received, shutting down...")
-                raise SystemExit(0)
-            except zmq.ZMQError, zex:
-                if str(zex).find("Socket operation on non-socket") < 0:
-                    logging.exception("ZMQ error received, shutting down...")
-                raise SystemExit(1)
-            except:
-                logging.exception("Caught exception, continuing")
-
     main()
