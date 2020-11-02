@@ -197,6 +197,10 @@ class HsSender(HsBase):
         else:
             expcont = "localhost"
 
+        # make sure the default staging directory exists
+        if not os.path.exists(self.DEFAULT_COPY_PATH):
+            os.makedirs(self.DEFAULT_COPY_PATH)
+
         self.__context = zmq.Context()
         self.__reporter = self.create_reporter()
         self.__workers = self.create_workers_socket()
