@@ -35,7 +35,7 @@ class MockSenderSocket(HsTestUtil.Mock0MQSocket):
         super(MockSenderSocket, self).__init__(name, verbose=verbose)
 
     def send_json(self, msgjson):
-        if isinstance(msgjson, str):
+        if isinstance(msgjson, (str, unicode)):
             raise Exception("Got string JSON object %s<%s>" %
                             (msgjson, type(msgjson)))
 

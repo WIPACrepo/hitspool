@@ -54,7 +54,7 @@ def string_to_ticks(timestr, is_ns=False):
     if isinstance(timestr, numbers.Number):
         return int(timestr * multiplier)
 
-    if isinstance(timestr, str):
+    if isinstance(timestr, (str, unicode)):
         if timestr.isdigit():
             try:
                 return int(timestr) * multiplier
