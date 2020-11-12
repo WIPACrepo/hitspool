@@ -176,7 +176,7 @@ class MockRequestBuilder(object):
             return "HESE"
         if reqtype == self.ANON:
             return "ANON"
-        if isinstance(reqtype, str):
+        if isinstance(reqtype, (str, unicode)):
             return reqtype
         raise NotImplementedError("Unknown request type #%s" % reqtype)
 
