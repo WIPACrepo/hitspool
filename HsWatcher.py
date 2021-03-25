@@ -119,6 +119,7 @@ class Daemon(object):
         pid = None
         try:
             for line in proc.stdout:
+                line = line.decode("utf-8")
                 if self.__basename in line:
                     flds = line.split()
 
@@ -430,13 +431,16 @@ class HsWatcher(HsBase):
                 if block_end_byte - block_size > 0:
                     # read the last block we haven't yet read
                     fin.seek(block_number*block_size, 2)
-                    blocks.append(fin.read(block_size))
+                    block = fin.read(block_size)
                 else:
                     # file too small, start from begining
                     fin.seek(0, 0)
                     # only read what was not read
-                    blocks.append(fin.read(block_end_byte))
-                lines_found = blocks[-1].count(search_string)
+                    block = fin.read(block_end_byte)
+                block = block.decode("utf-8")
+                blocks.append(block)
+
+                lines_found = block.count(search_string)
                 lines_to_go -= lines_found
                 block_end_byte -= block_size
                 block_number -= 1
