@@ -1,2 +1,3 @@
-# Ignore Subversion directory during Git transition
-.svn
+*.pyc
+.coverage
+htmlcov/
