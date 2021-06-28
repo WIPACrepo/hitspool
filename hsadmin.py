@@ -48,7 +48,8 @@ HitSpoolPath=/mnt/data/pdaqlocal/HsInterface/current
         """
         tmp_fd, tmpname = tempfile.mkstemp(text=True)
 
-        os.write(tmp_fd, "\n".join(self.RSYNC_EXCLUDE_LIST))
+        text = "\n".join(self.RSYNC_EXCLUDE_LIST)
+        os.write(tmp_fd, text.encode())
 
         os.close(tmp_fd)
 
