@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 import logging
 import numbers
 import os
@@ -54,7 +56,11 @@ def print_process_output(proclist):
     for name, proc in proclist:
         for hname, stream in (("OUT", proc.stdout), ("ERR", proc.stderr)):
             if stream.fileno() in readable:
-                print "[%s:%s] %s" % (name, hname, stream.readline().rstrip())
+                lines = stream.readline()
+                if isinstance(lines, bytes):
+                    lines = lines.decode()
+                for line in lines.split("\n"):
+                    print("[%s:%s] %s" % (name, hname, line.rstrip()))
 
 
 class HsEnvironment(object):
@@ -150,7 +156,7 @@ class HsEnvironment(object):
             cursor.execute("select filename from hitspool"
                            " where start_tick<=? and stop_tick>=?",
                            (stop_time, start_time))
-            files = sorted([row[0].encode("ascii") for row in cursor.fetchall()])
+            files = sorted([row[0] for row in cursor.fetchall()])
             return files
         finally:
             conn.close()
@@ -217,6 +223,9 @@ class Request(object):
                 raise HsException("Expected files should not be specified!")
             expected_files = env.files_in_range(start_ticks,
                                                 stop_ticks)
+
+        if isinstance(request_id, bytes):
+            request_id = request_id.decode()
 
         if copydir is None:
             copydir = os.path.join(ROOTDIR, "HsDataCopy")
@@ -340,8 +349,8 @@ class Request(object):
 
         exp_num = len(self.__expected_files)
         if not quiet:
-            print "Destination directory %s looks good (found %d file%s)" % \
-                (subdir, exp_num, "" if exp_num == 1 else "s")
+            print("Destination directory %s looks good (found %d file%s)" %
+                  (subdir, exp_num, "" if exp_num == 1 else "s"))
 
     def __check_empty(self, destination):
         if not os.path.isdir(destination):
@@ -360,7 +369,7 @@ class Request(object):
         while not os.path.exists(schemapath):
             result = schemapath.split(os.path, 1)
             if len(result) == 1:
-                print >>sys.stderr, "WARNING: Not validating %s" % metapath
+                print("WARNING: Not validating %s" % metapath, file=sys.stderr)
                 return
             schemapath = result[1]
 
@@ -379,7 +388,7 @@ class Request(object):
                                traceback.format_exc()))
 
         if not quiet:
-            print "SPADE metadata %s looks good" % os.path.basename(metapath)
+            print("SPADE metadata %s looks good" % os.path.basename(metapath))
 
     def __check_spadequeue(self, directory=None, quiet=False):
         if directory is None:
@@ -485,8 +494,9 @@ class Request(object):
                                os.path.basename(tarpath), count))
 
         if not quiet:
-            print "SPADE tarfile %s looks good (found %d file%s)" % \
-                (os.path.basename(tarpath), count, "" if count == 1 else "s")
+            print("SPADE tarfile %s looks good (found %d file%s)" %
+                  (os.path.basename(tarpath), count,
+                   "" if count == 1 else "s"))
 
     @classmethod
     def get_next_number(cls):
@@ -497,6 +507,10 @@ class Request(object):
     @property
     def copydir(self):
         return self.__copydir
+
+    @property
+    def id(self):
+        return self.__req_id
 
     @property
     def number(self):
@@ -733,6 +747,8 @@ class Processor(object):
                               type(rawmsg), rawmsg)
                 continue
 
+            print_process_output(proclist)
+
             badtop = False
             for exp in self.REQUIRED_FIELDS:
                 if exp not in rawmsg:
@@ -745,6 +761,8 @@ class Processor(object):
 
             if quiet:
                 self.__twirly.print_next()
+
+            print_process_output(proclist)
 
             if rawmsg["service"] == "hitspool" and \
                rawmsg["varname"].startswith("hsrequest_info"):
@@ -770,6 +788,8 @@ class Processor(object):
                 # keep looking
                 continue
 
+            print_process_output(proclist)
+
             if rawmsg["service"] == "HSiface" and \
                rawmsg["varname"] == "alert":
                 self.__process_alert(rawmsg["value"])
@@ -784,8 +804,8 @@ class Processor(object):
                                         "LiveMessage")
 
         if not quiet:
-            print "::: Req %s LiveStatus %s" % \
-                (message.request_id, message.status)
+            print("::: Req %s LiveStatus %s" %
+                  (message.request_id, message.status))
 
         if message.status == HsUtil.STATUS_QUEUED:
             if message.request_id in self.__requests:
@@ -847,7 +867,7 @@ class Processor(object):
 
     def __submit(self, request, quiet=False):
         if not quiet:
-            print "::: Submit %s" % str(request)
+            print("::: Submit %s" % str(request))
 
         try:
             result = request.run(self.__requester, quiet=quiet)
@@ -915,9 +935,9 @@ if __name__ == "__main__":
 
     def build_requests(env, hubs, first_ticks=None):
         if first_ticks is None:
-            first_ticks = 123450067960246236L
+            first_ticks = 123450067960246236
             # this should be extracted from the file, not hard-coded!
-            first_extracted_hit = 123450077960246236L
+            first_extracted_hit = 123450077960246236
 
         last_ticks = first_ticks + 65 * TICKS_PER_SECOND
         hits_per_file = 40
@@ -934,7 +954,7 @@ if __name__ == "__main__":
 
         extracted_hits_filename = "hits_%d_%d.dat" % \
                                   (first_extracted_hit,
-                                   first_extracted_hit + 50000000000L)
+                                   first_extracted_hit + 50000000000)
 
         # list of requests
         return (
@@ -990,11 +1010,15 @@ if __name__ == "__main__":
         num_open = 0
 
         conn = sqlite3.connect(RequestMonitor.get_db_path())
+
         try:
             cursor = conn.cursor()
             for _ in cursor.execute("select id, count(id) from requests"
                                     " group by id"):
                 num_open += 1
+        except sqlite3.OperationalError:
+            print("WARNING: Cannot read 'requests' table from %s" %
+                  RequestMonitor.get_db_path(), file=sys.stderr)
         finally:
             conn.close()
 
@@ -1048,6 +1072,7 @@ if __name__ == "__main__":
             with run_hubs_and_terminate(hubs, env):
                 with run_and_terminate(("python", "HsSender.py",
                                         "-l", "/tmp/sender.log",
+                                        "-C", env.copydst,
                                         "-D", RequestMonitor.STATE_DB_PATH,
                                         "-F",
                                         "-S", env.spadequeue,
@@ -1077,11 +1102,13 @@ if __name__ == "__main__":
                 first = False
             elif not quiet:
                 # print a separator so it's easy to see different requests
-                print >>sys.stderr, "="*75
+                print("="*75, file=sys.stderr)
 
             # keep track of request numbers to make debugging easier
             if not quiet:
-                print "::: Request #%d" % request.number
+                print("::: Request #%d" % request.number)
+
+            print_process_output(proclist)
 
             result = None
             try:
@@ -1108,15 +1135,17 @@ if __name__ == "__main__":
 
         rtnval = True
         if len(failed) == 0 and open_reqs == 0:
-            print "No problems found"
+            print("No problems found")
         else:
             if len(failed) > 0:
-                print >>sys.stderr, "Found problems with %d request%s: %s" % \
-                    (len(failed), "" if len(failed) == 1 else "s", failed)
+                print("Found problems with %d request%s: %s" %
+                      (len(failed), "" if len(failed) == 1 else "s", failed),
+                      file=sys.stderr)
                 rtnval = False
             if open_reqs > 0 and open_reqs != len(failed):
-                print >>sys.stderr, "Found %d open request%s in state DB" % \
-                    (open_reqs, "" if open_reqs == 1 else "s")
+                print("Found %d open request%s in state DB" %
+                      (open_reqs, "" if open_reqs == 1 else "s"),
+                      file=sys.stderr)
                 rtnval = False
 
         return rtnval
