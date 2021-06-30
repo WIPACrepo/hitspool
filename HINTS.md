@@ -6,7 +6,7 @@ See https://wiki.icecube.wisc.edu/index.php/HitSpool_Interface_Operation_Manual
 
 In an emergency, log onto access and run:
 
-`cd HsInterface/current && fab hs_start`
+`cd HsInterface/current && ./hs_admin.py restart`
 
 This will stop all the hitspool programs and restart them.
 
@@ -21,7 +21,7 @@ This will stop all the hitspool programs and restart them.
                        ----------          |PUSH     | ---->  |          |
                                             ---------          -----------
     This is the NEW HsSender for the HS Interface.
-    It's started via fabric on access.
+    It's started via `hs_admin.py` on access.
     It receives messages from the HsWorkers and is responsible of putting
     the HitSpool Data in the SPADE queue.
 ```
@@ -71,7 +71,7 @@ On access:
 
 On access:
 
-`cd HsInterface/current && fab hs_deploy && fab hs_start`
+`cd HsInterface/current && ./hs_admin.py deploy`
 
 ### SnDAQ verification
 
