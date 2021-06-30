@@ -348,7 +348,7 @@ class HsGrabber(HsBase):
             if extract_hits:
                 alert["extract"] = True
 
-        self.__publisher.send(json.dumps(alert))
+        self.__publisher.send_string(json.dumps(alert))
         logging.info("HsGrabber sent Request %s", str(alert))
 
         return True
@@ -405,6 +405,8 @@ class HsGrabber(HsBase):
                     msg = sock.recv()
                     if msg is None:
                         continue
+                    if isinstance(msg, bytes):
+                        msg = msg.decode()
                 except:
                     logging.exception("Cannot receive message from %s",
                                       sock.identity)

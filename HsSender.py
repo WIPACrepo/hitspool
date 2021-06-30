@@ -26,6 +26,8 @@ def add_arguments(parser):
 
     example_log_path = os.path.join(HsBase.DEFAULT_LOG_PATH, "hssender.log")
 
+    parser.add_argument("-C", "--copydir", dest="copydir",
+                        help="Directory where files are staged")
     parser.add_argument("-D", "--state-db", dest="state_db",
                         help="Path to HitSpool state database"
                         " (used for testing)")
@@ -189,7 +191,7 @@ class HsSender(HsBase):
 
     HS_SPADE_DIR = "/mnt/data/HitSpool"
 
-    def __init__(self, host=None, is_test=False):
+    def __init__(self, copydir=None, host=None, is_test=False):
         super(HsSender, self).__init__(host=host, is_test=is_test)
 
         if self.is_cluster_sps or self.is_cluster_spts:
@@ -198,8 +200,10 @@ class HsSender(HsBase):
             expcont = "localhost"
 
         # make sure the default staging directory exists
-        if not os.path.exists(self.DEFAULT_COPY_PATH):
-            os.makedirs(self.DEFAULT_COPY_PATH)
+        if copydir is None:
+            copydir = self.DEFAULT_COPY_PATH
+        if not os.path.exists(copydir):
+            os.makedirs(copydir)
 
         self.__context = zmq.Context()
         self.__reporter = self.create_reporter()
@@ -351,16 +355,21 @@ class HsSender(HsBase):
                 logging.exception("Received bad message %s", str(msg))
                 error = True
 
-        if sock == self.__alert_socket:
-            if error:
-                rtnmsg = "ERROR"
-            else:
-                rtnmsg = "DONE"
+        if error:
+            rtnmsg = "ERROR"
+        else:
+            rtnmsg = "DONE"
 
+        if sock != self.__alert_socket:
+            logging.error("Cannot send %s alert to unknown socket <%s>%s"
+                          " (expected <%s>%s)" %
+                          (rtnmsg, type(sock), sock, type(self.__alert_socket),
+                           self.__alert_socket))
+        else:
             # reply to requester:
             #  added \0 to fit C/C++ zmq message termination
             try:
-                answer = sock.send(rtnmsg + "\0")
+                answer = sock.send_string(rtnmsg + "\0")
                 if answer is not None:
                     logging.error("Failed sending %s to requester: %s",
                                   rtnmsg, answer)
@@ -524,7 +533,7 @@ def main():
                              " already been set")
         RequestMonitor.STATE_DB_PATH = args.state_db
 
-    sender = HsSender(is_test=args.is_test)
+    sender = HsSender(copydir=args.copydir, is_test=args.is_test)
 
     logging.info("HsSender starts on %s", sender.shorthost)
 
@@ -553,4 +562,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except:
+        logging.exception("HsSender failed")

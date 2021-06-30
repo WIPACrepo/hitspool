@@ -7,6 +7,7 @@ import binascii
 import getpass
 import numbers
 import struct
+import sys
 import threading
 import time
 
@@ -47,7 +48,10 @@ class ID(object):
             cls.__seed = (cls.__seed + 1) % 0xFFFFFF
         packed = struct.pack('>i', int(time.time()))
         packed += struct.pack('>i', val)[1:4]
-        return binascii.hexlify(packed)
+        new_id = binascii.hexlify(packed)
+        if isinstance(new_id, bytes):
+            new_id = new_id.decode()
+        return new_id
 
 
 def dict_to_message(mdict, allow_old_format=False):
@@ -103,6 +107,8 @@ def send(sock, msgtype, req_id, user, start_ticks, stop_ticks, destdir,
     # check for required fields
     if req_id is None:
         raise HsException("Request ID is not set")
+    elif isinstance(req_id, bytes):
+        req_id = req_id.decode()
     if msgtype is None:
         raise HsException("Message type is not set for Req#" + str(req_id))
     if user is None:

@@ -336,6 +336,8 @@ class Worker(HsRSyncFiles):
             raise
         except zmq.ZMQError:
             raise
+        except SystemExit:
+            raise
         except:
             logging.exception("Cannot read request")
 

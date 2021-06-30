@@ -323,7 +323,7 @@ class Receiver(HsBase):
 
     def reply_request(self):
         # Wait for next request from client
-        alert = str(self.__alert_socket.recv())
+        alert = self.__alert_socket.recv()
         logging.info("received request:\n%s", alert)
 
         # SnDAQ alerts are NOT real JSON so try to eval first
@@ -353,7 +353,7 @@ class Receiver(HsBase):
 
         # reply to requester:
         #  added \0 to fit C/C++ zmq message termination
-        answer = self.__alert_socket.send(rtnmsg + "\0")
+        answer = self.__alert_socket.send_string(rtnmsg + "\0")
         if answer is None:
             logging.info("Sent response back to requester: %s", rtnmsg)
         else:
