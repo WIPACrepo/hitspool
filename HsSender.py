@@ -361,10 +361,11 @@ class HsSender(HsBase):
             rtnmsg = "DONE"
 
         if sock != self.__alert_socket:
-            logging.error("Cannot send %s alert to unknown socket <%s>%s"
-                          " (expected <%s>%s)" %
-                          (rtnmsg, type(sock), sock, type(self.__alert_socket),
-                           self.__alert_socket))
+            if sock.identity != b"Reporter":
+                logging.error("Cannot send %s alert to unknown socket <%s>%s"
+                              " (expected <%s>%s)" %
+                              (rtnmsg, type(sock), sock.identity,
+                               type(self.__alert_socket), self.__alert_socket))
         else:
             # reply to requester:
             #  added \0 to fit C/C++ zmq message termination
@@ -564,5 +565,7 @@ def main():
 if __name__ == "__main__":
     try:
         main()
+    except SystemExit:
+        pass
     except:
         logging.exception("HsSender failed")
