@@ -162,8 +162,10 @@ HitSpoolPath=/mnt/data/pdaqlocal/HsInterface/current
         try:
             results = self.__group.run(cmd, hide=quiet)
         except GroupException as gex:
-            if gex.message.rstrip() != "":
-                print("Failed to %s crontab: %s" % (verb, gex.message, ))
+            for key, val in gex.result.items():
+                if isinstance(val, Exception):
+                    print("Failed to %s crontab on %s\n%s" %
+                          (verb, key.host, val.result.tail("stderr")))
             results = gex.result
         num_failed = self.__report_failures(results,
                                             "%sCrontab" % verb.capitalize())
@@ -256,9 +258,11 @@ HitSpoolPath=/mnt/data/pdaqlocal/HsInterface/current
             results = self.__group.run("python %s%s" % (watcher, stop_arg),
                                        hide=True)
         except GroupException as gex:
-            if gex.message.rstrip() != "":
-                print("Failed to %s: %s" %
-                      ("stop" if stop_process else "start", gex.message))
+            for key, val in gex.result.items():
+                if isinstance(val, Exception):
+                    print("Failed to %s %s\n%s" %
+                          ("stop" if stop_process else "start", key.host,
+                           val.result.tail("stderr")))
             results = gex.result
 
         num_failed = self.__report_failures(results, "Stop" if stop_process
