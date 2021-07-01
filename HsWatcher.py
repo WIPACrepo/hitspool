@@ -44,7 +44,10 @@ class Daemon(object):
     def __init__(self, basename, executable):
         self.check_executable(basename, executable)
 
-        self.__basename = basename
+        if not isinstance(basename, bytes):
+            self.__basename = basename
+        else:
+            self.__basename = basename.decode()
         self.__executable = executable
 
     def __str__(self):
@@ -119,7 +122,8 @@ class Daemon(object):
         pid = None
         try:
             for line in proc.stdout:
-                line = line.decode("utf-8")
+                if isinstance(line, bytes):
+                    line = line.decode()
                 if self.__basename in line:
                     flds = line.split()
 
