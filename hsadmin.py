@@ -34,8 +34,8 @@ class BaseSystem(object):
     CRONTAB_TEXT = """
 ###HitSpool Jobs -- Please contact daq-dev@icecube.wisc.edu for questions
 HitSpoolPath=/mnt/data/pdaqlocal/HsInterface/current
-15 * * * * 	python \$HitSpoolPath/HsWatcher.py
-@reboot 	python \$HitSpoolPath/HsWatcher.py
+15 * * * * 	source \$HOME/env/bin/activate && python \$HitSpoolPath/HsWatcher.py
+@reboot 	source \$HOME/env/bin/activate && python \$HitSpoolPath/HsWatcher.py
 """
 
     def __init__(self, targets=None):
