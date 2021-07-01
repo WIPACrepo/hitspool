@@ -11,6 +11,12 @@ from HsException import HsException
 from leapseconds import LeapSeconds
 
 
+if sys.version_info >= (3, 0):
+    # pylint: disable=invalid-name
+    # unicode isn't present in Python3
+    unicode = str
+
+
 # dictionary which maps year to the datetime object for January 1 of that year
 JAN1 = {}
 
