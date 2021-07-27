@@ -277,17 +277,19 @@ HitSpoolPath=/mnt/data/pdaqlocal/HsInterface/current
 
 
 class SouthPoleSystem(BaseSystem):
-    def __init__(self):
-        targets = ["expcont", "2ndbuild"] + \
-          ["ichub%02d" % i for i in range(1, 87)] + \
-          ["ithub%02d" % i for i in range(1, 12)]
+    def __init__(self, targets=None):
+        if targets is None:
+            targets = ["expcont", "2ndbuild"] + \
+                ["ichub%02d" % i for i in range(1, 87)] + \
+                ["ithub%02d" % i for i in range(1, 12)]
 
         super(SouthPoleSystem, self).__init__(targets=targets)
 
 
 class TestSystem(BaseSystem):
-    def __init__(self):
-        targets = ["expcont", "2ndbuild", "ichub21", "scube"]
+    def __init__(self, targets=None):
+        if targets is None:
+            targets = ["expcont", "2ndbuild", "ichub21", "ichub29", "ithub01", "scube"]
 
         super(TestSystem, self).__init__(targets=targets)
 
@@ -297,17 +299,17 @@ def add_arguments(parser, valid_actions):
 
     parser.add_argument("-q", "--quiet", dest="quiet",
                         action="store_true", default=False,
-                        help="Print details")
+                        help="Do not print details")
     parser.add_argument("-x", "--debug", dest="debug",
                         action="store_true", default=False,
                         help="Print debugging messages")
-
+    parser.add_argument("-t", "--target", dest="target",
+                        help="Perform action only on specified target machine")
     parser.add_argument("--no-stop", dest="no_stop",
                         action="store_true", default=False,
-                        help="Print debugging messages")
-
+                        help="Do not stop first (e.g. for fresh deploy)")
     parser.add_argument("action", choices=valid_actions,
-                        help="Action to perform on all hosts")
+                        help="Action to perform on host(s)")
 
 
 def main():
@@ -326,9 +328,9 @@ def main():
         raise SystemExit("Please run this from the 'pdaq' account")
 
     if "wisc.edu" in hostname:
-        system = TestSystem()
+        system = TestSystem(targets=[ args.target ])
     elif "usap.gov" in hostname:
-        system = SouthPoleSystem()
+        system = SouthPoleSystem(targets=[ args.target ])
     else:
         raise SystemExit("Please run this on either SPS or SPTS")
 
