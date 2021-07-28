@@ -69,9 +69,13 @@ On access:
 
 ### Deploying
 
-On access:
+On access, to deploy a new version to all current hitspool machines:
 
 `cd HsInterface/current && ./hs_admin.py deploy`
+
+To deploy to a newly re-kickstarted machine:
+
+`cd HsInterface/current && ./hs_admin.py -t <hostname> --no-stop deploy && ./hs_admin.py -t <hostname> install_crontab`
 
 ### SnDAQ verification
 
