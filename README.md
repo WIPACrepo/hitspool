@@ -57,15 +57,24 @@ as expected:
 
 ### Releasing
 
-On access:
+PRELIMINARY new procedure. 
 
-`cd HsInterface/current`
-`svn copy \
- http://code.icecube.wisc.edu/daq/projects/hitspool/trunk \
- http://code.icecube.wisc.edu/daq/projects/hitspool/releases/NewFoo`
-`cp -pr ../OldFoo ../NewFoo`
-`cd ../NewFoo && svn switch \
- http://code.icecube.wisc.edu/daq/projects/hitspool/releases/NewFoo`
+From a working repository:
+```
+ export TAG=<tagname>
+ git tag -a $TAG -m "<commit message>"
+ git push origin -- tags
+```
+
+As pdaq@access (note this will be easier with newer git version that can clone a single tag):
+```
+ cd ~/HsInterface
+ export TAG=Matter_Eater_Lad3
+ git clone git@github.com:WIPACrepo/hitspool.git $TAG
+ cd $TAG
+ git checkout tags/$TAG -b $TAG
+ cd ../; rm current; ln -s $TAG current
+```
 
 ### Deploying
 
