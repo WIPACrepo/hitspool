@@ -127,7 +127,7 @@ HitSpoolPath=/mnt/data/pdaqlocal/HsInterface/current
                     if fin == proc.stderr.fileno():
                         line = proc.stderr.readline().decode("utf-8")
                         if line != "":
-                            print("%s ERROR: %s" % (line, ), file=sys.stderr)
+                            print("[%s] %s" % (hostname, line), file=sys.stderr)
                         continue
 
                     if fin != proc.stdout.fileno():
