@@ -121,7 +121,7 @@ class Copier(object):
             rstr = rmt_host
         else:
             rstr = "%s@%s" % (rmt_user, rmt_host)
-        cmd = ["ssh", rstr, "if [ ! -d \"%s\" ]; then mkdir -p \"%s\"; fi" %
+        cmd = ["ssh", "-o StrictHostKeyChecking=no", "-o UserKnownHostsFile=/dev/null", rstr, "if [ ! -d \"%s\" ]; then mkdir -p \"%s\"; fi" %
                (rmt_dir, rmt_dir)]
         for _ in range(3):
             # this fails occasionally, possibly due to a wave of processes
@@ -374,7 +374,7 @@ class CopyUsingSCP(Copier):
                 else " -l %d" % (bwlimit * 8)
         cstr = "" if cipher is None else " -c %s" % cipher
 
-        return "nice scp -v -B" + bwstr + cstr
+        return "nice scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -v -B" + bwstr + cstr
 
     def build_target(self, rmt_user, rmt_host, rmt_dir, rmt_subdir):
         target = '%s@%s:%s' % (rmt_user, rmt_host, rmt_dir)
