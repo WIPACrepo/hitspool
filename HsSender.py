@@ -197,7 +197,7 @@ class HsSender(HsBase):
         super(HsSender, self).__init__(host=host, is_test=is_test)
 
         if self.is_cluster_sps or self.is_cluster_spts:
-            expcont = "expcont"
+            expcont = "expcont8"
         else:
             expcont = "localhost"
 
@@ -528,7 +528,7 @@ def main():
     args = parser.parse_args()
 
     HsBase.init_logging(args.logfile, basename="hssender",
-                        basehost="2ndbuild")
+                        basehost="2ndbuild8")
 
     if args.state_db is not None:
         if RequestMonitor.STATE_DB_PATH is not None:

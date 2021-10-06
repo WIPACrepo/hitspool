@@ -77,7 +77,7 @@ class HsDelete(HsBase):
         super(HsDelete, self).__init__(is_test=is_test)
 
         if self.is_cluster_sps or self.is_cluster_spts:
-            sec_bldr = "2ndbuild"
+            sec_bldr = "2ndbuild8"
         else:
             sec_bldr = "localhost"
 

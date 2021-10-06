@@ -229,7 +229,7 @@ class HsWatcher(HsBase):
         super(HsWatcher, self).__init__(host=host)
 
         if self.is_cluster_sps or self.is_cluster_spts:
-            expcont = "expcont"
+            expcont = "expcont8"
         else:
             expcont = "localhost"
 
@@ -399,9 +399,9 @@ class HsWatcher(HsBase):
         Watcher at expcont -->  HsPublisher
         Watcher at hub -->  HsWorker
         """
-        if "2ndbuild" in self.fullhost:
+        if "2ndbuild8" in self.fullhost:
             return self.create_watchee("HsSender")
-        if "expcont" in self.fullhost:
+        if "expcont8" in self.fullhost:
             return self.create_watchee("HsPublisher")
         if "hub" in self.fullhost or "scube" in self.fullhost:
             return self.create_watchee("HsWorker")

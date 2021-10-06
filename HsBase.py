@@ -40,7 +40,7 @@ class HsBase(object):
     # default rsync user
     DEFAULT_RSYNC_USER = "pdaq"
     # default rsync host
-    DEFAULT_RSYNC_HOST = "2ndbuild"
+    DEFAULT_RSYNC_HOST = "2ndbuild8"
     # default destination directory
     DEFAULT_COPY_PATH = "/mnt/data/pdaqlocal/HsDataCopy"
 

@@ -56,10 +56,10 @@ HitSpoolPath=/mnt/data/pdaqlocal/HsInterface/current
         return tmpname
 
     def __get_hs_name(self, hostname):
-        if hostname == "2ndbuild":
+        if hostname == "2ndbuild8":
             return "HsSender"
 
-        if hostname == "expcont":
+        if hostname == "expcont8":
             return "HsPublisher"
 
         if "hub" in hostname or hostname == "scube":
@@ -289,7 +289,8 @@ class SouthPoleSystem(BaseSystem):
 class TestSystem(BaseSystem):
     def __init__(self, targets=None):
         if targets is None or len(targets) == 0:
-            targets = ["expcont", "2ndbuild", "ichub21", "ichub29", "ithub01", "scube"]
+            # targets = ["expcont", "2ndbuild", "ichub21", "ichub29", "ithub01", "scube"]
+            targets = ["expcont8", "2ndbuild8", "ichub21", "ichub29", "ithub01", "scube"]
 
         super(TestSystem, self).__init__(targets=targets)
 

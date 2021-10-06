@@ -53,8 +53,8 @@ class Receiver(HsBase):
         super(Receiver, self).__init__(host=host, is_test=is_test)
 
         if self.is_cluster_sps or self.is_cluster_spts:
-            expcont = "expcont"
-            sec_bldr = "2ndbuild"
+            expcont = "expcont8"
+            sec_bldr = "2ndbuild8"
         else:
             expcont = "localhost"
             sec_bldr = "localhost"
