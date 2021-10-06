@@ -220,13 +220,30 @@ class CopyUsingRSync(Copier):
         if line.startswith("delta-transmission disabled for local"):
             return
 
+        # NOTE: 
+        # SL6 rsync (version 3.0.6  protocol version 30)
+        #sending daemon args: --server -vvlogDtpre.iLsfxC "--log-format=%i" --bwlimit=1000 . hitspool/TJB_20211005_162545_ichub21/  (6 args)
+        #
+        # Alma8 rsync (rsync  version 3.1.3  protocol version 31)
+        # sending daemon args: --server -vvlogDtpre.iLsfxC "--log-format=%i" --bwlimit=1000 . hitspool/TJB_20211005_162545_ichub29/
         splitidx = None
         if line.startswith("sending daemon args: "):
             splitidx = 21
         elif line.startswith("opening connection using:"):
             splitidx = 26
         if splitidx is not None:
-            args = line[splitidx:].split()
+ 
+            # NOTE:
+            # 
+            # SL6 rsync (version 3.0.6  protocol version 30)
+            # sending daemon args: --server -vvlogDtpre.iLsfxC "--log-format=%i" --bwlimit=1000 . hitspool/TJB_20211005_162545_ichub21/  (6 args)
+            #
+            # Alma8 rsync (rsync  version 3.1.3  protocol version 31)
+            # sending daemon args: --server -vvlogDtpre.iLsfxC "--log-format=%i" --bwlimit=1000 . hitspool/TJB_20211005_162545_ichub29/
+            if line.endswith("(6 args)"):
+                args =line[splitidx:-9].split()
+            else:
+                args = line[splitidx:].split()
             src = args[-2]
             self.__filename = args[-1]
 
