@@ -48,7 +48,7 @@ class HsRSyncFiles(HsBase):
     # true if request/DB details should be emailed after no records are found
     DEBUG_EMPTY = True
     # list of email addresses which receive the debugging email
-    DEBUG_EMAIL = ("dglo@icecube.wisc.edu", )
+    DEBUG_EMAIL = ["tim.bendfelt@icecube.wisc.edu", ]
 
     # minimum delay before starting remote copy
     MIN_DELAY = 7.0
@@ -212,7 +212,8 @@ class HsRSyncFiles(HsBase):
         # send email
         debugjson = HsUtil.assemble_email_dict(self.DEBUG_EMAIL, header,
                                                message)
-        self.__i3socket.send_json(debugjson)
+        if debugjson is not None:
+            self.__i3socket.send_json(debugjson)
 
     @classmethod
     def __delay(cls, delay_time, request=None, update_status=None):

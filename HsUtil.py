@@ -36,7 +36,7 @@ def assemble_email_dict(address_list, header, message,
                         description="HsInterface Data Request",
                         prio=2, short_subject=True, quiet=True):
     if address_list is None or len(address_list) == 0:
-        raise HsException("No addresses specified")
+        return None
 
     notifies = []
     for email in address_list:

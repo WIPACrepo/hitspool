@@ -626,13 +626,14 @@ class MockI3Socket(Mock0MQSocket):
                 "notifies_header": header,
             })
 
-        self.add_expected_alert({
-            "condition": header,
-            "desc": description,
-            "notifies": notifies,
-            "short_subject": "true" if short_subject else "false",
-            "quiet": "true" if quiet else "false",
-        }, prio=prio)
+        if len(notifies) > 0:
+            self.add_expected_alert({
+                "condition": header,
+                "desc": description,
+                "notifies": notifies,
+                "short_subject": "true" if short_subject else "false",
+                "quiet": "true" if quiet else "false",
+            }, prio=prio)
 
     def add_expected_alert(self, value, prio=1):
         self.add_expected_message(value, service=self.__service,

@@ -267,7 +267,8 @@ class HsWatcher(HsBase):
         json = HsUtil.assemble_email_dict(HsConstants.ALERT_EMAIL_DEV, header,
                                           message, description=description)
 
-        self.__i3socket.send_json(json)
+        if json is not None:
+            self.__i3socket.send_json(json)
 
     def __send_if_halted(self, program, logfile):
         '''
@@ -287,7 +288,8 @@ class HsWatcher(HsBase):
         json = HsUtil.assemble_email_dict(HsConstants.ALERT_EMAIL_DEV, header,
                                           message, description=description)
 
-        self.__i3socket.send_json(json)
+        if json is not None:
+            self.__i3socket.send_json(json)
 
         return True
 
@@ -310,7 +312,8 @@ class HsWatcher(HsBase):
                                           header, "\n".join(mlines),
                                           description=description)
 
-        self.__i3socket.send_json(json)
+        if json is not None:
+            self.__i3socket.send_json(json)
 
     def __send_stopped(self, program):
         """
@@ -325,7 +328,8 @@ class HsWatcher(HsBase):
                                           header, message,
                                           description=description)
 
-        self.__i3socket.send_json(json)
+        if json is not None:
+            self.__i3socket.send_json(json)
 
     def check(self, logpath, sleep_secs=5.0):
         "Check that the watched program is still running"

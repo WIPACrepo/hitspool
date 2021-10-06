@@ -116,7 +116,8 @@ class PingManager(object):
                                           header, "\n".join(mlines),
                                           description=description)
 
-        self.__i3socket.send_json(json)
+        if json is not None:
+            self.__i3socket.send_json(json)
 
     @classmethod
     def __report_missing_pings(cls, missing):
@@ -135,7 +136,8 @@ class PingManager(object):
                                           header, "\n".join(mlines),
                                           description=description)
 
-        self.__i3socket.send_json(json)
+        if json is not None:
+            self.__i3socket.send_json(json)
 
     def __run_thread(self):
         self.__running = True

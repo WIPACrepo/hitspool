@@ -757,7 +757,8 @@ class RequestMonitor(threading.Thread):
         # send Live alert JSON for email notification:
         alertjson = self.__build_json_email(start_ticks, stop_ticks, prefix,
                                             extract)
-        self.__sender.i3socket.send_json(alertjson)
+        if alertjson is not None:
+            self.__sender.i3socket.send_json(alertjson)
 
     def add_message(self, msg, force_spade):
         if not isinstance(msg, tuple) or not hasattr(msg, "_fields"):

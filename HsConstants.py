@@ -16,7 +16,7 @@ INTERVAL = HSFILE_SECONDS * TICKS_PER_SECOND
 
 # Email address which received email for the hitspool developer(s)
 ALERT_EMAIL_DEV = [
-    "dglo+hsdev@icecube.wisc.edu",
+    "tim.bendfelt@icecube.wisc.edu",
     "i3.hsinterface@gmail.com",
 ]
 # Email address which received email for the Supernova group
