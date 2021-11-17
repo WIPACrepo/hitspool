@@ -482,6 +482,8 @@ class CopyUsingSCP(Copier):
            line.startswith("Authenticated to ") or \
            line.startswith("Sending file modes: ") or \
            line.startswith("Credentials cache file") or \
+           line.startswith("No Kerberos") or \
+           (line.startswith("Warning: Permanently added") and line.rstrip().endswith("to the list of known hosts.") ) or \
            line.startswith("Transferred: "):
             return
 
