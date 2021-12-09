@@ -123,7 +123,7 @@ class Copier(object):
             rstr = "%s@%s" % (rmt_user, rmt_host)
         cmd = ["ssh", "-o StrictHostKeyChecking=no", "-o UserKnownHostsFile=/dev/null", rstr, "if [ ! -d \"%s\" ]; then mkdir -p \"%s\"; fi" %
                (rmt_dir, rmt_dir)]
-        for _ in range(3):
+        for _ in range(6):
             # this fails occasionally, possibly due to a wave of processes
             #  all trying to create subdirectories in the same directory
             rtncode = subprocess.call(cmd)
@@ -131,7 +131,7 @@ class Copier(object):
                 return
 
             # wait for this wave to die down before trying again
-            time.sleep(0.1)
+            time.sleep(0.3)
         raise HsException("Cannot create %s:%s (rtncode=%d)" %
                           (rstr, rmt_dir, rtncode))
 
@@ -240,7 +240,7 @@ class CopyUsingRSync(Copier):
             #
             # Alma8 rsync (rsync  version 3.1.3  protocol version 31)
             # sending daemon args: --server -vvlogDtpre.iLsfxC "--log-format=%i" --bwlimit=1000 . hitspool/TJB_20211005_162545_ichub29/
-            if line.endswith("(6 args)"):
+            if line.rstrip().endswith("(6 args)"):
                 args =line[splitidx:-9].split()
             else:
                 args = line[splitidx:].split()
