@@ -564,14 +564,14 @@ class HsRSyncFiles(HsBase):
         files = source_list[:]
         for i in range(2):
             if i == 0:
-                copier = CopyUsingSCP(rsync_user, rsync_host, rsync_dir,
-                                      timetag_dir, bwlimit=bwlimit,
-                                      log_format=log_format, relative=relative)
-            else:
-                copier = CopyUsingRSync(rsync_user, rsync_host, rsync_dir,
+                 copier = CopyUsingRSync(rsync_user, rsync_host, rsync_dir,
                                         timetag_dir, use_daemon=use_daemon,
                                         bwlimit=bwlimit, log_format=log_format,
                                         relative=relative)
+            else:
+                copier = CopyUsingSCP(rsync_user, rsync_host, rsync_dir,
+                                      timetag_dir, bwlimit=bwlimit,
+                                      log_format=log_format, relative=relative)
 
             try:
                 failed = copier.copy(files, request=req,
