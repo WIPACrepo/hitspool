@@ -62,7 +62,7 @@ HitSpoolPath=/mnt/data/pdaqlocal/HsInterface/current
         if hostname == "expcont":
             return "HsPublisher"
 
-        if "hub" in hostname or hostname == "scube":
+        if "hub" in hostname or hostname == "scube" or hostname == "dmice":
             return "HsWorker"
 
         raise Exception("Unknown HitSpool host \"%s\"" % hostname)
@@ -290,7 +290,7 @@ class SouthPoleSystem(BaseSystem):
 class TestSystem(BaseSystem):
     def __init__(self, targets=None):
         if targets is None or len(targets) == 0:
-            targets = ["expcont", "2ndbuild", "ichub21", "ichub29", "ithub01", "scube", "dmice"]
+            targets = ["expcont", "2ndbuild", "ichub21", "ichub29", "scube", "dmice"]
 
         super(TestSystem, self).__init__(targets=targets)
 
