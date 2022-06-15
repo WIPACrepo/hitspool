@@ -403,7 +403,7 @@ class HsWatcher(HsBase):
             return self.create_watchee("HsSender")
         if "expcont" in self.fullhost:
             return self.create_watchee("HsPublisher")
-        if "hub" in self.fullhost or "scube" in self.fullhost:
+        if "hub" in self.fullhost or "scube" in self.fullhost or "dmice" in self.fullhost:
             return self.create_watchee("HsWorker")
         if "david" in self.fullhost:
             return self.create_watchee("HsWorker")

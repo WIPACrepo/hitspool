@@ -74,7 +74,8 @@ class HsSpader(HsBase):
         datalistlocal = [os.path.basename(s) for s in datalist]
 
         hubnamelist = ["ichub%02d" % i for i in range(1, 87)] + \
-                      ["ithub%02d" % i for i in range(1, 12)]
+                      ["ithub%02d" % i for i in range(1, 12)] + \
+                       "dmice"
         for hub in hubnamelist:
             data = [s for s in datalistlocal if hub in s]
             if len(data) != 1:

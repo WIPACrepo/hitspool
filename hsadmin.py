@@ -281,7 +281,8 @@ class SouthPoleSystem(BaseSystem):
         if targets is None or len(targets) == 0:
             targets = ["expcont", "2ndbuild"] + \
                 ["ichub%02d" % i for i in range(1, 87)] + \
-                ["ithub%02d" % i for i in range(1, 12)]
+                ["ithub%02d" % i for i in range(1, 12)] + \
+                "dmice"
 
         super(SouthPoleSystem, self).__init__(targets=targets)
 
@@ -289,7 +290,7 @@ class SouthPoleSystem(BaseSystem):
 class TestSystem(BaseSystem):
     def __init__(self, targets=None):
         if targets is None or len(targets) == 0:
-            targets = ["expcont", "2ndbuild", "ichub21", "ichub29", "ithub01", "scube"]
+            targets = ["expcont", "2ndbuild", "ichub21", "ichub29", "ithub01", "scube", "dmice"]
 
         super(TestSystem, self).__init__(targets=targets)
 

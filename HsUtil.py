@@ -108,6 +108,9 @@ def hub_name_to_id(hostname):
     if name == "scube":
         return 99
 
+    if name == "dmice":
+        return 300
+
     if name.startswith("ichub"):
         offset = 0
     elif name.startswith("ithub"):
