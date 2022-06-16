@@ -282,7 +282,7 @@ class SouthPoleSystem(BaseSystem):
             targets = ["expcont", "2ndbuild"] + \
                 ["ichub%02d" % i for i in range(1, 87)] + \
                 ["ithub%02d" % i for i in range(1, 12)] + \
-                "dmice"
+                ["dmice"]
 
         super(SouthPoleSystem, self).__init__(targets=targets)
 
