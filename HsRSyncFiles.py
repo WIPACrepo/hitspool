@@ -181,7 +181,7 @@ class HsRSyncFiles(HsBase):
 
         if stop_delay > 0.0:
             logging.info("Delay rsync finish by %d seconds", int(stop_delay))
-            self.__delay(start_delay, request=req, update_status=update_status)
+            self.__delay(stop_delay, request=req, update_status=update_status)
 
         if failed:
             return None, tmp_dir
@@ -241,7 +241,7 @@ class HsRSyncFiles(HsBase):
             if delay_time - total_delay > five_minutes:
                 sleep_time = five_minutes
             else:
-                sleep_time = delay_time
+                sleep_time = delay_time - total_delay
 
             # sleep then update the total delay
             time.sleep(sleep_time)
