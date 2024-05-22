@@ -86,6 +86,7 @@ class Copier(object):
                                     start_new_session=True)
 
         num_err = 0
+        stall = True
         while True:
             reads = [proc.stdout.fileno(), proc.stderr.fileno()]
             try:
@@ -96,15 +97,24 @@ class Copier(object):
                     break
                 num_err += 1
                 continue
-
+            
+            nodata True;
             for fin in ret[0]:
                 if fin == proc.stdout.fileno():
+                    nodata = False
                     self.parse_line(proc.stdout.readline().decode("utf-8"))
                 if fin == proc.stderr.fileno():
+                    nodata = False
                     self.parse_line(proc.stderr.readline().decode("utf-8"))
 
             if proc.poll() is not None:
-                break
+                # shoehorn fix to keep looping after the process dies
+                # to get all of the output
+                if stall:
+                    time.sleep(1)
+                    stall = False
+                else if nodata:
+                    break
 
         proc.stdout.close()
         proc.stderr.close()
