@@ -37,6 +37,8 @@ class Copier(object):
         self.__size = None
         self.__unknown_count = 0
 
+        self.__last_chunk_size = None
+
     def build_target(self, rmt_user, rmt_host, rmt_dir, rmt_subdir):
         raise NotImplementedError()
 
