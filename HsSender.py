@@ -325,6 +325,22 @@ class HsSender(HsBase):
 
     def process_one_message(self, sock, force_spade=False):
         mdict = sock.recv_json()
+
+        if sock == self.__alert_socket:
+            # forward verbatim to v2 hitspool
+            logging.info("forwarding request to V2 daemon: %s", mdict)
+            s = self.__context.socket(zmq.REQ)
+            s.setsockopt(zmq.LINGER, 0)
+            s.setsockopt(zmq.RCVTIMEO, 2000)
+            s.setsockopt(zmq.SNDTIMEO, 2000)
+            s.connect(f"tcp://localhost:{25558}")
+            try:
+                s.send_json(mdict)
+                _ = s.recv()
+            except zmq.error.Again as e:
+                pass
+            s.close()
+
         if mdict is None:
             return False
 

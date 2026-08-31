@@ -330,6 +330,20 @@ class Receiver(HsBase):
         alert = self.__alert_socket.recv()
         logging.info("received request:\n%s", alert)
 
+        # forward verbating to v2 hitspool
+        logging.info("forwarding request to V2 daemon", alert)
+        sock = self.__context.socket(zmq.REQ)
+        sock.setsockopt(zmq.LINGER, 0)
+        sock.setsockopt(zmq.RCVTIMEO, 2000)
+        sock.setsockopt(zmq.SNDTIMEO, 2000)
+        sock.connect(f"tcp://localhost:{25557}")
+        try:
+            sock.send(alert)
+            _ = sock.recv()
+        except zmq.error.Again as e:
+            pass
+        sock.close()
+
         # SnDAQ alerts are NOT real JSON so try to eval first
         try:
             alertdict = ast.literal_eval(alert)
