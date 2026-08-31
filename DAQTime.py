@@ -68,6 +68,10 @@ def string_to_ticks(timestr, is_ns=False):
                 raise HsException("Cannot convert \"%s\" to ticks" %
                                   (timestr, ))
 
+        # HOTFIX for wrong HESE time format which appends +00:00 TZ information
+        if timestr.endswith("+00:00"):
+            timestr = timestr[:-len("+00:00")]
+
         try:
             utc = datetime.datetime.strptime(timestr, TIME_FORMAT)
         except ValueError:

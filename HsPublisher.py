@@ -159,6 +159,10 @@ class Receiver(HsBase):
             logging.error("Request did not specify a destination directory")
             return None, True
 
+        # HOTFIX for wrong HESE time format which appends +00:00 TZ information
+        if destdir.endswith("+00:00"):
+            destdir = destdir[:-len("+00:00")]
+
         # split directory into 'user@host' and path
         try:
             hs_ssh_access, hs_ssh_dir \
